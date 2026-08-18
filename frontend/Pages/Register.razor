@@ -1,0 +1,645 @@
+@page "/register"
+@layout WicStock.Web.Layout.AuthLayout
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@inject AuthService AuthService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="auth-page">
+    <div class="d-flex justify-center align-center mud-width-full" style="min-height: 80vh; position: relative; z-index: 1;">
+        <div class="auth-card my-4">
+
+            <div class="auth-header">
+                <span class="brand-mark">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
+                        <path d="M3 8 L21 8 M3 12 L21 12 M3 16 L21 16" stroke="#fff" stroke-width="2" stroke-linecap="round" />
+                        <path d="M7 4 L7 20 M12 4 L12 20 M17 4 L17 20" stroke="rgba(255,255,255,0.55)" stroke-width="1.4" stroke-linecap="round" />
+                    </svg>
+                </span>
+                <MudText Typo="Typo.h4" Align="Align.Center" Class="auth-title">Créer un compte</MudText>
+                <MudText Typo="Typo.body2" Align="Align.Center" Class="auth-subtitle mt-1">
+                    Rejoignez WicStock pour gérer votre inventaire
+                </MudText>
+            </div>
+
+            <EditForm Model="@modele" OnValidSubmit="SInscrire" autocomplete="off">
+                <!-- Champs factices hors écran pour éviter l'autofill du navigateur -->
+                <div style="position: absolute; left: -9999px; top: -9999px; width:1px; height:1px; overflow:hidden;">
+                    <input autocomplete="username" id="fake-username" />
+                    <input type="password" autocomplete="new-password" id="fake-password" />
+                </div>
+                <DataAnnotationsValidator />
+
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="modele.Prenom"
+                                      @bind-Value:after="SurChangementPrenom"
+                                      Label="Prénom *"
+                                      Variant="Variant.Outlined"
+                                      InputAttributes="@(new Dictionary<string, object> { { "autocomplete", "off" } })"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Person"
+                                      OnBlur="@(() => prenomTouche = true)"
+                                      Error="@PrenomInvalide"
+                                      ErrorText="Lettres uniquement (pas de chiffres ni de symboles)."
+                                      Class="soft-field" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="modele.Nom"
+                                      @bind-Value:after="SurChangementNom"
+                                      Label="Nom *"
+                                      Variant="Variant.Outlined"
+                                      InputAttributes="@(new Dictionary<string, object> { { "autocomplete", "off" } })"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Person"
+                                      OnBlur="@(() => nomTouche = true)"
+                                      Error="@NomInvalide"
+                                      ErrorText="Lettres uniquement (pas de chiffres ni de symboles)."
+                                      Class="soft-field" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="modele.Email"
+                                      Label="Adresse email *"
+                                      Variant="Variant.Outlined"
+                                      InputType="InputType.Email"
+                                      InputAttributes="@(new Dictionary<string, object> { { "autocomplete", "off" } })"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Email"
+                                      OnBlur="@(() => emailTouche = true)"
+                                      Error="@EmailInvalide"
+                                      ErrorText="Adresse email invalide (ex: nom@domaine.com)."
+                                      Class="soft-field" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="modele.Telephone"
+                                      @bind-Value:after="SurChangementTelephone"
+                                      Label="Numéro de téléphone"
+                                      Variant="Variant.Outlined"
+                                      InputAttributes="@(new Dictionary<string, object> { { "autocomplete", "off" }, { "inputmode", "numeric" } })"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Phone"
+                                      OnBlur="@(() => telephoneTouche = true)"
+                                      Error="@TelephoneInvalide"
+                                      ErrorText="8 chiffres minimum, uniquement des chiffres."
+                                      Class="soft-field" />
+                    </MudItem>
+
+                    <!-- Mot de passe + confirmation -->
+                    <MudItem xs="12">
+                        <div class="password-wrapper">
+                            <MudTextField @bind-Value="modele.MotDePasse"
+                                          @bind-Value:after="SurChangementMotDePasse"
+                                          Label="Mot de passe *"
+                                          Variant="Variant.Outlined"
+                                          InputType="@passwordInputType"
+                                          InputAttributes="@(new Dictionary<string, object> { { "autocomplete", "new-password" } })"
+                                          Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.Lock"
+                                          OnFocus="SurFocusMotDePasse"
+                                          Class="soft-field password-input" />
+                            <button type="button"
+                                    class="password-toggle-btn"
+                                    @onclick="TogglePasswordVisibility"
+                                    aria-label="Afficher/masquer le mot de passe">
+                                <MudIcon Icon="@passwordIcon" Size="Size.Small" />
+                            </button>
+                        </div>
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="modele.ConfirmationMotDePasse"
+                                      @bind-Value:after="SurChangementConfirmation"
+                                      Label="Confirmer le mot de passe *"
+                                      Variant="Variant.Outlined"
+                                      InputType="@passwordInputType"
+                                      InputAttributes="@(new Dictionary<string, object> { { "autocomplete", "new-password" } })"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.LockReset"
+                                      OnBlur="@(() => confirmationTouche = true)"
+                                      Error="@ConfirmationInvalide"
+                                      ErrorText="Les mots de passe ne correspondent pas."
+                                      Class="soft-field" />
+                    </MudItem>
+
+                    <!-- Checklist politique mot de passe : affichée uniquement pendant la saisie du mot de passe -->
+                    @if (afficherPolitiqueMotDePasse)
+                    {
+                        <MudItem xs="12">
+                            <div class="pwd-policy-hints">
+                                <span class="@PwdHintClass8Chars">
+                                    <MudIcon Icon="@(PwdHas8Chars ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)" Size="Size.Small" />
+                                    8 caractères minimum
+                                </span>
+                                <span class="@PwdHintClassDigit">
+                                    <MudIcon Icon="@(PwdHasDigit ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)" Size="Size.Small" />
+                                    Au moins un chiffre (0-9)
+                                </span>
+                                <span class="@PwdHintClassSpecial">
+                                    <MudIcon Icon="@(PwdHasSpecial ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)" Size="Size.Small" />
+                                    @SpecialHintText
+                                </span>
+                            </div>
+                        </MudItem>
+                    }
+
+                    <!-- Rôle : ToStringFunc affiche un nom propre au lieu de la valeur brute -->
+                    <MudItem xs="12">
+                        <MudSelect T="string" @bind-Value="modele.Role"
+                                   Label="Rôle *"
+                                   Placeholder="Sélectionnez votre rôle"
+                                   Variant="Variant.Outlined"
+                                   Adornment="Adornment.Start"
+                                   AdornmentIcon="@Icons.Material.Filled.Work"
+                                   ToStringFunc="@RoleAffiche"
+                                   Class="soft-field">
+                            <MudSelectItem Value="@("ADMIN")">Admin</MudSelectItem>
+                            <MudSelectItem Value="@("RESPONSABLE_STOCK_PRODUCTION")">Responsable stock &amp; production</MudSelectItem>
+                            <MudSelectItem Value="@("CLIENT")">Client</MudSelectItem>
+                            <MudSelectItem Value="@("LIVREUR")">Livreur</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                </MudGrid>
+
+                @if (!string.IsNullOrEmpty(message))
+                {
+                    <div class="error-alert my-4">@message</div>
+                }
+
+                <button type="submit" class="btn btn--primary btn--full" disabled="@estEnCours">
+                    @if (estEnCours)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Inherit" />
+                    }
+                    else
+                    {
+                        <span>S'inscrire</span>
+                    }
+                </button>
+            </EditForm>
+
+            <div class="auth-footer">
+                <MudText Typo="Typo.body2" Class="footer-text">
+                    Déjà un compte ?
+                    <a href="/login" class="link link--strong">Se connecter</a>
+                </MudText>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .auth-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --ink-placeholder: #A0AAB8;
+        --paper: #FFFFFF;
+        --border-soft: #E1E7EF;
+        --primary: #2B4C7E;
+        --primary-dark: #14263F;
+        --primary-tint: #E7EDF6;
+        --danger: #A23B2E;
+        --danger-tint: #F7E9E6;
+        --radius-sm: 14px;
+        --radius-lg: 26px;
+        --font-display: "Sora", "Inter", sans-serif;
+        --font-body: "Inter", sans-serif;
+        position: relative;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+        font-family: var(--font-body);
+        color: var(--ink);
+        background: transparent;
+    }
+
+        .auth-page .auth-card {
+            width: 100%;
+            max-width: 460px;
+            background: var(--paper);
+            border-radius: var(--radius-lg);
+            padding: 46px 42px;
+            border: none;
+            box-shadow: 0 30px 60px -30px rgba(43,76,126,0.25), 0 2px 8px rgba(22,35,58,0.04);
+        }
+
+        .auth-page .auth-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .auth-page .brand-mark {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background: var(--primary);
+            margin-bottom: 18px;
+            box-shadow: 0 10px 22px -8px rgba(43,76,126,0.45);
+        }
+
+        .auth-page .auth-title {
+            font-family: var(--font-display);
+            font-weight: 700;
+            color: var(--ink);
+            letter-spacing: -0.02em;
+        }
+
+        .auth-page .auth-subtitle {
+            color: var(--ink-muted);
+        }
+
+        .auth-page .soft-field .mud-input-outlined-border {
+            border-radius: var(--radius-sm) !important;
+            border-color: var(--border-soft) !important;
+            border-width: 1.5px !important;
+        }
+
+        .auth-page .soft-field:hover .mud-input-outlined-border {
+            border-color: var(--primary) !important;
+        }
+
+        .auth-page .soft-field:focus-within .mud-input-outlined-border {
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 3px var(--primary-tint);
+        }
+
+        .auth-page .soft-field .mud-input-label {
+            color: var(--ink-muted) !important;
+        }
+
+            .auth-page .soft-field:focus-within .mud-input-label,
+            .auth-page .soft-field .mud-input-label.mud-input-label-outlined.mud-shrink {
+                color: var(--primary) !important;
+            }
+
+        .auth-page .soft-field .mud-icon-root {
+            color: var(--ink-muted);
+        }
+
+        .auth-page .soft-field:focus-within .mud-icon-root {
+            color: var(--primary);
+        }
+
+        .auth-page .soft-field .mud-input-root {
+            padding-top: 14px;
+            padding-bottom: 14px;
+        }
+
+        .auth-page .password-wrapper {
+            position: relative;
+        }
+
+        .auth-page .password-toggle-btn {
+            position: absolute;
+            top: 50%;
+            right: 14px;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--ink-muted);
+            z-index: 2;
+        }
+
+            .auth-page .password-toggle-btn:hover {
+                color: var(--primary);
+            }
+
+        .auth-page .password-input input {
+            padding-right: 40px !important;
+        }
+
+        .auth-page .link {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+            .auth-page .link:hover {
+                text-decoration: underline;
+            }
+
+        .auth-page .link--strong {
+            font-weight: 600;
+        }
+
+        .auth-page .error-alert {
+            background: var(--danger-tint);
+            color: var(--danger);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .auth-page .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: none;
+            border-radius: var(--radius-sm);
+            padding: 14px 20px;
+            font-family: var(--font-body);
+            font-weight: 600;
+            font-size: 0.9375rem;
+            cursor: pointer;
+            transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+            margin-top: 24px;
+        }
+
+        .auth-page .btn--full {
+            width: 100%;
+        }
+
+        .auth-page .btn--primary {
+            background: var(--primary);
+            color: #fff;
+            box-shadow: 0 6px 16px -6px rgba(43,76,126,0.4);
+        }
+
+            .auth-page .btn--primary:hover:not(:disabled) {
+                background: var(--primary-dark);
+                transform: translateY(-1px);
+            }
+
+            .auth-page .btn--primary:disabled {
+                opacity: 0.7;
+                cursor: not-allowed;
+                transform: none;
+            }
+
+        .auth-page .auth-footer {
+            text-align: center;
+            margin-top: 28px;
+            padding-top: 22px;
+            border-top: 1px solid var(--border-soft);
+        }
+
+        .auth-page .pwd-policy-hints {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 10px 14px;
+            background: var(--primary-tint);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-soft);
+            animation: pwdHintsFadeIn 0.18s ease-out;
+        }
+
+    @@keyframes pwdHintsFadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-4px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .auth-page .pwd-hint {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+        transition: color 0.2s ease;
+    }
+
+        .auth-page .pwd-hint.hint--ok {
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        .auth-page .pwd-hint .mud-icon-root {
+            font-size: 1rem !important;
+            width: 1rem;
+            height: 1rem;
+        }
+
+    @@media (prefers-reduced-motion: reduce) {
+        .auth-page .btn {
+            transition: none;
+        }
+    }
+</style>
+
+@code {
+    private RegisterDto modele = new();
+    private string? message;
+    private bool afficherMotDePasse = false;
+    private bool estEnCours = false;
+    private InputType passwordInputType = InputType.Password;
+    private string passwordIcon = Icons.Material.Filled.VisibilityOff;
+
+    // Contrôle l'affichage du bloc de règles du mot de passe :
+    // il n'apparaît que lorsque l'utilisateur commence à saisir son mot de passe,
+    // et disparaît si le champ redevient vide.
+    private bool afficherPolitiqueMotDePasse = false;
+
+    private static readonly string SpecialChars = "!@#$%^&*()-_=+[]{}|;:',.<>?/`~";
+    private static readonly string SpecialHintText = "Au moins un caractère spécial (!, @, #, $, %, ^ ...)";
+
+    // Regex centralisées : utilisées à la fois pour la validation en temps réel (sous chaque champ)
+    // et pour la validation finale au moment de la soumission (SInscrire), afin d'éviter la duplication.
+    private static readonly System.Text.RegularExpressions.Regex NomRegex =
+        new(@"^[a-zA-ZÀ-ÿ\s'-]+$");
+
+    private static readonly System.Text.RegularExpressions.Regex EmailRegex =
+        new(@"^[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}$");
+
+    // Uniquement des chiffres, 8 minimum (pas d'espace, pas de +, pas de symboles)
+    private static readonly System.Text.RegularExpressions.Regex TelephoneRegex =
+        new(@"^[0-9]{8,}$");
+
+    private bool PwdHas8Chars => (modele.MotDePasse?.Length ?? 0) >= 8;
+    private bool PwdHasDigit => modele.MotDePasse?.Any(char.IsDigit) == true;
+    private bool PwdHasSpecial => modele.MotDePasse?.Any(c => SpecialChars.Contains(c)) == true;
+
+    private string PwdHintClass8Chars => "pwd-hint" + (PwdHas8Chars ? " hint--ok" : "");
+    private string PwdHintClassDigit => "pwd-hint" + (PwdHasDigit ? " hint--ok" : "");
+    private string PwdHintClassSpecial => "pwd-hint" + (PwdHasSpecial ? " hint--ok" : "");
+
+    // --- États "champ touché" : évite d'afficher une erreur avant que l'utilisateur n'ait interagi ---
+    private bool prenomTouche = false;
+    private bool nomTouche = false;
+    private bool emailTouche = false;
+    private bool telephoneTouche = false;
+    private bool confirmationTouche = false;
+
+    // --- Propriétés d'invalidité utilisées par Error / ErrorText des MudTextField ---
+    private bool PrenomInvalide =>
+        prenomTouche && !string.IsNullOrWhiteSpace(modele.Prenom) && !NomRegex.IsMatch(modele.Prenom.Trim());
+
+    private bool NomInvalide =>
+        nomTouche && !string.IsNullOrWhiteSpace(modele.Nom) && !NomRegex.IsMatch(modele.Nom.Trim());
+
+    private bool EmailInvalide =>
+        emailTouche && !string.IsNullOrWhiteSpace(modele.Email) && !EmailRegex.IsMatch(modele.Email.Trim());
+
+    private bool TelephoneInvalide =>
+        telephoneTouche && !string.IsNullOrWhiteSpace(modele.Telephone) && !TelephoneRegex.IsMatch(modele.Telephone.Trim());
+
+    private bool ConfirmationInvalide =>
+        confirmationTouche && !string.IsNullOrWhiteSpace(modele.ConfirmationMotDePasse) && modele.ConfirmationMotDePasse != modele.MotDePasse;
+
+    private void SurChangementPrenom() => prenomTouche = true;
+    private void SurChangementNom() => nomTouche = true;
+    private void SurChangementTelephone() => telephoneTouche = true;
+    private void SurChangementConfirmation() => confirmationTouche = true;
+
+    // Appelé quand le champ mot de passe reçoit le focus : on affiche les règles
+    // (même si le champ est encore vide, dès que l'utilisateur commence à interagir).
+    private void SurFocusMotDePasse()
+    {
+        afficherPolitiqueMotDePasse = true;
+    }
+
+    // Appelé à chaque modification du contenu du champ mot de passe.
+    // Si l'utilisateur efface tout le mot de passe, on masque à nouveau le bloc.
+    private void SurChangementMotDePasse()
+    {
+        afficherPolitiqueMotDePasse = !string.IsNullOrEmpty(modele.MotDePasse);
+    }
+
+    private async Task SInscrire()
+    {
+        message = null;
+
+        // 1. Tous les champs sont obligatoires
+        if (string.IsNullOrWhiteSpace(modele.Prenom))
+        {
+            message = "Le prénom est obligatoire.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(modele.Nom))
+        {
+            message = "Le nom est obligatoire.";
+            return;
+        }
+
+        // 2. Nom et Prénom ne contiennent que des lettres
+        if (!NomRegex.IsMatch(modele.Prenom.Trim()))
+        {
+            message = "Le prénom ne doit contenir que des lettres (pas de chiffres ni de symboles).";
+            prenomTouche = true;
+            return;
+        }
+
+        if (!NomRegex.IsMatch(modele.Nom.Trim()))
+        {
+            message = "Le nom ne doit contenir que des lettres (pas de chiffres ni de symboles).";
+            nomTouche = true;
+            return;
+        }
+
+        // 3. Email obligatoire et nom de domaine valide (.com, .tn, .fr...)
+        if (string.IsNullOrWhiteSpace(modele.Email))
+        {
+            message = "L'adresse email est obligatoire.";
+            return;
+        }
+
+        if (!EmailRegex.IsMatch(modele.Email.Trim()))
+        {
+            message = "L'adresse email est invalide et doit se terminer par un nom de domaine valide (ex: .com, .tn, .fr...).";
+            emailTouche = true;
+            return;
+        }
+
+        // 4. Téléphone optionnel : si renseigné, doit être uniquement des chiffres, 8 minimum
+        if (!string.IsNullOrWhiteSpace(modele.Telephone) && !TelephoneRegex.IsMatch(modele.Telephone.Trim()))
+        {
+            message = "Le numéro de téléphone doit contenir uniquement des chiffres, avec un minimum de 8 chiffres.";
+            telephoneTouche = true;
+            return;
+        }
+
+        // 5. Mot de passe
+        if (string.IsNullOrWhiteSpace(modele.MotDePasse) || modele.MotDePasse.Length < 8)
+        {
+            message = "Le mot de passe doit contenir au moins 8 caractères.";
+            return;
+        }
+
+        if (!modele.MotDePasse.Any(char.IsDigit))
+        {
+            message = "Le mot de passe doit contenir au moins un chiffre (0-9).";
+            return;
+        }
+
+        if (!modele.MotDePasse.Any(c => SpecialChars.Contains(c)))
+        {
+            message = "Le mot de passe doit contenir au moins un caractère spécial (!@#$%^&*...).";
+            return;
+        }
+
+        // 6. Confirmation du mot de passe
+        if (modele.MotDePasse != modele.ConfirmationMotDePasse)
+        {
+            message = "Le mot de passe et sa confirmation ne correspondent pas.";
+            confirmationTouche = true;
+            return;
+        }
+
+        // 7. Rôle obligatoire
+        if (string.IsNullOrWhiteSpace(modele.Role))
+        {
+            message = "Veuillez sélectionner votre rôle.";
+            return;
+        }
+
+        estEnCours = true;
+        try
+        {
+            var (succes, msg) = await AuthService.Register(modele);
+            if (succes)
+            {
+                Snackbar.Add("Inscription réussie ! Vous pouvez maintenant vous connecter.", Severity.Success);
+                Navigation.NavigateTo("/login");
+            }
+            else
+            {
+                message = msg;
+            }
+        }
+        finally
+        {
+            estEnCours = false;
+        }
+    }
+
+    private void TogglePasswordVisibility()
+    {
+        afficherMotDePasse = !afficherMotDePasse;
+        passwordInputType = afficherMotDePasse ? InputType.Text : InputType.Password;
+        passwordIcon = afficherMotDePasse ? Icons.Material.Filled.Visibility : Icons.Material.Filled.VisibilityOff;
+    }
+
+    private string RoleAffiche(string? role) => role switch
+    {
+        "ADMIN" => "Admin",
+        "RESPONSABLE_STOCK_PRODUCTION" => "Responsable stock & production",
+        "CLIENT" => "Client",
+        _ => ""
+    };
+}

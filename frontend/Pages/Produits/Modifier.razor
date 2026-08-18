@@ -1,0 +1,420 @@
+@page "/produits/modifier/{Id:int}"
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
+@inject ProduitService ProduitService
+@inject NavigationManager Navigation
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="modifier-produit-page">
+    <MudStack Spacing="5" Style="max-width: 640px; margin: 0 auto;">
+        <div class="d-flex align-center gap-2">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" href="/produits" Class="back-btn" Size="Size.Medium" />
+            <div>
+                <MudText Typo="Typo.h4" Class="page-title">Modifier le produit</MudText>
+                <MudText Typo="Typo.body2" Class="page-subtitle">Modifiez les informations de la référence produit</MudText>
+            </div>
+        </div>
+
+        @if (produit == null)
+        {
+            <div class="d-flex justify-center my-12">
+                <MudProgressCircular Class="loading-spinner" Indeterminate="true" Size="Size.Large" />
+            </div>
+        }
+        else
+        {
+            <div class="form-card">
+                <EditForm Model="@produit" OnValidSubmit="Enregistrer">
+                    <DataAnnotationsValidator />
+
+                    <MudGrid Spacing="4">
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.subtitle2" Class="field-label mb-2">Image de l'article</MudText>
+                            <div class="d-flex align-center gap-4 flex-wrap">
+                                @if (!string.IsNullOrEmpty(imagePreviewUrl))
+                                {
+                                    <div class="image-preview">
+                                        <MudImage Src="@imagePreviewUrl" Width="100" Height="100" Alt="Aperçu" Class="preview-img" />
+                                        <button type="button" class="remove-img-btn" @onclick="SupprimerImage" aria-label="Supprimer l'image">
+                                            <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                                        </button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="upload-placeholder">
+                                        <MudIcon Icon="@Icons.Material.Filled.Image" Size="Size.Large" />
+                                    </div>
+                                }
+
+                                <div class="d-flex flex-column gap-1">
+                                    <label for="fileInput" class="upload-btn">
+                                        <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Small" />
+                                        <span>Modifier l'image</span>
+                                    </label>
+                                    <InputFile id="fileInput" OnChange="OnFileChanged" accept=".jpg,.jpeg,.png,.webp" style="display: none;" />
+                                    <MudText Typo="Typo.caption" Class="hint-text">JPG, PNG ou WEBP (Max. 2 Mo)</MudText>
+                                </div>
+                            </div>
+                        </MudItem>
+
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="produit.Reference"
+                                          Label="Référence"
+                                          Variant="Variant.Outlined"
+                                          Required="true"
+                                          Class="styled-field"
+                                          Placeholder="Ex: TIS-COT-2026" />
+                        </MudItem>
+
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="produit.Nom"
+                                          Label="Nom du produit"
+                                          Variant="Variant.Outlined"
+                                          Required="true"
+                                          Class="styled-field"
+                                          Placeholder="Ex: Coton Biologique Premium" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="produit.TypeTissu"
+                                          Label="Type de tissu"
+                                          Variant="Variant.Outlined"
+                                          Class="styled-field"
+                                          Placeholder="Ex: Coton, Lin, Soie" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6">
+                            <MudSelect @bind-Value="produit.Categorie"
+                                       Label="Catégorie"
+                                       Variant="Variant.Outlined"
+                                       Class="styled-field"
+                                       Placeholder="Choisir une catégorie">
+                                <MudSelectItem Value="@("Jacket")">Jacket</MudSelectItem>
+                                <MudSelectItem Value="@("Pants")">Pants</MudSelectItem>
+                                <MudSelectItem Value="@("Set")">Set</MudSelectItem>
+                                <MudSelectItem Value="@("Shirt")">Shirt</MudSelectItem>
+                                <MudSelectItem Value="@("Dress")">Dress</MudSelectItem>
+                                <MudSelectItem Value="@("Coat")">Coat</MudSelectItem>
+                                <MudSelectItem Value="@("Skirt")">Skirt</MudSelectItem>
+                                <MudSelectItem Value="@("Shorts")">Shorts</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField @bind-Value="produit.Stock!.QuantiteActuelle"
+                                             Label="Quantité en stock (articles)"
+                                             Variant="Variant.Outlined"
+                                             Min="0"
+                                             Class="styled-field"
+                                             Placeholder="Ex: 250" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField @bind-Value="produit.PrixUnitaire"
+                                             Label="Prix unitaire de vente (DT)"
+                                             Variant="Variant.Outlined"
+                                             Min="0m"
+                                             Step="0.50m"
+                                             Format="F2"
+                                             Class="styled-field"
+                                             Placeholder="Ex: 49.90" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="produit.CycleDeVie"
+                                           Label="Cycle de vie"
+                                           Variant="Variant.Outlined"
+                                           Class="styled-field"
+                                           Placeholder="Ex: Actif, Obsolète" />
+                        </MudItem>
+
+                        <MudItem xs="12">
+                            <MudCheckBox @bind-Value="produit.DisponibleSurCommande"
+                                         Label="Autoriser les commandes même hors stock (sur commande)"
+                                         Color="Color.Primary" />
+                            <MudText Typo="Typo.caption" Class="hint-text">
+                                Si coché, les clients pourront commander ce produit même à stock zéro ou insuffisant.
+                            </MudText>
+                        </MudItem>
+                    </MudGrid>
+
+                    <div class="d-flex justify-end gap-3 mt-6">
+                        <button type="button" class="btn btn--outline" @onclick='() => Navigation.NavigateTo("/produits")'>
+                            Annuler
+                        </button>
+                        <button type="submit" class="btn btn--primary" disabled="@isSaving">
+                            @(isSaving ? "Enregistrement..." : "Enregistrer les modifications")
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        }
+    </MudStack>
+</div>
+
+<style>
+    .modifier-produit-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --sand: #F3F6FA;
+        --border: #E1E7EF;
+        --denim: #2B4C7E;
+        --denim-dark: #14263F;
+        --denim-tint: #E7EDF6;
+        --rust: #A23B2E;
+        --rust-tint: #F7E9E6;
+        --radius-sm: 8px;
+        --radius-lg: 16px;
+        --font-display: "Sora", "Inter", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        font-family: var(--font-body);
+        color: var(--ink);
+    }
+
+        .modifier-produit-page .loading-spinner {
+            color: var(--denim);
+        }
+
+        .modifier-produit-page .back-btn {
+            color: var(--ink-muted) !important;
+        }
+
+            .modifier-produit-page .back-btn:hover {
+                color: var(--denim) !important;
+                background: var(--denim-tint) !important;
+            }
+
+        .modifier-produit-page .page-title {
+            font-family: var(--font-display);
+            font-weight: 700;
+            color: var(--ink);
+            letter-spacing: -0.02em;
+        }
+
+        .modifier-produit-page .page-subtitle {
+            color: var(--ink-muted);
+        }
+
+        .modifier-produit-page .form-card {
+            background: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            box-shadow: 0 1px 3px rgba(20,38,63,0.06);
+        }
+
+        .modifier-produit-page .field-label {
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .modifier-produit-page .hint-text {
+            color: var(--ink-muted);
+        }
+
+        .modifier-produit-page .styled-field .mud-input-outlined-border {
+            border-radius: var(--radius-sm) !important;
+            border-color: var(--border) !important;
+        }
+
+        .modifier-produit-page .styled-field .mud-input-outlined.mud-shrink .mud-input-outlined-border,
+        .modifier-produit-page .styled-field:focus-within .mud-input-outlined-border {
+            border-color: var(--denim) !important;
+        }
+
+        .modifier-produit-page .styled-field .mud-input-label.mud-input-label-outlined.mud-shrink {
+            color: var(--denim) !important;
+        }
+
+        .modifier-produit-page .upload-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100px;
+            height: 100px;
+            background: var(--sand);
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-lg);
+            color: var(--ink-muted);
+        }
+
+        .modifier-produit-page .image-preview {
+            position: relative;
+        }
+
+        .modifier-produit-page .preview-img {
+            border-radius: var(--radius-lg);
+            object-fit: cover;
+            border: 1px solid var(--border);
+        }
+
+        .modifier-produit-page .remove-img-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--paper);
+            color: var(--rust);
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(20,38,63,0.15);
+        }
+
+            .modifier-produit-page .remove-img-btn:hover {
+                background: var(--rust-tint);
+            }
+
+        .modifier-produit-page .upload-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            height: 34px;
+            padding: 0 14px;
+            background: var(--denim);
+            color: #fff;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-body);
+            font-weight: 600;
+            font-size: 0.8125rem;
+            cursor: pointer;
+            width: fit-content;
+            transition: background 0.15s ease;
+        }
+
+            .modifier-produit-page .upload-btn:hover {
+                background: var(--denim-dark);
+            }
+
+        .modifier-produit-page .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-body);
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            border: none;
+            transition: all 0.15s ease;
+        }
+
+            .modifier-produit-page .btn:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+        .modifier-produit-page .btn--primary {
+            background: var(--denim);
+            color: #fff;
+            box-shadow: 0 6px 16px -6px rgba(43,76,126,0.4);
+        }
+
+            .modifier-produit-page .btn--primary:hover:not(:disabled) {
+                background: var(--denim-dark);
+            }
+
+        .modifier-produit-page .btn--outline {
+            background: transparent;
+            color: var(--ink-muted);
+            border: 1px solid var(--border);
+        }
+
+            .modifier-produit-page .btn--outline:hover {
+                border-color: var(--denim);
+                color: var(--denim);
+            }
+</style>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private ProduitDto? produit;
+    private string? imagePreviewUrl;
+    private bool isSaving = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        produit = await ProduitService.ObtenirParId(Id);
+        if (produit == null)
+        {
+            Snackbar.Add("Produit introuvable.", Severity.Error);
+            Navigation.NavigateTo("/produits");
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(produit.ImageUrl))
+        {
+            imagePreviewUrl = $"{Http.BaseAddress}{produit.ImageUrl.TrimStart('/')}";
+        }
+
+        if (produit.Stock == null)
+        {
+            produit.Stock = new StockDto();
+        }
+    }
+
+    private async Task OnFileChanged(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            var format = file.ContentType;
+            var resizedImage = await file.RequestImageFileAsync(format, 400, 400);
+            var buffer = new byte[resizedImage.Size];
+            using (var stream = resizedImage.OpenReadStream(2 * 1024 * 1024))
+            {
+                await stream.ReadAsync(buffer);
+            }
+
+            produit!.ImageBase64 = $"data:{format};base64,{Convert.ToBase64String(buffer)}";
+            imagePreviewUrl = produit.ImageBase64;
+        }
+    }
+
+    private void SupprimerImage()
+    {
+        if (produit != null)
+        {
+            produit.ImageBase64 = null;
+            produit.ImageUrl = null;
+        }
+        imagePreviewUrl = null;
+    }
+
+    private async Task Enregistrer()
+    {
+        if (produit == null) return;
+
+        isSaving = true;
+        var succes = await ProduitService.Modifier(Id, produit);
+        isSaving = false;
+
+        if (succes)
+        {
+            Snackbar.Add("Produit modifié avec succès !", Severity.Success);
+            Navigation.NavigateTo("/produits");
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors de la modification du produit.", Severity.Error);
+        }
+    }
+}

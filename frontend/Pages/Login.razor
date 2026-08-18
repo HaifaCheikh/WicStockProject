@@ -1,0 +1,403 @@
+@page "/login"
+@layout WicStock.Web.Layout.AuthLayout
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="auth-page">
+    <div class="d-flex justify-center align-center mud-width-full" style="min-height: 80vh; position: relative; z-index: 1;">
+        <div class="auth-card">
+            <div class="auth-header">
+                <span class="brand-mark">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
+                        <path d="M3 8 L21 8 M3 12 L21 12 M3 16 L21 16" stroke="#fff" stroke-width="2" stroke-linecap="round" />
+                        <path d="M7 4 L7 20 M12 4 L12 20 M17 4 L17 20" stroke="rgba(255,255,255,0.55)" stroke-width="1.4" stroke-linecap="round" />
+                    </svg>
+                </span>
+                <MudText Typo="Typo.h4" Align="Align.Center" Class="auth-title">Bon retour !</MudText>
+                <MudText Typo="Typo.body2" Align="Align.Center" Class="auth-subtitle mt-1">
+                    Connectez-vous pour gérer votre inventaire WicStock
+                </MudText>
+            </div>
+
+            <EditForm Model="@modele" OnValidSubmit="SeConnecter">
+                <DataAnnotationsValidator />
+
+                <MudTextField @bind-Value="modele.Email"
+                              Label="Adresse email"
+                              Variant="Variant.Outlined"
+                              InputType="InputType.Email"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Email"
+                              Class="soft-field mb-4" />
+
+                <div class="password-wrapper mb-2">
+                    <MudTextField @bind-Value="modele.MotDePasse"
+                                  Label="Mot de passe"
+                                  Variant="Variant.Outlined"
+                                  InputType="@passwordInputType"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Lock"
+                                  Class="soft-field password-input" />
+                    <button type="button"
+                            class="password-toggle-btn"
+                            @onclick="TogglePasswordVisibility"
+                            aria-label="Afficher/masquer le mot de passe">
+                        <MudIcon Icon="@passwordIcon" Size="Size.Small" />
+                    </button>
+                </div>
+
+                <div class="d-flex justify-end mb-4">
+                    <a href="/forgot-password" class="link">Mot de passe oublié ?</a>
+                </div>
+
+                <div id="turnstile-widget" class="mb-4"></div>
+
+                @if (!string.IsNullOrEmpty(message))
+                {
+                    <div class="error-alert my-4">@message</div>
+                }
+
+                <button type="submit" class="btn btn--primary btn--full" disabled="@(string.IsNullOrEmpty(captchaToken) || isSubmitting)">
+                    @(isSubmitting ? "Connexion en cours..." : "Se connecter")
+                </button>
+            </EditForm>
+
+            <div class="auth-footer">
+                <MudText Typo="Typo.body2" Class="footer-text">
+                    Pas encore de compte ?
+                    <a href="/register" class="link link--strong">Créer un compte</a>
+                </MudText>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .auth-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --border-soft: #E1E7EF;
+        --primary: #2B4C7E;
+        --primary-dark: #14263F;
+        --primary-tint: #E7EDF6;
+        --danger: #A23B2E;
+        --danger-tint: #F7E9E6;
+        --radius-sm: 14px;
+        --radius-lg: 26px;
+        --font-display: "Sora", "Inter", sans-serif;
+        --font-body: "Inter", sans-serif;
+        position: relative;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+        font-family: var(--font-body);
+        color: var(--ink);
+        background: transparent;
+    }
+
+        .auth-page .auth-card {
+            width: 100%;
+            max-width: 440px;
+            background: var(--paper);
+            border: none;
+            border-radius: var(--radius-lg);
+            padding: 44px 40px;
+            box-shadow: 0 30px 60px -30px rgba(43,76,126,0.25), 0 2px 8px rgba(22,35,58,0.04);
+        }
+
+        .auth-page .auth-header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .auth-page .brand-mark {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background: var(--primary);
+            margin-bottom: 18px;
+            box-shadow: 0 10px 22px -8px rgba(43,76,126,0.45);
+        }
+
+        .auth-page .auth-title {
+            font-family: var(--font-display);
+            font-weight: 700;
+            color: var(--ink);
+            letter-spacing: -0.02em;
+        }
+
+        .auth-page .auth-subtitle {
+            color: var(--ink-muted);
+        }
+
+        .auth-page .soft-field .mud-input-outlined-border {
+            border-radius: var(--radius-sm) !important;
+            border-color: var(--border-soft) !important;
+            border-width: 1.5px !important;
+        }
+
+        .auth-page .soft-field:hover .mud-input-outlined-border {
+            border-color: var(--primary) !important;
+        }
+
+        .auth-page .soft-field:focus-within .mud-input-outlined-border {
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 3px var(--primary-tint);
+        }
+
+        .auth-page .soft-field .mud-input-label {
+            color: var(--ink-muted) !important;
+        }
+
+            .auth-page .soft-field:focus-within .mud-input-label,
+            .auth-page .soft-field .mud-input-label.mud-input-label-outlined.mud-shrink {
+                color: var(--primary) !important;
+            }
+
+        .auth-page .soft-field .mud-icon-root {
+            color: var(--ink-muted);
+        }
+
+        .auth-page .soft-field:focus-within .mud-icon-root {
+            color: var(--primary);
+        }
+
+        .auth-page .soft-field .mud-input-root {
+            padding-top: 14px;
+            padding-bottom: 14px;
+        }
+
+        .auth-page .password-wrapper {
+            position: relative;
+        }
+
+        .auth-page .password-toggle-btn {
+            position: absolute;
+            top: 50%;
+            right: 14px;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--ink-muted);
+            z-index: 2;
+        }
+
+            .auth-page .password-toggle-btn:hover {
+                color: var(--primary);
+            }
+
+        .auth-page .password-input input {
+            padding-right: 40px !important;
+        }
+
+        .auth-page .link {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+            .auth-page .link:hover {
+                text-decoration: underline;
+            }
+
+        .auth-page .link--strong {
+            font-weight: 600;
+        }
+
+        .auth-page .error-alert {
+            background: var(--danger-tint);
+            color: var(--danger);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .auth-page .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: none;
+            border-radius: var(--radius-sm);
+            padding: 14px 20px;
+            font-family: var(--font-body);
+            font-weight: 600;
+            font-size: 0.9375rem;
+            cursor: pointer;
+            transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+            margin-top: 16px;
+        }
+
+        .auth-page .btn--full {
+            width: 100%;
+        }
+
+        .auth-page .btn--primary {
+            background: var(--primary);
+            color: #fff;
+            box-shadow: 0 6px 16px -6px rgba(43,76,126,0.4);
+        }
+
+            .auth-page .btn--primary:hover:not(:disabled) {
+                background: var(--primary-dark);
+                transform: translateY(-1px);
+            }
+
+            .auth-page .btn--primary:disabled {
+                opacity: 0.7;
+                cursor: not-allowed;
+                transform: none;
+            }
+
+        .auth-page .auth-footer {
+            text-align: center;
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-soft);
+        }
+
+        .auth-page .footer-text {
+            color: var(--ink-muted);
+        }
+
+    @@media (prefers-reduced-motion: reduce) {
+        .auth-page .btn {
+            transition: none;
+        }
+    }
+</style>
+
+@code {
+    private LoginDto modele = new();
+    private string? message;
+
+    private bool afficherMotDePasse = false;
+    private InputType passwordInputType = InputType.Password;
+    private string passwordIcon = Icons.Material.Filled.VisibilityOff;
+
+    // Turnstile
+    private const string TurnstileSiteKey = "0x4AAAAAAD_eQGCT9-J51AlE";
+    private string? captchaToken;
+    private string? captchaError;
+    private bool isSubmitting = false;
+    private bool captchaRendered = false;
+    private DotNetObjectReference<object>? dotnetRef;
+
+    private void TogglePasswordVisibility()
+    {
+        afficherMotDePasse = !afficherMotDePasse;
+        passwordInputType = afficherMotDePasse ? InputType.Text : InputType.Password;
+        passwordIcon = afficherMotDePasse ? Icons.Material.Filled.Visibility : Icons.Material.Filled.VisibilityOff;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !captchaRendered)
+        {
+            captchaRendered = true;
+            dotnetRef = DotNetObjectReference.Create<object>(this);
+
+            // Essayer d'appeler l'interop JS plusieurs fois si le script n'est pas encore chargé
+            for (int i = 0; i < 10; i++)
+            {
+                try
+                {
+                    await JS.InvokeVoidAsync("turnstileInterop.render", "turnstile-widget", TurnstileSiteKey, dotnetRef);
+                    break;
+                }
+                catch (JSException)
+                {
+                    // Attendre un court instant puis réessayer
+                    await Task.Delay(200);
+                }
+            }
+        }
+    }
+
+    [JSInvokable]
+    public void OnCaptchaSuccess(string token)
+    {
+        captchaToken = token;
+        captchaError = null;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnCaptchaError()
+    {
+        captchaToken = null;
+        captchaError = "Échec du chargement de la vérification de sécurité. Rechargez la page.";
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnCaptchaExpired()
+    {
+        captchaToken = null;
+        captchaError = "La vérification a expiré, veuillez la refaire.";
+        StateHasChanged();
+    }
+
+    private async Task SeConnecter()
+    {
+        if (string.IsNullOrEmpty(captchaToken))
+        {
+            captchaError = "Merci de compléter la vérification de sécurité.";
+            return;
+        }
+
+        isSubmitting = true;
+        message = null;
+
+        modele.CaptchaToken = captchaToken;
+
+        var (succes, msg) = await AuthService.Login(modele);
+
+        isSubmitting = false;
+
+        if (succes)
+        {
+            var role = await AuthService.ObtenirRole();
+            if (role == "CLIENT")
+                Navigation.NavigateTo("/catalogue");
+            else if (role == "LIVREUR")
+                Navigation.NavigateTo("/livraisons");
+            else
+                Navigation.NavigateTo("/produits");
+        }
+        else
+        {
+            message = msg;
+            // Le token Turnstile est à usage unique : on réinitialise le widget après un échec
+            captchaToken = null;
+            await JS.InvokeVoidAsync("turnstileInterop.reset");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        dotnetRef?.Dispose();
+        await Task.CompletedTask;
+    }
+}

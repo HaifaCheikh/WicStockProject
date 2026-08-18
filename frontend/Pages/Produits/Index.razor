@@ -1,0 +1,1658 @@
+﻿@page "/produits"
+@using System.Text.RegularExpressions
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
+@inject ProduitService ProduitService
+@inject CatalogueService CatalogueService
+@inject NavigationManager Navigation
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+
+<PageTitle>Catalogue Produits | WicStock Admin</PageTitle>
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="admin-page">
+    <!-- En-tête -->
+    <div class="admin-hero">
+        <div class="hero-text">
+            <h1 class="page-title">Catalogue des produits</h1>
+            <p class="page-subtitle">Gérez vos références et consultez les recommandations d'analyse IA en temps réel.</p>
+        </div>
+        <div class="hero-actions">
+            <AuthorizeView Roles="RESPONSABLE_STOCK_PRODUCTION,ADMIN">
+                <Authorized>
+                    <button class="btn btn--outline" @onclick='() => Navigation.NavigateTo("/commandes")'>
+                        <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Small" />
+                        <span>Commandes clients</span>
+                        @if (NombreCommandesEnAttente > 0)
+                        {
+                            <span class="order-notif-badge">@NombreCommandesEnAttente</span>
+                        }
+                    </button>
+                    <button class="btn btn--primary" @onclick="AllerVersCreation">
+                        <MudIcon Icon="@Icons.Material.Filled.Add" Size="Size.Small" />
+                        <span>Nouveau produit</span>
+                    </button>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+    </div>
+
+    @if (produits != null && produits.Any())
+    {
+        <!-- STATISTIQUES (cliquables pour filtrer par état de stock) — onglets texte, sans cadre -->
+        <div class="stats-tabs mb-5">
+            <button type="button" class="stat-tab @(statutIaFilter == "" ? "stat-tab--active" : "")" @onclick='() => SelectStatutIA("")'>
+                <span class="stat-tab-label">Tous</span>
+                <span class="stat-tab-count">@produits.Count(p => !p.EstArchive)</span>
+            </button>
+            <button type="button" class="stat-tab stat-tab--rust @(statutIaFilter == "RUPTURE" ? "stat-tab--active" : "")" @onclick='() => SelectStatutIA("RUPTURE")'>
+                <span class="stat-dot"></span>
+                <span class="stat-tab-label">Rupture</span>
+                <span class="stat-tab-count">@produits.Count(p => !p.EstArchive && IsStatutIA(p, "RUPTURE"))</span>
+            </button>
+            <button type="button" class="stat-tab stat-tab--amber @(statutIaFilter == "SURSTOCK" ? "stat-tab--active" : "")" @onclick='() => SelectStatutIA("SURSTOCK")'>
+                <span class="stat-dot"></span>
+                <span class="stat-tab-label">Surstock</span>
+                <span class="stat-tab-count">@produits.Count(p => !p.EstArchive && IsStatutIA(p, "SURSTOCK"))</span>
+            </button>
+            <button type="button" class="stat-tab stat-tab--pine @(statutIaFilter == "OPTIMAL" ? "stat-tab--active" : "")" @onclick='() => SelectStatutIA("OPTIMAL")'>
+                <span class="stat-dot"></span>
+                <span class="stat-tab-label">Normal</span>
+                <span class="stat-tab-count">@produits.Count(p => !p.EstArchive && IsStatutIA(p, "OPTIMAL"))</span>
+            </button>
+            <button type="button" class="stat-tab stat-tab--denim @(statutIaFilter == "SUR_COMMANDE" ? "stat-tab--active" : "")" @onclick='() => SelectStatutIA("SUR_COMMANDE")'>
+                <span class="stat-dot"></span>
+                <span class="stat-tab-label">Sur commande</span>
+                <span class="stat-tab-count">@produits.Count(p => !p.EstArchive && IsStatutIA(p, "SUR_COMMANDE"))</span>
+            </button>
+        </div>
+
+
+        <!-- FILTRES -->
+        <div class="filters-card mb-6">
+            <div class="filters-row">
+                <div class="search-wrap">
+                    <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" Class="search-icon" />
+                    <input class="search-input" placeholder="Rechercher par référence, nom, type..." @bind="searchString" @bind:event="oninput" />
+                </div>
+
+                <select class="filter-select" @bind="categoryFilter">
+                    <option value="">Toutes les catégories</option>
+                    @foreach (var cat in CategoriesDisponibles)
+                    {
+                        <option value="@cat">@cat</option>
+                    }
+                </select>
+
+                <select class="filter-select" @bind="statutIaFilter">
+                    <option value="">Tous les états</option>
+                    <option value="RUPTURE">Rupture</option>
+                    <option value="SURSTOCK">Surstock</option>
+                    <option value="OPTIMAL">Stock normal</option>
+                    <option value="SUR_COMMANDE">Sur commande</option>
+                </select>
+
+                <select class="filter-select" @bind="sortBy">
+                    <option value="STATUT_IA">Trier : Priorité</option>
+                    <option value="NOM">Trier : Nom (A-Z)</option>
+                    <option value="STOCK_ASC">Trier : Stock ↑</option>
+                    <option value="STOCK_DESC">Trier : Stock ↓</option>
+                </select>
+
+                <div class="view-toggle">
+                    <button class="view-toggle-btn @(isGridView ? "active" : "")" @onclick="() => isGridView = true" aria-label="Vue grille" title="Vue grille">
+                        <MudIcon Icon="@Icons.Material.Filled.GridView" Size="Size.Small" />
+                    </button>
+                    <button class="view-toggle-btn @(!isGridView ? "active" : "")" @onclick="() => isGridView = false" aria-label="Vue tableau" title="Vue tableau">
+                        <MudIcon Icon="@Icons.Material.Filled.FormatListBulleted" Size="Size.Small" />
+                    </button>
+                </div>
+            </div>
+
+            <div class="filters-footer">
+                <label class="archive-toggle">
+                    <input type="checkbox" @bind="afficherArchives" />
+                    <span>Afficher les archivés (@produits.Count(p => p.EstArchive))</span>
+                </label>
+                <span class="filter-count">@FilteredProduits.Count() article(s)</span>
+            </div>
+        </div>
+    }
+
+    <!-- Contenu des produits -->
+    @if (produits == null)
+    {
+        <div class="produits-grid">
+            @for (int i = 0; i < 8; i++)
+            {
+                <div class="skeleton-card">
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="176px" Class="skeleton-image" />
+                    <div class="pa-4">
+                        <MudSkeleton Width="70%" Height="20px" Class="mb-2" />
+                        <MudSkeleton Width="45%" Height="16px" />
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else if (!produits.Any())
+    {
+        <div class="empty-card">
+            <MudIcon Icon="@Icons.Material.Filled.Layers" Size="Size.Large" Class="empty-icon" />
+            <h3 class="empty-title">Aucun produit enregistré</h3>
+            <p class="empty-subtitle">Les produits que vous créez apparaîtront ici.</p>
+        </div>
+    }
+    else if (!FilteredProduits.Any())
+    {
+        <div class="empty-card">
+            <MudIcon Icon="@Icons.Material.Filled.FilterAltOff" Size="Size.Large" Class="empty-icon" />
+            <h3 class="empty-title">Aucun produit ne correspond à ce filtre</h3>
+            <p class="empty-subtitle">Essayez de réinitialiser la recherche ou de changer les critères de filtrage.</p>
+        </div>
+    }
+    else if (isGridView)
+    {
+        <div class="produits-grid">
+            @foreach (var prod in FilteredProduits)
+            {
+                <div class="produit-card @(prod.EstArchive ? "produit-card--archive" : "")">
+                    <div class="product-image">
+                        @if (!string.IsNullOrEmpty(prod.ImageUrl))
+                        {
+                            <img src="@GetFullImageUrl(prod.ImageUrl)"
+                                 alt="@prod.Nom"
+                                 class="card-img"
+                                 title="Cliquer pour agrandir"
+                                 @onclick:stopPropagation="true"
+                                 @onclick="() => OuvrirImageAgrandie(GetFullImageUrl(prod.ImageUrl), prod.Nom)" />
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-column align-center justify-center h-100">
+                                <MudIcon Icon="@Icons.Material.Filled.Layers" Style="font-size: 2.75rem; opacity: 0.3;" />
+                                <span class="no-image-label">Aucune image</span>
+                            </div>
+                        }
+                        <span class="ref-code ref-code--overlay">@prod.Reference</span>
+                        <div class="badge-ia-overlay">
+                            @if (prod.EstArchive)
+                            {
+                                <span class="ia-badge ia-badge--archive">Archivé</span>
+                            }
+                            else
+                            {
+                                <BadgeAnalyseIA StatutType="@prod.StatutIAType"
+                                                BadgeText="@prod.StatutIABadgeText"
+                                                OnClickSurstock="() => OuvrirAnalyseIa(prod)" />
+                            }
+                        </div>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="d-flex align-center justify-space-between gap-2">
+                            <strong class="product-title">@prod.Nom</strong>
+                            <span class="product-price">@prod.PrixUnitaire.ToString("0.00") DT</span>
+                        </div>
+
+                        <div class="d-flex align-center gap-1 mt-1">
+                            <MudIcon Icon="@Icons.Material.Filled.Texture" Size="Size.Small" Class="text-muted" />
+                            <span class="product-detail">@(string.IsNullOrEmpty(prod.TypeTissu) ? "Non spécifié" : prod.TypeTissu)</span>
+                        </div>
+
+                        <div class="meta-footer mt-3">
+                            <div class="d-flex align-center gap-2 flex-wrap">
+                                @if (!string.IsNullOrEmpty(prod.Categorie))
+                                {
+                                    <span class="table-cat-tag" style="background:@GetCategoryColor(prod.Categorie)">@prod.Categorie</span>
+                                }
+                                <span class="stock-qty-badge @((prod.Stock?.QuantiteActuelle ?? 0) > 0 ? "stock-qty-ok" : "stock-qty-zero")">
+                                    Stock : @(prod.Stock?.QuantiteActuelle ?? 0)
+                                </span>
+                            </div>
+
+                            <AuthorizeView Roles="RESPONSABLE_STOCK_PRODUCTION,ADMIN" Context="authContext">
+                                <Authorized>
+                                    <div class="d-flex align-center gap-1 card-actions" @onclick:stopPropagation="true">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                       Size="Size.Small"
+                                                       Class="action-btn"
+                                                       href="@($"/produits/modifier/{prod.Id}")" />
+                                        @if (!prod.EstArchive)
+                                        {
+                                            <MudIconButton Icon="@Icons.Material.Filled.Archive"
+                                                           Size="Size.Small"
+                                                           Class="action-btn"
+                                                           Title="Archiver"
+                                                           OnClick="() => DemanderArchivage(prod)" />
+                                        }
+                                        else
+                                        {
+                                            <MudIconButton Icon="@Icons.Material.Filled.Unarchive"
+                                                           Size="Size.Small"
+                                                           Class="action-btn"
+                                                           Title="Désarchiver"
+                                                           OnClick="() => DesarchiverProduit(prod)" />
+                                        }
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                       Size="Size.Small"
+                                                       Class="action-btn action-btn--danger"
+                                                       OnClick="() => DemanderSuppression(prod)" />
+                                    </div>
+                                </Authorized>
+                            </AuthorizeView>
+                        </div>
+
+                        @if (!prod.EstArchive && !string.IsNullOrEmpty(prod.StatutIAActionTexte))
+                        {
+                            <button type="button"
+                                    class="ia-action-line mt-2"
+                                    title="@prod.StatutIAActionTexte"
+                                    @onclick:stopPropagation="true"
+                                    @onclick="() => OuvrirAnalyseIa(prod)">
+                                <span class="ia-action-kicker">IA</span>
+                                <span class="ia-action-text">@GetActionCourte(prod.StatutIAActionTexte)</span>
+                                <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" Class="ia-action-chevron" />
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="table-panel">
+            <MudTable Items="@FilteredProduits" Hover="true" Elevation="0" Class="products-table">
+                <HeaderContent>
+                    <MudTh Style="width: 64px;">Image</MudTh>
+                    <MudTh>Référence</MudTh>
+                    <MudTh>Nom</MudTh>
+                    <MudTh>Type</MudTh>
+                    <MudTh>Catégorie</MudTh>
+                    <MudTh>Stock disponible</MudTh>
+                    <MudTh>État de stock</MudTh>
+                    <MudTh>Cycle de vie</MudTh>
+                    <AuthorizeView Roles="RESPONSABLE_STOCK_PRODUCTION,ADMIN">
+                        <Authorized>
+                            <MudTh Style="text-align: right;">Actions</MudTh>
+                        </Authorized>
+                    </AuthorizeView>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Image">
+                        @if (!string.IsNullOrEmpty(context.ImageUrl))
+                        {
+                            <div class="table-thumb-clickable"
+                                 title="Cliquer pour agrandir"
+                                 @onclick="() => OuvrirImageAgrandie(GetFullImageUrl(context.ImageUrl), context.Nom)">
+                                <MudImage Src="@GetFullImageUrl(context.ImageUrl)" Width="40" Height="40" Alt="@context.Nom" Class="table-thumb" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="table-thumb table-thumb--empty">
+                                <MudIcon Icon="@Icons.Material.Filled.Layers" Size="Size.Small" Style="opacity:0.4;" />
+                            </div>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Référence">
+                        <span class="ref-code">@context.Reference</span>
+                    </MudTd>
+                    <MudTd DataLabel="Nom" Class="cell-name">@context.Nom</MudTd>
+                    <MudTd DataLabel="Type">@context.TypeTissu</MudTd>
+                    <MudTd DataLabel="Catégorie">
+                        <span class="table-cat-tag" style="background:@GetCategoryColor(context.Categorie)">@context.Categorie</span>
+                    </MudTd>
+                    <MudTd DataLabel="Stock disponible">
+                        <span class="stock-qty-badge @((context.Stock?.QuantiteActuelle ?? 0) > 0 ? "stock-qty-ok" : "stock-qty-zero")">
+                            @(context.Stock?.QuantiteActuelle ?? 0)
+                        </span>
+                    </MudTd>
+                    <MudTd DataLabel="État de stock">
+                        @if (context.EstArchive)
+                        {
+                            <span class="ia-badge ia-badge--archive">Archivé</span>
+                        }
+                        else
+                        {
+                            <BadgeAnalyseIA StatutType="@context.StatutIAType"
+                                            BadgeText="@context.StatutIABadgeText"
+                                            OnClickSurstock="() => OuvrirAnalyseIa(context)" />
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Cycle de vie">@context.CycleDeVie</MudTd>
+                    <AuthorizeView Roles="RESPONSABLE_STOCK_PRODUCTION,ADMIN" Context="authContext">
+                        <Authorized>
+                            <MudTd Style="text-align: right;">
+                                <div class="d-flex justify-end gap-1">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Class="action-btn" href="@($"/produits/modifier/{context.Id}")" />
+                                    @if (!context.EstArchive)
+                                    {
+                                        <MudIconButton Icon="@Icons.Material.Filled.Archive" Size="Size.Small" Class="action-btn" Title="Archiver" OnClick="() => DemanderArchivage(context)" />
+                                    }
+                                    else
+                                    {
+                                        <MudIconButton Icon="@Icons.Material.Filled.Unarchive" Size="Size.Small" Class="action-btn" Title="Désarchiver" OnClick="() => DesarchiverProduit(context)" />
+                                    }
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Class="action-btn action-btn--danger" OnClick="() => DemanderSuppression(context)" />
+                                </div>
+                            </MudTd>
+                        </Authorized>
+                    </AuthorizeView>
+                </RowTemplate>
+            </MudTable>
+        </div>
+    }
+</div>
+
+<!-- ===== MODAL CONFIRMATION SUPPRESSION PRODUIT ===== -->
+@if (produitASupprimer != null)
+{
+    <div class="wic-modal-overlay" @onclick="FermerSuppression">
+        <div class="wic-confirm-card" @onclick:stopPropagation="true">
+            <div class="wic-confirm-icon">
+                <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Large" />
+            </div>
+            <h3 class="wic-confirm-title">Supprimer ce produit ?</h3>
+            <p class="wic-confirm-text">
+                Cette action est définitive et ne peut pas être annulée. Le produit
+                <strong>@produitASupprimer.Nom</strong> <span class="ref-code">@produitASupprimer.Reference</span>
+                sera supprimé.
+            </p>
+            <div class="wic-confirm-actions">
+                <button class="btn btn--outline" @onclick="FermerSuppression">Annuler</button>
+                <button class="btn btn--danger" @onclick="ConfirmerSuppression">
+                    <MudIcon Icon="@Icons.Material.Filled.Delete" Size="Size.Small" />
+                    <span>Supprimer</span>
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ===== MODAL CONFIRMATION ARCHIVAGE PRODUIT ===== -->
+@if (produitAArchiver != null)
+{
+    <div class="wic-modal-overlay" @onclick="FermerArchivage">
+        <div class="wic-confirm-card" @onclick:stopPropagation="true">
+            <div class="wic-confirm-icon wic-confirm-icon--amber">
+                <MudIcon Icon="@Icons.Material.Filled.Archive" Size="Size.Large" />
+            </div>
+            <h3 class="wic-confirm-title">Archiver ce produit ?</h3>
+            <p class="wic-confirm-text">
+                <strong>@produitAArchiver.Nom</strong> <span class="ref-code">@produitAArchiver.Reference</span>
+                sera masqué du catalogue actif. Vous pourrez le désarchiver à tout moment.
+            </p>
+            <div class="wic-confirm-actions">
+                <button class="btn btn--outline" @onclick="FermerArchivage">Annuler</button>
+                <button class="btn btn--warning" @onclick="ConfirmerArchivage">
+                    <MudIcon Icon="@Icons.Material.Filled.Archive" Size="Size.Small" />
+                    <span>Archiver</span>
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ===== MODAL ANALYSE IA (RENDUE AU NIVEAU RACINE) ===== -->
+@if (produitPourAnalyse != null)
+{
+    <AnalyseSurstockModal Produit="produitPourAnalyse"
+                          OnClose="() => produitPourAnalyse = null"
+                          OnActionExecuted="ChargerDonnees" />
+}
+
+<!-- ===== VISIONNEUSE D'IMAGE PLEIN ÉCRAN (LIGHTBOX) ===== -->
+@if (!string.IsNullOrEmpty(imageAgrandieUrl))
+{
+    <div class="image-lightbox-overlay" @onclick="FermerImageAgrandie">
+        <button class="lightbox-close-btn" @onclick="FermerImageAgrandie" @onclick:stopPropagation="true" aria-label="Fermer">
+            <MudIcon Icon="@Icons.Material.Filled.Close" />
+        </button>
+        <img src="@imageAgrandieUrl" alt="@imageAgrandieAlt" class="lightbox-img" @onclick:stopPropagation="true" />
+        @if (!string.IsNullOrEmpty(imageAgrandieAlt))
+        {
+            <div class="lightbox-caption">@imageAgrandieAlt</div>
+        }
+    </div>
+}
+
+<style>
+    .admin-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --sand: #F6F8FB;
+        --border: #E7ECF3;
+        --denim: #2B4C7E;
+        --denim-dark: #1E3A63;
+        --denim-soft: #EAF0F8;
+        --rust: #B5563A;
+        --rust-soft: #F9ECE8;
+        --pine: #1E6B4C;
+        --pine-soft: #E4F3EC;
+        --amber: #D97706;
+        --amber-soft: #FEF3C7;
+        --gray-soft: #EEF0F3;
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+        --font-display: "Sora", "Inter", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        font-family: var(--font-body);
+        color: var(--ink);
+    }
+
+        /* ===== En-tête ===== */
+        .admin-page .admin-hero {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+
+        .admin-page .page-title {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.75rem;
+            color: var(--ink);
+            margin: 0 0 6px 0;
+            letter-spacing: -0.02em;
+        }
+
+        .admin-page .page-subtitle {
+            color: var(--ink-muted);
+            font-size: 0.9rem;
+            margin: 0;
+        }
+
+        .admin-page .hero-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* ===== Boutons ===== */
+        .admin-page .btn {
+            border: none;
+            padding: 10px 18px;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-family: var(--font-body);
+            transition: all 0.15s ease;
+            position: relative;
+        }
+
+            .admin-page .btn:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+        .admin-page .btn--primary {
+            background: var(--denim);
+            color: #fff;
+            box-shadow: 0 2px 6px rgba(43, 76, 126, 0.25);
+        }
+
+            .admin-page .btn--primary:hover:not(:disabled) {
+                background: var(--denim-dark);
+                box-shadow: 0 4px 12px rgba(43, 76, 126, 0.35);
+                transform: translateY(-1px);
+            }
+
+        .admin-page .btn--outline {
+            background: #fff;
+            border: 1.5px solid var(--border);
+            color: var(--ink);
+        }
+
+            .admin-page .btn--outline:hover:not(:disabled) {
+                border-color: var(--denim);
+                color: var(--denim);
+                background: var(--denim-soft);
+            }
+
+    /* La modale de confirmation est rendue hors de .admin-page dans le DOM :
+               les variables CSS de .admin-page ne sont pas héritées ici, donc on
+               fige les couleurs en valeurs fixes plutôt que d'utiliser var(...). */
+    .wic-confirm-actions .btn--primary {
+        background: #2B4C7E;
+        color: #fff;
+        box-shadow: 0 2px 6px rgba(43, 76, 126, 0.3);
+    }
+
+        .wic-confirm-actions .btn--primary:hover {
+            background: #1E3A63;
+        }
+
+    .wic-confirm-actions .btn--outline {
+        background: #fff;
+        border: 1.5px solid #E7ECF3;
+        color: #16233A;
+    }
+
+        .wic-confirm-actions .btn--outline:hover {
+            background: #EAF0F8;
+            border-color: #2B4C7E;
+        }
+
+    .wic-confirm-actions .btn--danger {
+        background: #B5563A;
+        color: #fff;
+        box-shadow: 0 2px 6px rgba(181, 86, 58, 0.25);
+    }
+
+        .wic-confirm-actions .btn--danger:hover {
+            background: #96412A;
+        }
+
+    .wic-confirm-actions .btn--warning {
+        background: #D97706;
+        color: #fff;
+        box-shadow: 0 2px 6px rgba(217, 119, 6, 0.25);
+    }
+
+        .wic-confirm-actions .btn--warning:hover {
+            background: #B45309;
+        }
+
+    .admin-page .order-notif-badge {
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        border-radius: 10px;
+        background: var(--rust);
+        color: #fff;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+    }
+
+    /* ===== Onglets de statistiques (texte, sans cadre ni fond) ===== */
+    .admin-page .stats-tabs {
+        display: flex;
+        align-items: center;
+        gap: 26px;
+        border-bottom: 1px solid var(--border);
+        overflow-x: auto;
+    }
+
+    .admin-page .stat-tab {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        background: none;
+        border: none;
+        padding: 4px 2px 12px;
+        cursor: pointer;
+        font-family: var(--font-body);
+        white-space: nowrap;
+    }
+
+    .admin-page .stat-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--ink-muted);
+        opacity: 0.5;
+        flex-shrink: 0;
+    }
+
+    .admin-page .stat-tab--rust .stat-dot {
+        background: var(--rust);
+    }
+
+    .admin-page .stat-tab--amber .stat-dot {
+        background: var(--amber);
+    }
+
+    .admin-page .stat-tab--pine .stat-dot {
+        background: var(--pine);
+    }
+
+    .admin-page .stat-tab--denim .stat-dot {
+        background: var(--denim);
+    }
+
+    .admin-page .stat-tab-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+        transition: color 0.15s ease;
+    }
+
+    .admin-page .stat-tab-count {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 0.85rem;
+        color: var(--ink-muted);
+        transition: color 0.15s ease;
+    }
+
+    .admin-page .stat-tab:hover .stat-tab-label,
+    .admin-page .stat-tab:hover .stat-tab-count {
+        color: var(--ink);
+    }
+
+    .admin-page .stat-tab--active .stat-tab-label,
+    .admin-page .stat-tab--active .stat-tab-count {
+        color: var(--ink);
+    }
+
+    .admin-page .stat-tab--active::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -1px;
+        height: 2px;
+        border-radius: 2px;
+        background: var(--denim);
+    }
+
+    .admin-page .stat-tab--rust.stat-tab--active::after {
+        background: var(--rust);
+    }
+
+    .admin-page .stat-tab--amber.stat-tab--active::after {
+        background: var(--amber);
+    }
+
+    .admin-page .stat-tab--pine.stat-tab--active::after {
+        background: var(--pine);
+    }
+
+    .admin-page .stat-tab--denim.stat-tab--active::after {
+        background: var(--denim);
+    }
+
+    /* ===== Filtres ===== */
+    .admin-page .filters-card {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 14px 16px;
+    }
+
+    .admin-page .filters-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .admin-page .filter-select {
+        border: 1.5px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 8px 12px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        font-family: var(--font-body);
+        color: var(--ink);
+        background: var(--paper);
+        cursor: pointer;
+        outline: none;
+        min-width: 150px;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+        .admin-page .filter-select:focus {
+            border-color: var(--denim);
+            box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.12);
+        }
+
+    .admin-page .search-wrap {
+        position: relative;
+        flex: 1 1 220px;
+        min-width: 200px;
+    }
+
+    .admin-page .search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--ink-muted);
+        pointer-events: none;
+    }
+
+    .admin-page .search-input {
+        width: 100%;
+        border: 1.5px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 8px 14px 8px 36px;
+        font-size: 0.85rem;
+        font-family: var(--font-body);
+        color: var(--ink);
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+        .admin-page .search-input:focus {
+            border-color: var(--denim);
+            box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.12);
+        }
+
+    .admin-page .view-toggle {
+        display: flex;
+        gap: 2px;
+        padding: 3px;
+        background: var(--sand);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        margin-left: auto;
+    }
+
+    .admin-page .view-toggle-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: transparent;
+        border-radius: 6px;
+        color: var(--ink-muted);
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease;
+    }
+
+        .admin-page .view-toggle-btn.active {
+            background: var(--paper);
+            color: var(--denim);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+        }
+
+    .admin-page .filters-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+        flex-wrap: wrap;
+    }
+
+    .admin-page .archive-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+        cursor: pointer;
+        white-space: nowrap;
+        user-select: none;
+    }
+
+        .admin-page .archive-toggle input[type="checkbox"] {
+            accent-color: var(--denim);
+            cursor: pointer;
+        }
+
+    .admin-page .filter-count {
+        font-size: 0.8rem;
+        color: var(--ink-muted);
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    /* ===== Grille des produits ===== */
+    .admin-page .produits-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 16px;
+    }
+
+    .admin-page .skeleton-card,
+    .admin-page .produit-card {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(22, 35, 58, 0.04);
+    }
+
+    .admin-page .produit-card {
+        display: flex;
+        flex-direction: column;
+        transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+    }
+
+        .admin-page .produit-card:hover {
+            box-shadow: 0 10px 24px -12px rgba(22, 35, 58, 0.22);
+            transform: translateY(-2px);
+            border-color: #D5DEEA;
+        }
+
+    .admin-page .produit-card--archive {
+        opacity: 0.6;
+    }
+
+        .admin-page .produit-card--archive:hover {
+            opacity: 1;
+        }
+
+    .admin-page .product-image {
+        position: relative;
+        width: 100%;
+        height: 176px;
+        background: var(--sand);
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .admin-page .card-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        cursor: zoom-in;
+        transition: transform 0.3s ease;
+    }
+
+    .admin-page .produit-card:hover .card-img {
+        transform: scale(1.04);
+    }
+
+    .admin-page .no-image-label {
+        font-size: 0.75rem;
+        color: var(--ink-muted);
+        margin-top: 4px;
+    }
+
+    .admin-page .ref-code {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        color: var(--denim);
+        background: var(--denim-soft);
+        padding: 3px 9px;
+        border-radius: 5px;
+        font-weight: 600;
+    }
+
+    .admin-page .ref-code--overlay {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(22, 35, 58, 0.85);
+        color: #fff;
+    }
+
+    .admin-page .badge-ia-overlay {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 2;
+    }
+
+    /* ===== Badges d'état de stock IA (anciennes couleurs conservées) ===== */
+    .admin-page .ia-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-family: var(--font-body);
+        font-size: 0.725rem;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 999px;
+        white-space: nowrap;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        transition: transform 0.15s ease;
+    }
+
+        .admin-page .ia-badge:hover {
+            transform: translateY(-1px);
+        }
+
+    .admin-page .ia-badge--rupture {
+        background: #FEE2E2;
+        color: #991B1B;
+        border: 1px solid #FCA5A5;
+    }
+
+    .admin-page .ia-badge--sur_commande {
+        background: var(--denim-soft);
+        color: var(--denim);
+        border: 1px solid #93A8C4;
+    }
+
+    .admin-page .ia-badge--surstock {
+        background: #FFEDD5;
+        color: #9A3412;
+        border: 1px solid #FDBA74;
+    }
+
+    .admin-page .ia-badge--optimal {
+        background: #DCFCE7;
+        color: #166534;
+        border: 1px solid #86EFAC;
+    }
+
+    .admin-page .ia-badge--archive {
+        background: var(--gray-soft);
+        color: var(--ink-muted);
+        border: 1px solid var(--border);
+    }
+
+    .admin-page .card-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 14px 16px 16px;
+    }
+
+    .admin-page .product-title {
+        font-family: var(--font-display);
+        font-size: 1rem;
+        color: var(--ink);
+        line-height: 1.3;
+    }
+
+    .admin-page .product-detail {
+        color: var(--ink-muted);
+        font-weight: 500;
+        font-size: 0.85rem;
+    }
+
+    .admin-page .text-muted {
+        color: var(--ink-muted);
+    }
+
+    .admin-page .product-price {
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: var(--denim);
+        white-space: nowrap;
+        font-size: 0.95rem;
+    }
+
+    /* ===== Action IA — simple ligne discrète, sans icône ni fond ===== */
+    .admin-page .ia-action-line {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        border: none;
+        border-left: 2px solid var(--denim);
+        border-radius: 0 6px 6px 0;
+        padding: 5px 8px 5px 10px;
+        background: transparent;
+        cursor: pointer;
+        text-align: left;
+        font-family: var(--font-body);
+        transition: background 0.15s ease;
+    }
+
+        .admin-page .ia-action-line:hover {
+            background: var(--sand);
+        }
+
+    .admin-page .ia-action-kicker {
+        font-size: 0.63rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        color: var(--denim);
+        flex-shrink: 0;
+    }
+
+    .admin-page .ia-action-text {
+        flex: 1;
+        min-width: 0;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--ink);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .admin-page .ia-action-chevron {
+        color: var(--ink-muted);
+        flex-shrink: 0;
+    }
+
+    .admin-page .meta-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+        flex-wrap: wrap;
+    }
+
+    .admin-page .table-cat-tag {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #fff;
+        padding: 3px 9px;
+        border-radius: 6px;
+    }
+
+    .admin-page .stock-qty-badge {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 6px;
+    }
+
+    .admin-page .stock-qty-ok {
+        background: var(--pine-soft);
+        color: var(--pine);
+    }
+
+    .admin-page .stock-qty-zero {
+        background: var(--rust-soft);
+        color: var(--rust);
+        border: 1px solid #E9C6BA;
+    }
+
+    .admin-page .card-actions {
+        margin-left: auto;
+    }
+
+    .admin-page .action-btn {
+        color: var(--ink-muted) !important;
+    }
+
+        .admin-page .action-btn:hover {
+            color: var(--denim) !important;
+            background: var(--denim-soft) !important;
+        }
+
+    .admin-page .action-btn--danger:hover {
+        color: var(--rust) !important;
+        background: var(--rust-soft) !important;
+    }
+
+    /* ===== Vue tableau ===== */
+    .admin-page .table-panel {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+    }
+
+    .admin-page .products-table .mud-table-head th {
+        font-family: var(--font-body);
+        font-weight: 700;
+        color: var(--ink-muted);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        background: var(--sand);
+    }
+
+    .admin-page .cell-name {
+        font-family: var(--font-display);
+        font-weight: 600;
+        color: var(--ink);
+    }
+
+    .admin-page .table-thumb {
+        border-radius: 8px;
+        object-fit: cover;
+    }
+
+    .admin-page .table-thumb-clickable {
+        display: inline-flex;
+        cursor: zoom-in;
+        border-radius: 8px;
+        transition: opacity 0.15s ease;
+    }
+
+        .admin-page .table-thumb-clickable:hover {
+            opacity: 0.8;
+        }
+
+    .admin-page .table-thumb--empty {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        background: var(--sand);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* ===== État vide ===== */
+    .admin-page .empty-card {
+        text-align: center;
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 48px 24px;
+    }
+
+    .admin-page .empty-icon {
+        font-size: 48px;
+        color: var(--pine);
+    }
+
+    .admin-page .empty-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: var(--ink);
+        margin-top: 12px;
+    }
+
+    .admin-page .empty-subtitle {
+        color: var(--ink-muted);
+        font-size: 0.9rem;
+    }
+
+    /* ===== Modale de confirmation (portée globale, rendue hors .admin-page) ===== */
+    .wic-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(6px);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        font-family: "Inter", sans-serif;
+        animation: wicFadeIn 0.15s ease;
+    }
+
+    @@keyframes wicFadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    @@keyframes wicSlideUp {
+        from {
+            opacity: 0;
+            transform: translateY(16px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .wic-confirm-card {
+        background: #fff !important;
+        border-radius: 20px;
+        width: 100%;
+        max-width: 420px;
+        box-shadow: 0 24px 60px rgba(22, 35, 58, 0.28), 0 4px 12px rgba(22, 35, 58, 0.1);
+        padding: 28px 28px 24px;
+        text-align: center;
+        animation: wicSlideUp 0.2s ease;
+    }
+
+    .wic-confirm-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: #F9ECE8;
+        color: #B5563A;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 16px;
+    }
+
+    .wic-confirm-icon--amber {
+        background: #FEF3C7;
+        color: #D97706;
+    }
+
+    .wic-confirm-title {
+        font-family: "Sora", sans-serif;
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: #16233A;
+        margin: 0 0 10px;
+    }
+
+    .wic-confirm-text {
+        font-size: 0.9rem;
+        color: #64748B;
+        line-height: 1.5;
+        margin: 0 0 22px;
+    }
+
+    .wic-confirm-actions {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+    }
+
+        .wic-confirm-actions .btn {
+            border: none;
+            padding: 10px 22px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.15s ease;
+            font-family: "Inter", sans-serif;
+        }
+
+    /* ===== Visionneuse d'image plein écran (lightbox) ===== */
+    .image-lightbox-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(10, 15, 25, 0.92);
+        backdrop-filter: blur(6px);
+        z-index: 1000000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+        cursor: zoom-out;
+        animation: wicSlideUp 0.2s ease forwards;
+    }
+
+    .lightbox-img {
+        max-width: 90vw;
+        max-height: 85vh;
+        width: auto;
+        height: auto;
+        object-fit: contain;
+        border-radius: 10px;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+        cursor: default;
+    }
+
+    .lightbox-caption {
+        margin-top: 14px;
+        color: #E2E8F0;
+        font-family: "Inter", sans-serif;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-align: center;
+    }
+
+    .lightbox-close-btn {
+        position: fixed;
+        top: 20px;
+        right: 24px;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(255, 255, 255, 0.12);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        z-index: 1000001;
+        transition: background 0.15s ease;
+    }
+
+        .lightbox-close-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+    @@media (max-width: 600px) {
+        .image-lightbox-overlay {
+            padding: 20px;
+        }
+
+        .admin-page .view-toggle {
+            margin-left: 0;
+        }
+
+        .admin-page .filters-footer {
+            justify-content: flex-start;
+        }
+    }
+</style>
+
+@code {
+    [SupplyParameterFromQuery(Name = "statut")]
+    public string? StatutQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "filtre")]
+    public string? FiltreQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "categorie")]
+    public string? CategorieQuery { get; set; }
+
+    private List<ProduitDto>? produits;
+    private List<CommandeManagerDto>? commandesClients;
+    private string searchString = "";
+    private string categoryFilter = "";
+    private string statutIaFilter = ""; // "", "RUPTURE", "SURSTOCK", "OPTIMAL", "SUR_COMMANDE"
+    private string sortBy = "STATUT_IA"; // "STATUT_IA", "NOM", "STOCK_ASC", "STOCK_DESC"
+    private bool isGridView = true;
+    private bool afficherArchives = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AppliquerFiltresQueryParams();
+        await ChargerDonnees();
+    }
+
+    protected override void OnParametersSet()
+    {
+        AppliquerFiltresQueryParams();
+    }
+
+    private void AppliquerFiltresQueryParams()
+    {
+        var s = StatutQuery ?? FiltreQuery;
+        if (!string.IsNullOrWhiteSpace(s))
+        {
+            var clean = s.ToUpperInvariant().Trim();
+            statutIaFilter = clean switch
+            {
+                "RUPTURE" or "EN RUPTURE" => "RUPTURE",
+                "SURSTOCK" or "EN SURSTOCK" => "SURSTOCK",
+                "OPTIMAL" or "NORMAL" or "STOCK NORMAL" => "OPTIMAL",
+                "SUR_COMMANDE" or "SUR COMMANDE" => "SUR_COMMANDE",
+                _ => clean
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(CategorieQuery))
+        {
+            categoryFilter = CategorieQuery.Trim();
+        }
+    }
+
+    private async Task ChargerDonnees()
+    {
+        try
+        {
+            produits = await ProduitService.ObtenirTous();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login", forceLoad: false);
+            return;
+        }
+        catch
+        {
+            produits = new List<ProduitDto>();
+        }
+
+        try
+        {
+            commandesClients = await CatalogueService.ObtenirToutesLesCommandes();
+        }
+        catch
+        {
+            commandesClients = new List<CommandeManagerDto>();
+        }
+    }
+
+    private static readonly List<string> CategoriesParDefaut = new()
+    {
+        "Jacket", "Pants", "Set", "Shirt", "Shorts", "Dress", "Coat", "Skirt"
+    };
+
+    private IEnumerable<string> CategoriesDisponibles
+    {
+        get
+        {
+            var list = new List<string>(CategoriesParDefaut);
+            if (produits != null)
+            {
+                foreach (var cat in produits.Select(p => p.Categorie).Where(c => !string.IsNullOrWhiteSpace(c)))
+                {
+                    if (!list.Contains(cat, StringComparer.OrdinalIgnoreCase))
+                    {
+                        list.Add(cat!);
+                    }
+                }
+            }
+            return list.Distinct().OrderBy(c => c);
+        }
+    }
+
+    private IEnumerable<ProduitDto> FilteredProduits
+    {
+        get
+        {
+            if (produits == null) return Enumerable.Empty<ProduitDto>();
+
+            var list = produits.Where(p => afficherArchives || !p.EstArchive)
+                                .Where(p => FilterFunc(p));
+
+            if (!string.IsNullOrEmpty(statutIaFilter))
+            {
+                list = list.Where(p => IsStatutIA(p, statutIaFilter));
+            }
+
+            return sortBy switch
+            {
+                "STATUT_IA" => list.OrderBy(p => p.StatutIAPriorite).ThenBy(p => p.Stock?.QuantiteActuelle ?? 0),
+                "NOM" => list.OrderBy(p => p.Nom),
+                "STOCK_ASC" => list.OrderBy(p => p.Stock?.QuantiteActuelle ?? 0),
+                "STOCK_DESC" => list.OrderByDescending(p => p.Stock?.QuantiteActuelle ?? 0),
+                _ => list.OrderBy(p => p.StatutIAPriorite)
+            };
+        }
+    }
+
+    private bool FilterFunc(ProduitDto p)
+    {
+        if (!string.IsNullOrEmpty(categoryFilter) && !string.Equals(p.Categorie, categoryFilter, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+
+        if (p.Nom?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (p.Reference?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (p.TypeTissu?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (p.Categorie?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (p.StatutIABadgeText?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+
+        return false;
+    }
+
+    private void SelectStatutIA(string statut) => statutIaFilter = statut;
+
+    private bool IsStatutIA(ProduitDto p, string statut) =>
+        string.Equals(p.StatutIAType, statut, StringComparison.OrdinalIgnoreCase);
+
+    private string GetCategoryColor(string? categorie)
+    {
+        if (string.IsNullOrWhiteSpace(categorie))
+            return "#64748B";
+
+        var palette = new[] { "#2B4C7E", "#B5563A", "#B8842C", "#4A6FA5", "#7C4A6E" };
+        int hash = 0;
+        foreach (var c in categorie) hash = (hash * 31 + c) & 0x7FFFFFFF;
+        return palette[hash % palette.Length];
+    }
+
+    private void AllerVersCreation() => Navigation.NavigateTo("/produits/creer");
+
+    private ProduitDto? produitASupprimer;
+
+    private void DemanderSuppression(ProduitDto p) => produitASupprimer = p;
+    private void FermerSuppression() => produitASupprimer = null;
+
+    private async Task ConfirmerSuppression()
+    {
+        if (produitASupprimer == null) return;
+
+        var id = produitASupprimer.Id;
+        FermerSuppression();
+
+        var succes = await ProduitService.Supprimer(id);
+        if (succes)
+        {
+            produits = await ProduitService.ObtenirTous();
+            Snackbar.Add("Produit supprimé avec succès.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors de la suppression.", Severity.Error);
+        }
+    }
+
+    // ===== GESTION DE L'ARCHIVAGE =====
+    private ProduitDto? produitAArchiver;
+
+    private void DemanderArchivage(ProduitDto p) => produitAArchiver = p;
+    private void FermerArchivage() => produitAArchiver = null;
+
+    private async Task ConfirmerArchivage()
+    {
+        if (produitAArchiver == null) return;
+
+        var id = produitAArchiver.Id;
+        FermerArchivage();
+
+        var succes = await ProduitService.Archiver(id);
+        if (succes)
+        {
+            produits = await ProduitService.ObtenirTous();
+            Snackbar.Add("Produit archivé.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors de l'archivage.", Severity.Error);
+        }
+    }
+
+    private async Task DesarchiverProduit(ProduitDto p)
+    {
+        var succes = await ProduitService.Desarchiver(p.Id);
+        if (succes)
+        {
+            produits = await ProduitService.ObtenirTous();
+            Snackbar.Add("Produit désarchivé.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors du désarchivage.", Severity.Error);
+        }
+    }
+
+    private string GetFullImageUrl(string? relativeUrl)
+    {
+        if (string.IsNullOrEmpty(relativeUrl)) return "";
+        return $"{Http.BaseAddress}{relativeUrl.TrimStart('/')}";
+    }
+
+    // ===== VERSION COURTE ET INTELLIGENTE DE L'ACTION IA =====
+    // Transforme le texte complet renvoyé par le backend (ex: "Promotion de 40%
+    // appliquée sur 120 unités pendant 15 jours") en une étiquette courte et
+    // toujours entièrement visible (ex: "Promo 40% • 120u/15j"), en détectant
+    // le type d'action par mot-clé puis en extrayant les valeurs numériques
+    // utiles (pourcentage, unités, jours) par expression régulière.
+    private static string GetActionCourte(string? texteComplet)
+    {
+        if (string.IsNullOrWhiteSpace(texteComplet))
+            return string.Empty;
+
+        var texte = texteComplet.ToLowerInvariant();
+
+        var pct = Regex.Match(texteComplet, @"(\d+)\s*%");
+        var uni = Regex.Match(texteComplet, @"(\d+)\s*unit[ée]s?");
+        var jrs = Regex.Match(texteComplet, @"(\d+)\s*jours?");
+
+        string Pct() => pct.Success ? $"{pct.Groups[1].Value}%" : "";
+        string Uni() => uni.Success ? $"{uni.Groups[1].Value}u" : "";
+        string Jrs() => jrs.Success ? $"{jrs.Groups[1].Value}j" : "";
+
+        if (texte.Contains("promo"))
+        {
+            var parts = new List<string>();
+            if (pct.Success) parts.Add(Pct());
+
+            var duree = string.Join("/", new[] { Uni(), Jrs() }.Where(s => s != ""));
+            if (duree != "") parts.Add(duree);
+
+            return parts.Count > 0 ? $"Promo {string.Join(" • ", parts)}" : "Promotion";
+        }
+
+        if (texte.Contains("recycl"))
+            return uni.Success ? $"Recyclage {Uni()}" : "Recyclage";
+
+        if (texte.Contains("solde") || texte.Contains("liquidation"))
+        {
+            var parts = new[] { Pct(), Uni() }.Where(s => s != "").ToList();
+            return parts.Count > 0 ? $"Solde {string.Join(" • ", parts)}" : "Solde";
+        }
+
+        if (texte.Contains("transfert"))
+            return uni.Success ? $"Transfert {Uni()}" : "Transfert";
+
+        if (texte.Contains("réappro") || texte.Contains("reappro") || texte.Contains("commande"))
+            return uni.Success ? $"Réappro {Uni()}" : "Réappro";
+
+        return texteComplet.Length > 22 ? texteComplet[..22].TrimEnd() + "…" : texteComplet;
+    }
+
+    // ===== GESTION DE MODAL D'ANALYSE IA SURSTOCK =====
+    private ProduitDto? produitPourAnalyse;
+    private void OuvrirAnalyseIa(ProduitDto p) => produitPourAnalyse = p;
+
+    // ===== GESTION DE LA VISIONNEUSE D'IMAGE PLEIN ÉCRAN =====
+    private string? imageAgrandieUrl;
+    private string? imageAgrandieAlt;
+
+    private void OuvrirImageAgrandie(string? url, string? alt)
+    {
+        if (string.IsNullOrEmpty(url)) return;
+        imageAgrandieUrl = url;
+        imageAgrandieAlt = alt;
+    }
+
+    private void FermerImageAgrandie()
+    {
+        imageAgrandieUrl = null;
+        imageAgrandieAlt = null;
+    }
+
+    // ===== GESTION DE COMMANDES CLIENTS =====
+    private int NombreCommandesEnAttente => commandesClients == null
+        ? 0
+        : commandesClients.Count(c => c.StatutCommande == "EN_ATTENTE");
+}
+

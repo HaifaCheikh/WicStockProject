@@ -1,0 +1,794 @@
+﻿@page "/livraisons"
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "LIVREUR")]
+@inject LivraisonService LivraisonService
+@inject ISnackbar Snackbar
+@inject HttpClient Http
+
+<PageTitle>Espace Livraisons | WicStock</PageTitle>
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="livraison-page">
+    <MudStack Spacing="6">
+
+        <!-- ===== EN-TÊTE DE LA PAGE ===== -->
+        <div class="d-flex justify-space-between align-center flex-wrap gap-4">
+            <div>
+                <div class="d-flex align-center gap-3">
+                    <MudText Typo="Typo.h4" Class="page-title">Espace Livraisons</MudText>
+                    <span class="count-badge">@mesLivraisons.Count(l => l.Statut != "LIVREE") course(s) active(s)</span>
+                </div>
+                <MudText Typo="Typo.body2" Class="page-subtitle mt-1">
+                    Gérez vos courses assignées et récupérez les nouvelles commandes prêtes à livrer.
+                </MudText>
+            </div>
+
+            <!-- Boutons de rafraîchissement & Bascule d'onglet -->
+            <div class="d-flex align-center gap-2">
+                <button class="btn @(ongletActif == 0 ? "btn--primary" : "btn--outline")" @onclick="() => ChangerOnglet(0)">
+                    <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" />
+                    <span>Mes Livraisons (@mesLivraisons.Count)</span>
+                </button>
+                <button class="btn @(ongletActif == 1 ? "btn--primary" : "btn--outline")" @onclick="() => ChangerOnglet(1)">
+                    <MudIcon Icon="@Icons.Material.Filled.AddLocationAlt" Size="Size.Small" />
+                    <span>Courses disponibles (@disponibles.Count)</span>
+                </button>
+                <button class="btn btn--icon" @onclick="ChargerDonnees" title="Rafraîchir">
+                    <MudIcon Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" />
+                </button>
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="d-flex justify-center my-12">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            </div>
+        }
+        else if (ongletActif == 0)
+        {
+            <!-- ===== ONGLET 1 : MES LIVRAISONS ===== -->
+            @if (!mesLivraisons.Any())
+            {
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Large" />
+                    </div>
+                    <MudText Typo="Typo.h6" Class="empty-title mt-3">Aucune livraison assignée</MudText>
+                    <MudText Typo="Typo.body2" Class="empty-subtitle mt-1">Consultez l'onglet « Courses disponibles » pour vous attribuer des livraisons.</MudText>
+                    <button class="btn btn--primary mt-4" @onclick="() => ChangerOnglet(1)">
+                        <MudIcon Icon="@Icons.Material.Filled.AddLocationAlt" Size="Size.Small" />
+                        <span>Voir les courses disponibles</span>
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="cards-grid">
+                    @foreach (var item in mesLivraisons)
+                    {
+                        var isEnLivraison = item.Statut == "EN_LIVRAISON";
+                        var isLivree = item.Statut == "LIVREE";
+
+                        <div class="livraison-card @(isEnLivraison ? "livraison-card--active" : isLivree ? "livraison-card--done" : "")">
+                            <!-- Header de la carte -->
+                            <div class="card-top">
+                                <div>
+                                    <span class="commande-ref">Commande client</span>
+                                    <span class="commande-date">@item.DateVente.ToString("dd/MM/yyyy HH:mm")</span>
+                                </div>
+                                <span class="status-pill @GetStatutPillClass(item.Statut)">
+                                    @GetStatutPillLabel(item.Statut)
+                                </span>
+                            </div>
+
+                            <!-- Produit -->
+                            <div class="product-info-block">
+                                <div class="product-thumb">
+                                    @if (!string.IsNullOrEmpty(item.ProduitImageUrl))
+                                    {
+                                        <img src="@GetFullImageUrl(item.ProduitImageUrl)" alt="@item.ProduitNom" />
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Layers" Size="Size.Medium" />
+                                    }
+                                </div>
+                                <div>
+                                    <div class="product-name">@item.ProduitNom</div>
+                                    <div class="product-meta">Réf : @item.ProduitReference • Qte : <strong>@item.QuantiteVendue pièce(s)</strong></div>
+                                </div>
+                            </div>
+
+                            <!-- Carte Contact & Destination Client -->
+                            <div class="client-card">
+                                <div class="client-card-title">
+                                    <MudIcon Icon="@Icons.Material.Filled.PersonPin" Size="Size.Small" />
+                                    <span>COORDONNÉES CLIENT</span>
+                                </div>
+                                <div class="client-name">@item.ClientNom</div>
+                                @if (!string.IsNullOrEmpty(item.ClientTelephone))
+                                {
+                                    <a href="tel:@item.ClientTelephone" class="client-phone">
+                                        <MudIcon Icon="@Icons.Material.Filled.Phone" Size="Size.Small" />
+                                        <span>@item.ClientTelephone</span>
+                                    </a>
+                                }
+                                <div class="client-email">
+                                    <MudIcon Icon="@Icons.Material.Filled.Email" Size="Size.Small" />
+                                    <span>@item.ClientEmail</span>
+                                </div>
+
+                                <!-- ADRESSE DE LIVRAISON ET CODE POSTAL -->
+                                <div class="delivery-address-box">
+                                    <div class="dest-title">
+                                        <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Small" Class="dest-pin" />
+                                        <span>ADRESSE DE LIVRAISON</span>
+                                    </div>
+                                    <div class="dest-content">
+                                        @if (!string.IsNullOrWhiteSpace(item.AdresseLivraison))
+                                        {
+                                            <div class="address-main">@item.AdresseLivraison</div>
+                                        }
+                                        <div class="dest-tags-row">
+                                            @if (!string.IsNullOrWhiteSpace(item.CodePostal))
+                                            {
+                                                <span class="badge-postal">
+                                                    <MudIcon Icon="@Icons.Material.Filled.LocalPostOffice" Size="Size.Small" />
+                                                    <span>CP: @item.CodePostal</span>
+                                                </span>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(item.Ville))
+                                            {
+                                                <span class="badge-geo">@item.Ville</span>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(item.Pays) && item.Pays != item.AdresseLivraison)
+                                            {
+                                                <span class="badge-geo">@item.Pays</span>
+                                            }
+                                        </div>
+                                        @if (string.IsNullOrWhiteSpace(item.AdresseLivraison) && string.IsNullOrWhiteSpace(item.CodePostal))
+                                        {
+                                            <div class="address-empty">Adresse de livraison non spécifiée</div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Statut Paiement -->
+                            <div class="payment-status-tag">
+                                <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Size="Size.Small" />
+                                <span>Paiement reçu : @item.TotalCommande.ToString("N2") TND</span>
+                            </div>
+
+                            <!-- Boutons d'action -->
+                            <div class="card-actions">
+                                @if (!isEnLivraison && !isLivree)
+                                {
+                                    <button class="btn btn--primary btn--full" @onclick="() => LancerLivraison(item.Id)">
+                                        <MudIcon Icon="@Icons.Material.Filled.DirectionsBike" Size="Size.Small" />
+                                        <span>Démarrer la livraison</span>
+                                    </button>
+                                }
+                                else if (isEnLivraison)
+                                {
+                                    <button class="btn btn--success btn--full" @onclick="() => FinaliserLivraison(item.Id)">
+                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
+                                        <span>Marquer comme Livrée</span>
+                                    </button>
+                                }
+                                else
+                                {
+                                    <div class="livree-banner">
+                                        <MudIcon Icon="@Icons.Material.Filled.TaskAlt" Size="Size.Small" />
+                                        <span>Livraison effectuée le @(item.DateLivraison?.ToString("dd/MM/yyyy à HH:mm") ?? "Date inconnue")</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+        else
+        {
+            <!-- ===== ONGLET 2 : COURSES DISPONIBLES ===== -->
+            @if (!disponibles.Any())
+            {
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircleOutline" Size="Size.Large" />
+                    </div>
+                    <MudText Typo="Typo.h6" Class="empty-title mt-3">Toutes les courses sont attribuées</MudText>
+                    <MudText Typo="Typo.body2" Class="empty-subtitle mt-1">Aucune nouvelle commande payée en attente d'assignation pour le moment.</MudText>
+                </div>
+            }
+            else
+            {
+                <div class="cards-grid">
+                    @foreach (var item in disponibles)
+                    {
+                        <div class="livraison-card">
+                            <div class="card-top">
+                                <div>
+                                    <span class="commande-ref">Commande à livrer</span>
+                                    <span class="commande-date">Payée le @(item.DatePaiement?.ToString("dd/MM/yyyy") ?? item.DateVente.ToString("dd/MM/yyyy"))</span>
+                                </div>
+                                <span class="status-pill status-pill--ready">Prête à expédier</span>
+                            </div>
+
+                            <div class="product-info-block">
+                                <div class="product-thumb">
+                                    @if (!string.IsNullOrEmpty(item.ProduitImageUrl))
+                                    {
+                                        <img src="@GetFullImageUrl(item.ProduitImageUrl)" alt="@item.ProduitNom" />
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Layers" Size="Size.Medium" />
+                                    }
+                                </div>
+                                <div>
+                                    <div class="product-name">@item.ProduitNom</div>
+                                    <div class="product-meta">Réf : @item.ProduitReference • Qte : <strong>@item.QuantiteVendue pièce(s)</strong></div>
+                                </div>
+                            </div>
+
+                            <div class="client-card client-card--blurred">
+                                <div class="client-card-title">
+                                    <MudIcon Icon="@Icons.Material.Filled.PersonPin" Size="Size.Small" />
+                                    <span>COORDONNÉES CLIENT</span>
+                                </div>
+                                <div class="client-name">@item.ClientNom</div>
+                                <div class="client-email">
+                                    <MudIcon Icon="@Icons.Material.Filled.Email" Size="Size.Small" />
+                                    <span>@item.ClientEmail</span>
+                                </div>
+
+                                <!-- DESTINATION -->
+                                <div class="delivery-address-box">
+                                    <div class="dest-title">
+                                        <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Small" Class="dest-pin" />
+                                        <span>DESTINATION DE LIVRAISON</span>
+                                    </div>
+                                    <div class="dest-content">
+                                        @if (!string.IsNullOrWhiteSpace(item.AdresseLivraison))
+                                        {
+                                            <div class="address-main">@item.AdresseLivraison</div>
+                                        }
+                                        <div class="dest-tags-row">
+                                            @if (!string.IsNullOrWhiteSpace(item.CodePostal))
+                                            {
+                                                <span class="badge-postal">
+                                                    <MudIcon Icon="@Icons.Material.Filled.LocalPostOffice" Size="Size.Small" />
+                                                    <span>CP: @item.CodePostal</span>
+                                                </span>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(item.Ville))
+                                            {
+                                                <span class="badge-geo">@item.Ville</span>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(item.Pays) && item.Pays != item.AdresseLivraison)
+                                            {
+                                                <span class="badge-geo">@item.Pays</span>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="payment-status-tag">
+                                <MudIcon Icon="@Icons.Material.Filled.MonetizationOn" Size="Size.Small" />
+                                <span>Total : @item.TotalCommande.ToString("N2") TND (Payé)</span>
+                            </div>
+
+                            <div class="card-actions">
+                                <button class="btn btn--primary btn--full" @onclick="() => AssignerCourse(item.Id)">
+                                    <MudIcon Icon="@Icons.Material.Filled.AddLocation" Size="Size.Small" />
+                                    <span>Prendre en charge cette course</span>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+    </MudStack>
+</div>
+
+<style>
+    .livraison-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --sand: #F8FAFC;
+        --border: #E2E8F0;
+        --denim: #2B4C7E;
+        --denim-tint: #EBF1F9;
+        --forest: #15803D;
+        --forest-tint: #DCFCE7;
+        --amber: #B45309;
+        --amber-tint: #FEF3C7;
+        --radius-lg: 16px;
+        --radius-md: 12px;
+        --radius-sm: 8px;
+        --font-display: "Sora", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        font-family: var(--font-body);
+        color: var(--ink);
+        padding: 8px;
+    }
+
+    .page-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: var(--ink);
+    }
+
+    .page-subtitle {
+        color: var(--ink-muted);
+    }
+
+    .count-badge {
+        background: var(--denim-tint);
+        color: var(--denim);
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 0.75rem;
+        padding: 4px 10px;
+        border-radius: 20px;
+    }
+
+    /* ===== Boutons ===== */
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 18px;
+        border-radius: var(--radius-md);
+        font-family: var(--font-body);
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: none;
+    }
+
+    .btn--primary {
+        background: var(--denim);
+        color: #fff;
+    }
+
+        .btn--primary:hover {
+            background: #1e3a63;
+            transform: translateY(-1px);
+        }
+
+    .btn--success {
+        background: var(--forest);
+        color: #fff;
+    }
+
+        .btn--success:hover {
+            background: #166534;
+            transform: translateY(-1px);
+        }
+
+    .btn--outline {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        color: var(--ink);
+    }
+
+        .btn--outline:hover {
+            background: var(--sand);
+            border-color: var(--denim);
+        }
+
+    .btn--icon {
+        padding: 10px;
+        background: var(--paper);
+        border: 1px solid var(--border);
+        color: var(--ink);
+    }
+
+    .btn--full {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* ===== Grille de cartes ===== */
+    .cards-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 20px;
+    }
+
+    .livraison-card {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        transition: all 0.2s ease;
+    }
+
+        .livraison-card:hover {
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+
+    .livraison-card--active {
+        border-color: var(--denim);
+        background: linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%);
+    }
+
+    .livraison-card--done {
+        opacity: 0.85;
+        background: #FAFAFA;
+    }
+
+    .card-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .commande-ref {
+        font-family: var(--font-mono);
+        font-weight: 700;
+        font-size: 0.875rem;
+        color: var(--denim);
+        display: block;
+    }
+
+    .commande-date {
+        font-size: 0.75rem;
+        color: var(--ink-muted);
+    }
+
+    .status-pill {
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 20px;
+    }
+
+    .status-pill--ready {
+        background: var(--amber-tint);
+        color: var(--amber);
+    }
+
+    .status-pill--delivery {
+        background: var(--denim-tint);
+        color: var(--denim);
+    }
+
+    .status-pill--done {
+        background: var(--forest-tint);
+        color: var(--forest);
+    }
+
+    .product-info-block {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        background: var(--sand);
+        padding: 12px;
+        border-radius: var(--radius-md);
+    }
+
+    .product-thumb {
+        width: 50px;
+        height: 50px;
+        border-radius: var(--radius-sm);
+        background: var(--paper);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border: 1px solid var(--border);
+    }
+
+        .product-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+    .product-name {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 0.9375rem;
+        color: var(--ink);
+    }
+
+    .product-meta {
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+    }
+
+    /* Coordonnées Client & Destination */
+    .client-card {
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: var(--radius-md);
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .client-card--blurred {
+        background: var(--sand);
+    }
+
+    .client-card-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--denim);
+        letter-spacing: 0.05em;
+    }
+
+    .client-name {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1rem;
+        color: var(--ink);
+    }
+
+    .client-phone, .client-email {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.875rem;
+        color: var(--ink-muted);
+        text-decoration: none;
+    }
+
+    .client-phone {
+        color: var(--forest);
+        font-weight: 600;
+    }
+
+        .client-phone:hover {
+            text-decoration: underline;
+        }
+
+    /* ===== ADRESSE & CODE POSTAL ===== */
+    .delivery-address-box {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px dashed #CBD5E1;
+    }
+
+    .dest-title {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #0F766E;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    .dest-pin {
+        color: #0F766E;
+    }
+
+    .dest-content {
+        font-size: 0.875rem;
+    }
+
+    .address-main {
+        font-weight: 600;
+        color: var(--ink);
+        line-height: 1.35;
+        margin-bottom: 4px;
+    }
+
+    .dest-tags-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .badge-postal {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #CCFBF1;
+        color: #0F766E;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 0.75rem;
+        font-family: var(--font-mono);
+        border: 1px solid #99F6E4;
+    }
+
+    .badge-geo {
+        display: inline-flex;
+        align-items: center;
+        background: #E2E8F0;
+        color: #334155;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .address-empty {
+        color: var(--ink-muted);
+        font-style: italic;
+        font-size: 0.8125rem;
+    }
+
+    .payment-status-tag {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--forest-tint);
+        color: var(--forest);
+        padding: 8px 12px;
+        border-radius: var(--radius-sm);
+        font-size: 0.8125rem;
+        font-weight: 700;
+    }
+
+    .livree-banner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 10px;
+        background: var(--forest-tint);
+        color: var(--forest);
+        border-radius: var(--radius-md);
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        background: var(--paper);
+        border: 1px dashed var(--border);
+        border-radius: var(--radius-lg);
+    }
+
+    .empty-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: var(--sand);
+        color: var(--ink-muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+    }
+
+    .empty-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: var(--ink);
+    }
+
+    .empty-subtitle {
+        color: var(--ink-muted);
+    }
+</style>
+
+@code {
+    private List<LivraisonCommandeDto> mesLivraisons = new();
+    private List<LivraisonCommandeDto> disponibles = new();
+    private bool isLoading = true;
+    private int ongletActif = 0; // 0: Mes Livraisons, 1: Courses disponibles
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ChargerDonnees();
+    }
+
+    private async Task ChargerDonnees()
+    {
+        isLoading = true;
+        try
+        {
+            var rawMesLivraisons = await LivraisonService.ObtenirMesLivraisons();
+            mesLivraisons = rawMesLivraisons.Where(l => l.Statut != "LIVREE").ToList();
+            disponibles = await LivraisonService.ObtenirLivraisonsDisponibles();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erreur de chargement des livraisons: {ex.Message}", Severity.Warning);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ChangerOnglet(int index) => ongletActif = index;
+
+    private async Task AssignerCourse(int commandeId)
+    {
+        var ok = await LivraisonService.AutoAssigner(commandeId);
+        if (ok)
+        {
+            Snackbar.Add("Course prise en charge avec succès !", Severity.Success);
+            await ChargerDonnees();
+            ongletActif = 0; // Basculer sur l'onglet mes livraisons
+        }
+        else
+        {
+            Snackbar.Add("Impossible d'assigner cette course (déjà prise ou non payée).", Severity.Error);
+        }
+    }
+
+    private async Task LancerLivraison(int commandeId)
+    {
+        var (succes, message) = await LivraisonService.PasserEnLivraison(commandeId);
+        if (succes)
+        {
+            Snackbar.Add(message, Severity.Success);
+            await ChargerDonnees();
+        }
+        else
+        {
+            Snackbar.Add(message, Severity.Error);
+        }
+    }
+
+    private async Task FinaliserLivraison(int commandeId)
+    {
+        var ok = await LivraisonService.MarquerLivree(commandeId);
+        if (ok)
+        {
+            Snackbar.Add("Commande livrée avec succès !", Severity.Success);
+            await ChargerDonnees();
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors de la mise à jour du statut.", Severity.Error);
+        }
+    }
+
+    private string GetFullImageUrl(string? relativeUrl)
+    {
+        if (string.IsNullOrEmpty(relativeUrl)) return "";
+        return $"{Http.BaseAddress}{relativeUrl.TrimStart('/')}";
+    }
+
+    private string GetStatutPillClass(string? statut) => statut switch
+    {
+        "EN_LIVRAISON" => "status-pill--delivery",
+        "LIVREE" => "status-pill--done",
+        _ => "status-pill--ready"
+    };
+
+    private string GetStatutPillLabel(string? statut) => statut switch
+    {
+        "EN_LIVRAISON" => "🚚 En cours de livraison",
+        "LIVREE" => "✓ Livrée",
+        _ => "📦 Prête pour livraison"
+    };
+}

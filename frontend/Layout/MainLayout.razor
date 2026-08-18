@@ -1,0 +1,78 @@
+@inherits LayoutComponentBase
+@inject WicStock.Web.Services.NotificationClientService NotificationService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<MudThemeProvider Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudDrawer Open="true" ClipMode="DrawerClipMode.Never" Elevation="0" Width="220px">
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent Style="background-color: #f8fafc; min-height: 100vh; position: relative;">
+        <!-- Cloche flottante : hors du flux normal, aucune hauteur réservée, aucun conflit possible -->
+        <div class="floating-bell">
+            <AuthorizeView>
+                <Authorized>
+                    <NotificationBell />
+                </Authorized>
+            </AuthorizeView>
+        </div>
+
+        <MudContainer MaxWidth="MaxWidth.Large" Class="my-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+<style>
+    .floating-bell {
+        position: absolute;
+        top: 16px;
+        right: 24px;
+        z-index: 100;
+    }
+</style>
+
+@code {
+    private MudTheme _theme = new MudTheme()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            Primary = "#2B4C7E",
+            Secondary = "#16233A",
+            AppbarBackground = "#ffffff",
+            Background = "#f8fafc",
+            DrawerBackground = "#ffffff",
+            TextPrimary = "#16233A",
+            TextSecondary = "#64748B",
+            Surface = "#ffffff",
+            ActionDefault = "#64748B",
+            Success = "#10b981",
+            Error = "#ef4444",
+            Info = "#0ea5e9",
+            Warning = "#f59e0b"
+        }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            await NotificationService.InitializeAsync();
+        }
+
+        AuthStateProvider.AuthenticationStateChanged += async (task) =>
+        {
+            var state = await task;
+            if (state.User.Identity?.IsAuthenticated == true)
+            {
+                await NotificationService.InitializeAsync();
+            }
+        };
+    }
+}

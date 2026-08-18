@@ -1,0 +1,35 @@
+﻿## Build & Compilateurs .NET
+**/bin/
+**/obj/
+
+## IDEs (Visual Studio, VS Code, Rider)
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Fichiers de configuration sensibles (Secrets & API Keys)
+appsettings.json
+appsettings.*.json
+!appsettings.Example.json
+secrets.json
+.env
+.env.*
+
+## Dossiers temporaires, scratch et logs
+scratch/
+*.log
+*.tmp
+*.bak
+*.cache
+
+## Python (s'il y a des scripts d'analyse IA)
+venv/
+.venv/
+__pycache__/
+
+## Fichiers uploadés
+**/wwwroot/uploads/

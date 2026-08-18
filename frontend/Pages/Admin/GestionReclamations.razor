@@ -1,0 +1,1415 @@
+﻿@page "/admin/reclamations"
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "ADMIN")]
+@inject FeedbackService FeedbackService
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+
+<PageTitle>Gestion des Réclamations | WicStock Admin</PageTitle>
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="admin-page">
+    <!-- En-tête -->
+    <div class="admin-hero">
+        <div class="hero-text">
+            <h1 class="page-title">Gestion des Réclamations Clients</h1>
+            <p class="page-subtitle">Suivez et traitez les réclamations déposées par les clients sur leurs commandes livrées.</p>
+        </div>
+    </div>
+
+    @if (!isLoading && reclamations.Any())
+    {
+        <!-- STATISTIQUES (cliquables pour filtrer) -->
+        <div class="stats-row mb-6">
+            <div class="stat-card @(selectedStatut == "" ? "stat-card--active" : "")" @onclick='() => SelectStatut("")'>
+                <div class="stat-icon stat-icon--denim">
+                    <MudIcon Icon="@Icons.Material.Filled.Inbox" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@reclamations.Count</div>
+                    <div class="stat-label">Total</div>
+                </div>
+            </div>
+            <div class="stat-card @(selectedStatut == "ENVOYEE" ? "stat-card--active" : "")" @onclick='() => SelectStatut("ENVOYEE")'>
+                <div class="stat-icon stat-icon--amber">
+                    <MudIcon Icon="@Icons.Material.Filled.MarkEmailUnread" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@reclamations.Count(r => IsStatut(r, "ENVOYEE"))</div>
+                    <div class="stat-label">À traiter</div>
+                </div>
+            </div>
+            <div class="stat-card @(selectedStatut == "EN_COURS" ? "stat-card--active" : "")" @onclick='() => SelectStatut("EN_COURS")'>
+                <div class="stat-icon stat-icon--denim">
+                    <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@reclamations.Count(r => IsStatut(r, "EN_COURS"))</div>
+                    <div class="stat-label">En cours</div>
+                </div>
+            </div>
+            <div class="stat-card @(selectedStatut == "RESOLUE" ? "stat-card--active" : "")" @onclick='() => SelectStatut("RESOLUE")'>
+                <div class="stat-icon stat-icon--pine">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@reclamations.Count(r => IsStatut(r, "RESOLUE"))</div>
+                    <div class="stat-label">Résolues</div>
+                </div>
+            </div>
+            <div class="stat-card @(selectedStatut == "REJETEE" ? "stat-card--active" : "")" @onclick='() => SelectStatut("REJETEE")'>
+                <div class="stat-icon stat-icon--rust">
+                    <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@reclamations.Count(r => IsStatut(r, "REJETEE"))</div>
+                    <div class="stat-label">Rejetées</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FILTRES -->
+        <div class="filters-card mb-6">
+            <label class="filter-label" for="statut-filter">
+                <MudIcon Icon="@Icons.Material.Filled.FilterList" Size="Size.Small" />
+                Statut
+            </label>
+            <select id="statut-filter" class="filter-select" value="@selectedStatut" @onchange="OnFilterChanged">
+                <option value="">Toutes</option>
+                <option value="ENVOYEE">Envoyées</option>
+                <option value="EN_COURS">En cours</option>
+                <option value="RESOLUE">Résolues</option>
+                <option value="REJETEE">Rejetées</option>
+            </select>
+
+            <div class="search-wrap">
+                <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" Class="search-icon" />
+                <input class="search-input" placeholder="Rechercher un client, un produit..." @bind="searchText" @bind:event="oninput" />
+            </div>
+
+            <span class="filter-count">@ReclamationsFiltrees.Count() résultat(s)</span>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="d-flex justify-center my-12">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        </div>
+    }
+    else if (!reclamations.Any())
+    {
+        <div class="empty-card">
+            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Large" Class="empty-icon" />
+            <h3 class="empty-title">Aucune réclamation pour le moment</h3>
+            <p class="empty-subtitle">Les réclamations déposées par vos clients apparaîtront ici.</p>
+        </div>
+    }
+    else if (!ReclamationsFiltrees.Any())
+    {
+        <div class="empty-card">
+            <MudIcon Icon="@Icons.Material.Filled.FilterAltOff" Size="Size.Large" Class="empty-icon" />
+            <h3 class="empty-title">Aucune réclamation ne correspond à ce filtre</h3>
+            <p class="empty-subtitle">Essayez de modifier vos critères de recherche.</p>
+        </div>
+    }
+    else
+    {
+        <div class="reclamations-grid">
+            @foreach (var r in ReclamationsFiltrees)
+            {
+                <div class="reclamation-card @GetCardClass(r.Statut)">
+                    <div class="card-header">
+                        <span class="motif-pill">
+                            <MudIcon Icon="@Icons.Material.Filled.ReportProblem" Size="Size.Small" />
+                            @r.Motif
+                        </span>
+                        <div class="d-flex align-center gap-1">
+                            <button class="delete-btn" title="Supprimer cette réclamation" @onclick="() => DemanderSuppression(r)">
+                                <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                            </button>
+                            <span class="status-pill @GetStatutClass(r.Statut)">
+                                <MudIcon Icon="@GetStatutIcon(r.Statut)" Size="Size.Small" />
+                                @GetStatutLabel(r.Statut)
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="card-body">
+                        <!-- Client & Produit -->
+                        <div class="meta-block">
+                            <div class="meta-item meta-item--client">
+                                <div class="meta-item-header">
+                                    <span class="client-avatar">@GetInitiales(r.ClientNom)</span>
+                                    <span class="meta-label">Client</span>
+                                </div>
+                                <div class="client-name">@r.ClientNom</div>
+                                <div class="client-email">@r.ClientEmail</div>
+                            </div>
+                            <div class="meta-item">
+                                <div class="meta-item-header">
+                                    <MudIcon Icon="@Icons.Material.Filled.Checkroom" Size="Size.Small" Class="meta-icon" />
+                                    <span class="meta-label">Produit</span>
+                                </div>
+                                <div class="product-name">@r.ProduitNom</div>
+                                <span class="ref-code mt-1">@r.ProduitReference</span>
+                            </div>
+                            <div class="meta-item">
+                                <div class="meta-item-header">
+                                    <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" Class="meta-icon" />
+                                    <span class="meta-label">Date de soumission</span>
+                                </div>
+                                <div class="meta-date">@r.DateCreation.ToString("dd MMMM yyyy à HH:mm")</div>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="desc-box mt-3">
+                            <div class="desc-box-header">
+                                <MudIcon Icon="@Icons.Material.Filled.ChatBubbleOutline" Size="Size.Small" />
+                                <span class="meta-label">Description du problème</span>
+                            </div>
+                            <p class="desc-text">@r.Description</p>
+                        </div>
+
+                        <!-- Photos -->
+                        @if (!string.IsNullOrEmpty(r.PhotosUrls))
+                        {
+                            var photos = r.PhotosUrls.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                            <div class="photos-block mt-3">
+                                <span class="meta-label">Photos jointes (@photos.Length)</span>
+                                <div class="photos-grid mt-1">
+                                    @foreach (var p in photos)
+                                    {
+                                        <a href="@GetFullImageUrl(p)" target="_blank" class="photo-item">
+                                            <img src="@GetFullImageUrl(p)" alt="Photo réclamation" />
+                                            <span class="photo-item-overlay">
+                                                <MudIcon Icon="@Icons.Material.Filled.ZoomIn" Size="Size.Small" />
+                                            </span>
+                                        </a>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Réponse admin existante -->
+                        @if (!string.IsNullOrEmpty(r.ReponseAdmin))
+                        {
+                            <div class="reply-box mt-4">
+                                <div class="d-flex align-center justify-between mb-1">
+                                    <strong class="reply-title">
+                                        <MudIcon Icon="@Icons.Material.Filled.Reply" Size="Size.Small" />
+                                        Réponse apportée
+                                    </strong>
+                                    @if (r.DateReponse.HasValue)
+                                    {
+                                        <span class="reply-date">@r.DateReponse.Value.ToString("dd/MM/yyyy à HH:mm")</span>
+                                    }
+                                </div>
+                                <p class="reply-text">@r.ReponseAdmin</p>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="card-footer">
+                        <button class="btn btn--primary" @onclick="() => OuvrirModalTraitement(r)">
+                            <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" />
+                            <span>@(string.IsNullOrEmpty(r.ReponseAdmin) ? "Traiter la réclamation" : "Modifier la réponse")</span>
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- ===== MODAL DE TRAITEMENT ===== -->
+@if (selectedReclamation != null && showTraitementModal)
+{
+    <div class="wic-modal-overlay" @onclick="FermerModal">
+        <div class="wic-modal-card" @onclick:stopPropagation="true">
+            <div class="wic-modal-header">
+                <div class="wic-modal-header-left">
+                    <div class="wic-modal-icon">
+                        <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" />
+                    </div>
+                    <div>
+                        <h3 class="wic-modal-title">Traiter la réclamation</h3>
+                        <p class="wic-modal-subtitle">@selectedReclamation.ClientNom — @selectedReclamation.ProduitNom</p>
+                    </div>
+                </div>
+                <button class="wic-modal-close" @onclick="FermerModal">
+                    <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                </button>
+            </div>
+
+            <div class="wic-modal-body">
+                <!-- Rappel réclamation -->
+                <div class="wic-recap-box mb-4">
+                    <div class="wic-recap-row">
+                        <span class="wic-recap-label">Motif</span>
+                        <span class="motif-pill">@selectedReclamation.Motif</span>
+                    </div>
+                    <div class="wic-recap-row">
+                        <span class="wic-recap-label">Produit</span>
+                        <span class="wic-recap-value">@selectedReclamation.ProduitNom <span class="ref-code ml-1">@selectedReclamation.ProduitReference</span></span>
+                    </div>
+                </div>
+
+                <div class="form-group mb-4">
+                    <label class="form-label mb-2">Nouveau statut <span class="req-star">*</span></label>
+                    <div class="statut-selector">
+                        <button type="button" class="statut-option statut-option--progress @(nouveauStatut == "EN_COURS" ? "active" : "")"
+                                @onclick='() => nouveauStatut = "EN_COURS"'>
+                            <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Size="Size.Small" />
+                            <span>En cours</span>
+                        </button>
+                        <button type="button" class="statut-option statut-option--done @(nouveauStatut == "RESOLUE" ? "active" : "")"
+                                @onclick='() => nouveauStatut = "RESOLUE"'>
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
+                            <span>Résolue</span>
+                        </button>
+                        <button type="button" class="statut-option statut-option--rejected @(nouveauStatut == "REJETEE" ? "active" : "")"
+                                @onclick='() => nouveauStatut = "REJETEE"'>
+                            <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" />
+                            <span>Rejetée</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label mb-2">Réponse au client <span class="req-star">*</span></label>
+                    <textarea class="form-control" rows="5" placeholder="Indiquez les mesures prises, les explications ou la solution proposée au client..."
+                              @bind="reponseAdmin"></textarea>
+                    <span class="form-hint">Cette réponse sera visible par le client et déclenchera une notification.</span>
+                </div>
+            </div>
+
+            <div class="wic-modal-footer">
+                <button class="btn btn--outline" @onclick="FermerModal" disabled="@isSubmitting">Annuler</button>
+                <button class="btn btn--primary" @onclick="EnregistrerTraitement" disabled="@isSubmitting">
+                    @if (isSubmitting)
+                    {
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" Color="Color.Inherit" />
+                        <span>Enregistrement...</span>
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" />
+                        <span>Valider la réponse</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ===== MODAL DE CONFIRMATION DE SUPPRESSION ===== -->
+@if (reclamationASupprimer != null && showDeleteModal)
+{
+    <div class="wic-modal-overlay" @onclick="AnnulerSuppression">
+        <div class="wic-confirm-card" @onclick:stopPropagation="true">
+            <div class="wic-confirm-icon">
+                <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Large" />
+            </div>
+            <h3 class="wic-confirm-title">Supprimer cette réclamation ?</h3>
+            <p class="wic-confirm-text">
+                Cette action est définitive et ne peut pas être annulée. La réclamation de
+                <strong>@reclamationASupprimer.ClientNom</strong> concernant <strong>@reclamationASupprimer.ProduitNom</strong>
+                sera supprimée.
+            </p>
+            <div class="wic-confirm-actions">
+                <button class="btn btn--outline" @onclick="AnnulerSuppression" disabled="@isDeleting">Annuler</button>
+                <button class="btn btn--danger" @onclick="ConfirmerSuppression" disabled="@isDeleting">
+                    @if (isDeleting)
+                    {
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" Color="Color.Inherit" />
+                        <span>Suppression...</span>
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Delete" Size="Size.Small" />
+                        <span>Supprimer</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .admin-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --sand: #F3F6FA;
+        --border: #E1E7EF;
+        --denim: #2B4C7E;
+        --denim-dark: #1E3A63;
+        --denim-soft: #E7EDF6;
+        --rust: #B5563A;
+        --rust-soft: #F9ECE8;
+        --pine: #1E6B4C;
+        --pine-soft: #E4F3EC;
+        --amber: #D97706;
+        --amber-soft: #FEF3C7;
+        --radius-sm: 8px;
+        --radius-md: 10px;
+        --radius-lg: 16px;
+        --font-display: "Sora", "Inter", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        font-family: var(--font-body);
+    }
+
+        .admin-page .admin-hero {
+            margin-bottom: 20px;
+        }
+
+        .admin-page .page-title {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.75rem;
+            color: var(--ink);
+            margin: 0 0 6px 0;
+            letter-spacing: -0.02em;
+        }
+
+        .admin-page .page-subtitle {
+            color: var(--ink-muted);
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        /* ===== Statistiques cliquables ===== */
+        .admin-page .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 14px;
+        }
+
+        .admin-page .stat-card {
+            background: var(--paper);
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 16px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 8px rgba(22, 35, 58, 0.03);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+            .admin-page .stat-card:hover {
+                border-color: var(--denim);
+                transform: translateY(-1px);
+            }
+
+        .admin-page .stat-card--active {
+            border-color: var(--denim);
+            box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.12);
+        }
+
+        .admin-page .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .admin-page .stat-icon--denim {
+            background: var(--denim-soft);
+            color: var(--denim);
+        }
+
+        .admin-page .stat-icon--amber {
+            background: var(--amber-soft);
+            color: var(--amber);
+        }
+
+        .admin-page .stat-icon--pine {
+            background: var(--pine-soft);
+            color: var(--pine);
+        }
+
+        .admin-page .stat-icon--rust {
+            background: var(--rust-soft);
+            color: var(--rust);
+        }
+
+        .admin-page .stat-value {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--ink);
+            line-height: 1.1;
+        }
+
+        .admin-page .stat-label {
+            font-size: 0.78rem;
+            color: var(--ink-muted);
+            margin-top: 2px;
+        }
+
+        /* ===== Filtres ===== */
+        .admin-page .filters-card {
+            background: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .admin-page .filter-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--ink-muted);
+            white-space: nowrap;
+        }
+
+        .admin-page .filter-select {
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 8px 14px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            font-family: var(--font-body);
+            color: var(--ink);
+            background: var(--paper);
+            cursor: pointer;
+            outline: none;
+            min-width: 180px;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+            .admin-page .filter-select:focus {
+                border-color: var(--denim);
+                box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.14);
+            }
+
+        .admin-page .search-wrap {
+            position: relative;
+            flex: 1;
+            min-width: 220px;
+        }
+
+        .admin-page .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--ink-muted);
+            pointer-events: none;
+        }
+
+        .admin-page .search-input {
+            width: 100%;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 8px 14px 8px 36px;
+            font-size: 0.875rem;
+            font-family: var(--font-body);
+            color: var(--ink);
+            outline: none;
+            box-sizing: border-box;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+            .admin-page .search-input:focus {
+                border-color: var(--denim);
+                box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.14);
+            }
+
+        .admin-page .filter-count {
+            font-size: 0.8rem;
+            color: var(--ink-muted);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .admin-page .reclamations-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .admin-page .reclamation-card {
+            background: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(22, 35, 58, 0.03);
+            transition: box-shadow 0.15s ease, border-color 0.15s ease;
+        }
+
+            .admin-page .reclamation-card:hover {
+                box-shadow: 0 8px 20px -10px rgba(22, 35, 58, 0.18);
+            }
+
+        .admin-page .reclamation-card--pending {
+            border-left: 3px solid var(--amber);
+        }
+
+        .admin-page .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .admin-page .motif-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8125rem;
+            font-weight: 700;
+            color: var(--rust);
+            background: var(--rust-soft);
+            padding: 4px 10px;
+            border-radius: 6px;
+            line-height: 1;
+        }
+
+        .admin-page .delete-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: var(--paper);
+            color: var(--ink-muted);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+        }
+
+            .admin-page .delete-btn:hover {
+                background: var(--rust-soft);
+                border-color: var(--rust);
+                color: var(--rust);
+            }
+
+        .admin-page .meta-block {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            background: var(--sand);
+            padding: 14px 16px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+        }
+
+        .admin-page .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .admin-page .meta-item-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .admin-page .meta-icon {
+            color: var(--ink-muted);
+            flex-shrink: 0;
+        }
+
+        .admin-page .client-avatar {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--denim);
+            color: #fff;
+            font-size: 0.62rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-family: var(--font-display);
+        }
+
+        .admin-page .meta-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--ink-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            display: block;
+            line-height: 1;
+        }
+
+        .admin-page .client-name,
+        .admin-page .product-name,
+        .admin-page .meta-date {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--ink);
+            margin-top: 2px;
+            font-family: var(--font-display);
+        }
+
+        .admin-page .client-email {
+            font-size: 0.8rem;
+            color: var(--ink-muted);
+        }
+
+        .admin-page .ref-code {
+            display: inline-block;
+            align-self: flex-start;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--denim);
+            background: var(--denim-soft);
+            padding: 2px 7px;
+            border-radius: 5px;
+        }
+
+        .admin-page .desc-box {
+            background: #fff;
+            border: 1px solid var(--border);
+            padding: 14px;
+            border-radius: var(--radius-sm);
+        }
+
+        .admin-page .desc-box-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .admin-page .desc-text {
+            font-size: 0.9rem;
+            color: var(--ink);
+            margin: 4px 0 0 0;
+            line-height: 1.5;
+        }
+
+        .admin-page .photos-grid {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .admin-page .photo-item {
+            position: relative;
+            display: inline-block;
+        }
+
+            .admin-page .photo-item img {
+                width: 64px;
+                height: 64px;
+                border-radius: 8px;
+                object-fit: cover;
+                border: 1px solid var(--border);
+                transition: transform 0.15s ease;
+            }
+
+            .admin-page .photo-item:hover img {
+                transform: scale(1.05);
+                border-color: var(--denim);
+            }
+
+        .admin-page .photo-item-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            opacity: 0;
+            background: rgba(22, 35, 58, 0.35);
+            border-radius: 8px;
+            transition: opacity 0.15s ease;
+        }
+
+        .admin-page .photo-item:hover .photo-item-overlay {
+            opacity: 1;
+        }
+
+        .admin-page .reply-box {
+            background: var(--denim-soft);
+            border: 1px solid rgba(43, 76, 126, 0.2);
+            padding: 14px 16px;
+            border-radius: var(--radius-sm);
+        }
+
+        .admin-page .reply-title {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            color: var(--denim);
+            font-family: var(--font-display);
+        }
+
+        .admin-page .reply-date {
+            font-size: 0.75rem;
+            color: var(--ink-muted);
+        }
+
+        .admin-page .reply-text {
+            font-size: 0.9rem;
+            color: var(--ink);
+            margin: 4px 0 0 0;
+            line-height: 1.5;
+        }
+
+        .admin-page .card-footer {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+        }
+
+        /* ===== Boutons carte (portée .admin-page, variables OK) ===== */
+        .admin-page .btn {
+            border: none;
+            padding: 10px 20px;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.15s ease;
+            font-family: var(--font-body);
+        }
+
+            .admin-page .btn:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+    /* ===== Boutons des modales (portée globale : PAS de var(--radius-*), on fixe la valeur en dur) ===== */
+    .wic-modal-footer .btn,
+    .wic-confirm-actions .btn {
+        border: none;
+        padding: 10px 22px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.875rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.15s ease;
+        font-family: "Inter", sans-serif;
+    }
+
+        .wic-modal-footer .btn:disabled,
+        .wic-confirm-actions .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+    .admin-page .btn--primary,
+    .wic-modal-footer .btn--primary {
+        background: #2B4C7E !important;
+        color: #fff !important;
+        box-shadow: 0 2px 6px rgba(43, 76, 126, 0.3);
+    }
+
+        .admin-page .btn--primary:hover:not(:disabled),
+        .wic-modal-footer .btn--primary:hover:not(:disabled) {
+            background: #1E3A63 !important;
+            box-shadow: 0 4px 12px rgba(43, 76, 126, 0.4);
+            transform: translateY(-1px);
+        }
+
+    .admin-page .btn--outline,
+    .wic-modal-footer .btn--outline,
+    .wic-confirm-actions .btn--outline {
+        background: #fff;
+        border: 1.5px solid #2B4C7E;
+        color: #2B4C7E;
+    }
+
+        .admin-page .btn--outline:hover:not(:disabled),
+        .wic-modal-footer .btn--outline:hover:not(:disabled),
+        .wic-confirm-actions .btn--outline:hover:not(:disabled) {
+            background: #E7EDF6;
+        }
+
+    .admin-page .btn--danger,
+    .wic-confirm-actions .btn--danger {
+        background: #B5563A;
+        color: #fff;
+        box-shadow: 0 2px 6px rgba(181, 86, 58, 0.25);
+    }
+
+        .admin-page .btn--danger:hover:not(:disabled),
+        .wic-confirm-actions .btn--danger:hover:not(:disabled) {
+            background: #96412A;
+        }
+
+    .admin-page .empty-card {
+        text-align: center;
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 48px 24px;
+    }
+
+    .admin-page .empty-icon {
+        font-size: 48px;
+        color: var(--pine);
+    }
+
+    .admin-page .empty-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: var(--ink);
+        margin-top: 12px;
+    }
+
+    .admin-page .empty-subtitle {
+        color: var(--ink-muted);
+        font-size: 0.9rem;
+    }
+
+    .admin-page .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 4px 12px;
+        border-radius: 999px;
+        line-height: 1;
+    }
+
+    .admin-page .status-pill--pending {
+        background: var(--amber-soft);
+        color: var(--amber);
+    }
+
+    .admin-page .status-pill--progress {
+        background: var(--denim-soft);
+        color: var(--denim);
+    }
+
+    .admin-page .status-pill--done {
+        background: var(--pine-soft);
+        color: var(--pine);
+    }
+
+    .admin-page .status-pill--rejected {
+        background: var(--rust-soft);
+        color: var(--rust);
+    }
+
+    /* ===== Modal overlay (portée globale car rendu hors de .admin-page) ===== */
+    .wic-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(6px);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        font-family: "Inter", sans-serif;
+        animation: wicFadeIn 0.15s ease;
+    }
+
+    @@keyframes wicFadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    @@keyframes wicSlideUp {
+        from {
+            opacity: 0;
+            transform: translateY(16px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Modal de traitement */
+    .wic-modal-card {
+        background: #ffffff !important;
+        border: 1px solid #E1E7EF;
+        border-radius: 20px;
+        width: 100%;
+        max-width: 540px;
+        box-shadow: 0 24px 60px rgba(22, 35, 58, 0.28), 0 4px 12px rgba(22, 35, 58, 0.1);
+        overflow: hidden;
+        animation: wicSlideUp 0.2s ease;
+    }
+
+    /* ===== En-tête du modal : bleu clair dégradé (aligné sur le hero de la page Profil) ===== */
+    .wic-modal-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 22px 24px;
+        background: linear-gradient(180deg, #E7EDF6 0%, #FFFFFF 100%);
+        border-bottom: 1px solid #E1E7EF;
+    }
+
+    .wic-modal-header-left {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .wic-modal-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: #FFFFFF;
+        border: 1px solid #E1E7EF;
+        color: #2B4C7E;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .wic-modal-title {
+        font-family: "Sora", sans-serif;
+        font-weight: 700;
+        font-size: 1.15rem;
+        margin: 0;
+        color: #16233A;
+    }
+
+    .wic-modal-subtitle {
+        font-size: 0.85rem;
+        margin: 2px 0 0 0;
+        color: #64748B;
+    }
+
+    .wic-modal-close {
+        background: #FFFFFF;
+        border: 1px solid #E1E7EF;
+        cursor: pointer;
+        color: #64748B;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+
+        .wic-modal-close:hover {
+            background: #E7EDF6;
+            color: #2B4C7E;
+            border-color: #2B4C7E;
+        }
+
+    .wic-modal-body {
+        padding: 24px;
+    }
+
+    .wic-recap-box {
+        background: #F3F6FA;
+        border: 1px solid #E1E7EF;
+        border-radius: 10px;
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .wic-recap-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .wic-recap-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #64748B;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .wic-recap-value {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #16233A;
+        font-family: "Sora", sans-serif;
+    }
+
+    .wic-modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        padding: 18px 24px;
+        background: #F3F6FA;
+        border-top: 1px solid #E1E7EF;
+    }
+
+    .form-label {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #16233A;
+        display: block;
+        font-family: "Inter", sans-serif;
+    }
+
+    .req-star {
+        color: #B5563A;
+    }
+
+    .form-hint {
+        display: block;
+        margin-top: 6px;
+        font-size: 0.75rem;
+        color: #64748B;
+    }
+
+    .form-control {
+        width: 100%;
+        border: 1.5px solid #E1E7EF;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-family: "Inter", sans-serif;
+        font-size: 0.9rem;
+        color: #16233A;
+        outline: none;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        resize: vertical;
+        box-sizing: border-box;
+    }
+
+        .form-control:focus {
+            border-color: #2B4C7E;
+            box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.14);
+        }
+
+    /* Sélecteur de statut (segmented control) */
+    .statut-selector {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+
+    .statut-option {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 12px 8px;
+        border: 1.5px solid #E1E7EF;
+        border-radius: 10px;
+        background: #fff;
+        color: #64748B;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        font-family: "Inter", sans-serif;
+    }
+
+        .statut-option:hover {
+            border-color: #2B4C7E;
+            color: #2B4C7E;
+        }
+
+    .statut-option--progress.active {
+        background: #E7EDF6;
+        border-color: #2B4C7E;
+        color: #2B4C7E;
+        box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.12);
+    }
+
+    .statut-option--done.active {
+        background: #E4F3EC;
+        border-color: #1E6B4C;
+        color: #1E6B4C;
+        box-shadow: 0 0 0 3px rgba(30, 107, 76, 0.12);
+    }
+
+    .statut-option--rejected.active {
+        background: #F9ECE8;
+        border-color: #B5563A;
+        color: #B5563A;
+        box-shadow: 0 0 0 3px rgba(181, 86, 58, 0.12);
+    }
+
+    /* Modal de confirmation de suppression */
+    .wic-confirm-card {
+        background: #fff !important;
+        border-radius: 20px;
+        width: 100%;
+        max-width: 420px;
+        box-shadow: 0 24px 60px rgba(22, 35, 58, 0.28), 0 4px 12px rgba(22, 35, 58, 0.1);
+        padding: 28px 28px 24px;
+        text-align: center;
+        animation: wicSlideUp 0.2s ease;
+    }
+
+    .wic-confirm-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: #F9ECE8;
+        color: #B5563A;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 16px;
+    }
+
+    .wic-confirm-title {
+        font-family: "Sora", sans-serif;
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: #16233A;
+        margin: 0 0 10px;
+    }
+
+    .wic-confirm-text {
+        font-size: 0.9rem;
+        color: #64748B;
+        line-height: 1.5;
+        margin: 0 0 22px;
+    }
+
+    .wic-confirm-actions {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+    }
+</style>
+
+@code {
+    private List<ReclamationDto> reclamations = new();
+    private bool isLoading = true;
+    private string selectedStatut = "";
+    private string searchText = "";
+
+    private ReclamationDto? selectedReclamation;
+    private bool showTraitementModal = false;
+    private string nouveauStatut = "EN_COURS";
+    private string reponseAdmin = string.Empty;
+    private bool isSubmitting = false;
+
+    private ReclamationDto? reclamationASupprimer;
+    private bool showDeleteModal = false;
+    private bool isDeleting = false;
+
+    private IEnumerable<ReclamationDto> ReclamationsFiltrees => reclamations.Where(r =>
+        (string.IsNullOrEmpty(selectedStatut) || IsStatut(r, selectedStatut)) &&
+        (string.IsNullOrWhiteSpace(searchText) ||
+            (r.ClientNom?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (r.ClientEmail?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (r.ProduitNom?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (r.ProduitReference?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false))
+    );
+
+    private bool IsStatut(ReclamationDto r, string statut) =>
+        string.Equals(r.Statut, statut, StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ChargerReclamations();
+    }
+
+    private async Task ChargerReclamations()
+    {
+        isLoading = true;
+        try
+        {
+            // On charge la liste complète une seule fois : le filtrage par statut et la
+            // recherche se font ensuite côté client, sans nouvel appel réseau.
+            reclamations = await FeedbackService.ObtenirReclamationsAdmin(null);
+        }
+        catch { }
+        finally { isLoading = false; }
+    }
+
+    private void SelectStatut(string statut)
+    {
+        selectedStatut = statut;
+    }
+
+    private Task OnFilterChanged(ChangeEventArgs e)
+    {
+        selectedStatut = e.Value?.ToString() ?? "";
+        return Task.CompletedTask;
+    }
+
+    private void OuvrirModalTraitement(ReclamationDto r)
+    {
+        selectedReclamation = r;
+        nouveauStatut = string.Equals(r.Statut, "ENVOYEE", StringComparison.OrdinalIgnoreCase) ? "EN_COURS" : r.Statut;
+        reponseAdmin = r.ReponseAdmin ?? string.Empty;
+        showTraitementModal = true;
+    }
+
+    private void FermerModal()
+    {
+        showTraitementModal = false;
+        selectedReclamation = null;
+    }
+
+    private async Task EnregistrerTraitement()
+    {
+        if (selectedReclamation == null) return;
+        if (string.IsNullOrWhiteSpace(reponseAdmin))
+        {
+            Snackbar.Add("Veuillez saisir une réponse pour le client.", Severity.Warning);
+            return;
+        }
+
+        isSubmitting = true;
+        var dto = new TraiterReclamationDto
+        {
+            Statut = nouveauStatut,
+            ReponseAdmin = reponseAdmin
+        };
+
+        var ok = await FeedbackService.TraiterReclamation(selectedReclamation.Id, dto);
+        isSubmitting = false;
+
+        if (ok)
+        {
+            Snackbar.Add("Réclamation traitée et client notifié.", Severity.Success);
+            FermerModal();
+            await ChargerReclamations();
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors de la mise à jour de la réclamation.", Severity.Error);
+        }
+    }
+
+    private void DemanderSuppression(ReclamationDto r)
+    {
+        reclamationASupprimer = r;
+        showDeleteModal = true;
+    }
+
+    private void AnnulerSuppression()
+    {
+        if (isDeleting) return;
+        showDeleteModal = false;
+        reclamationASupprimer = null;
+    }
+
+    private async Task ConfirmerSuppression()
+    {
+        if (reclamationASupprimer == null) return;
+
+        isDeleting = true;
+        try
+        {
+            var ok = await FeedbackService.SupprimerReclamationAdmin(reclamationASupprimer.Id);
+
+            if (ok)
+            {
+                Snackbar.Add("Réclamation supprimée.", Severity.Success);
+                showDeleteModal = false;
+                reclamationASupprimer = null;
+                await ChargerReclamations();
+            }
+            else
+            {
+                Snackbar.Add("Erreur lors de la suppression de la réclamation.", Severity.Error);
+            }
+        }
+        catch
+        {
+            Snackbar.Add("Erreur lors de la suppression de la réclamation.", Severity.Error);
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    private string GetFullImageUrl(string? url) =>
+        string.IsNullOrEmpty(url) ? "" : $"{Http.BaseAddress}{url.TrimStart('/')}";
+
+    private string GetInitiales(string? nom)
+    {
+        if (string.IsNullOrWhiteSpace(nom)) return "?";
+        var parts = nom.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length switch
+        {
+            0 => "?",
+            1 => parts[0][0].ToString().ToUpperInvariant(),
+            _ => $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant()
+        };
+    }
+
+    private string GetCardClass(string statut) => statut?.ToUpperInvariant() switch
+    {
+        "ENVOYEE" => "reclamation-card--pending",
+        _ => ""
+    };
+
+    private string GetStatutClass(string statut) => statut?.ToUpperInvariant() switch
+    {
+        "RESOLUE" => "status-pill--done",
+        "EN_COURS" => "status-pill--progress",
+        "REJETEE" => "status-pill--rejected",
+        _ => "status-pill--pending"
+    };
+
+    private string GetStatutIcon(string statut) => statut?.ToUpperInvariant() switch
+    {
+        "RESOLUE" => Icons.Material.Filled.CheckCircle,
+        "EN_COURS" => Icons.Material.Filled.HourglassTop,
+        "REJETEE" => Icons.Material.Filled.Cancel,
+        _ => Icons.Material.Filled.MarkEmailUnread
+    };
+
+    private string GetStatutLabel(string statut) => statut?.ToUpperInvariant() switch
+    {
+        "ENVOYEE" => "Envoyée (À traiter)",
+        "EN_COURS" => "En cours",
+        "RESOLUE" => "Résolue",
+        "REJETEE" => "Rejetée",
+        _ => statut ?? string.Empty
+    };
+}
+

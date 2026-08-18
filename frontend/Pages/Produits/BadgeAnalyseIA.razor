@@ -1,0 +1,75 @@
+@using System.Text.RegularExpressions
+@using WicStock.Web.Models.Dtos
+
+<div class="badge-ia-inline-wrapper" @onclick:stopPropagation="true">
+    @if (IsSurstock)
+    {
+        <span class="ia-badge ia-badge--surstock clickable"
+              @onclick="HandleClick"
+              title="Cliquer pour ouvrir l'analyse IA (Fenêtre Pop-up)">
+            <span>@CleanBadgeText</span>
+            <MudIcon Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small" Class="popup-icon" />
+        </span>
+    }
+    else
+    {
+        <span class="ia-badge ia-badge--@StatutType.ToLower()">
+            @CleanBadgeText
+        </span>
+    }
+</div>
+
+<style>
+    .badge-ia-inline-wrapper {
+        display: inline-block;
+    }
+
+    .ia-badge.clickable {
+        cursor: pointer;
+        user-select: none;
+        box-shadow: 0 2px 8px rgba(234, 88, 12, 0.25);
+        transition: all 0.18s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+        .ia-badge.clickable:hover {
+            transform: translateY(-1.5px);
+            box-shadow: 0 4px 12px rgba(234, 88, 12, 0.4);
+            background: #FFEDD5;
+            border-color: #EA580C;
+        }
+
+    .popup-icon {
+        font-size: 0.75rem !important;
+        opacity: 0.8;
+        margin-left: 2px;
+    }
+</style>
+
+@code {
+    [Parameter] public string StatutType { get; set; } = string.Empty;
+    [Parameter] public string BadgeText { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnClickSurstock { get; set; }
+
+    private bool IsSurstock => string.Equals(StatutType, "SURSTOCK", StringComparison.OrdinalIgnoreCase);
+
+    private string CleanBadgeText => StatutType?.ToUpperInvariant() switch
+    {
+        "SUR_COMMANDE" => "Sur commande",
+        "RUPTURE" => "Rupture",
+        "SURSTOCK" => "Surstock",
+        "OBSOLESCENCE" => "Obsolète",
+        "OPTIMAL" => "Optimal",
+        _ => !string.IsNullOrWhiteSpace(BadgeText) ? BadgeText : StatutType ?? ""
+    };
+
+    private async Task HandleClick()
+    {
+        if (IsSurstock)
+        {
+            await OnClickSurstock.InvokeAsync();
+        }
+    }
+}

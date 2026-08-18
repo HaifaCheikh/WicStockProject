@@ -1,0 +1,428 @@
+﻿@inject NavigationManager Navigation
+@inject WicStock.Web.Services.AuthService AuthService
+@inject WicStock.Web.Services.CommandeBadgeService CommandeBadgeService
+@implements IDisposable
+
+<div class="sidebar">
+    <!-- Logo / Brand -->
+    <div class="sidebar-brand">
+        <a href="/" class="brand-link">
+            <div class="brand-mark">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
+                    <path d="M3 8 L21 8 M3 12 L21 12 M3 16 L21 16" stroke="#fff" stroke-width="2" stroke-linecap="round" />
+                    <path d="M7 4 L7 20 M12 4 L12 20 M17 4 L17 20" stroke="rgba(255,255,255,0.5)" stroke-width="1.4" stroke-linecap="round" />
+                </svg>
+            </div>
+            <span class="brand-name">WicStock</span>
+        </a>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav">
+
+        <!-- Général -->
+        <div class="nav-section-label">Général</div>
+        <NavLink href="/" class="nav-item" data-match="all">
+            <MudIcon Icon="@Icons.Material.Filled.Home" Size="Size.Small" Class="nav-icon" />
+            <span>Accueil</span>
+        </NavLink>
+        <AuthorizeView Roles="ADMIN,RESPONSABLE_STOCK_PRODUCTION,CLIENT">
+            <Authorized>
+                <NavLink href="/assistant" class="nav-item">
+                    <MudIcon Icon="@Icons.Material.Filled.SmartToy" Size="Size.Small" Class="nav-icon" />
+                    <span>Assistant IA</span>
+                </NavLink>
+            </Authorized>
+        </AuthorizeView>
+        <AuthorizeView Roles="ADMIN">
+            <Authorized>
+                <NavLink href="/admin/dashboard" class="nav-item">
+                    <MudIcon Icon="@Icons.Material.Filled.Dashboard" Size="Size.Small" Class="nav-icon" />
+                    <span>Tableau de bord Admin</span>
+                </NavLink>
+            </Authorized>
+        </AuthorizeView>
+        <AuthorizeView Roles="RESPONSABLE_STOCK_PRODUCTION">
+            <Authorized>
+                <NavLink href="/manager/dashboard" class="nav-item">
+                    <MudIcon Icon="@Icons.Material.Filled.Dashboard" Size="Size.Small" Class="nav-icon" />
+                    <span>Tableau de bord Stock</span>
+                </NavLink>
+            </Authorized>
+        </AuthorizeView>
+
+        <!-- Inventaire -->
+        <AuthorizeView Roles="RESPONSABLE_STOCK_PRODUCTION,ADMIN">
+            <Authorized>
+                <div class="nav-section-label">Inventaire</div>
+                <!-- Lien vers création/édition rapide d'un produit (visible aux responsables et admins) -->
+                <NavLink href="/produits/creer" class="nav-item">
+                    <MudIcon Icon="@Icons.Material.Filled.AddBox" Size="Size.Small" Class="nav-icon" />
+                    <span>Ajouter un produit</span>
+                </NavLink>
+
+                <NavLink href="/produits" class="nav-item">
+                    <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Small" Class="nav-icon" />
+                    <span>Catalogue produits</span>
+                </NavLink>
+
+                <!-- Commandes clients accessibles aux responsables et aux admins -->
+                <NavLink href="/commandes" class="nav-item nav-item--commandes">
+                    <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Small" Class="nav-icon" />
+                    <span>Commandes clients</span>
+                    @if (CommandeBadgeService.CommandesEnAttente > 0)
+                    {
+                        <span class="nav-badge">@CommandeBadgeService.CommandesEnAttente</span>
+                    }
+                </NavLink>
+            </Authorized>
+        </AuthorizeView>
+
+        <!-- Boutique Client -->
+        <AuthorizeView Roles="CLIENT">
+            <Authorized>
+                <div class="nav-section-label">Boutique Client</div>
+                <NavLink href="/catalogue" class="nav-item">
+                    <MudIcon Icon="@Icons.Material.Filled.Storefront" Size="Size.Small" Class="nav-icon" />
+                    <span>Catalogue produits</span>
+                </NavLink>
+                <NavLink href="/mes-commandes" class="nav-item">
+                    <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Size="Size.Small" Class="nav-icon" />
+                    <span>Mes commandes</span>
+                </NavLink>
+                <NavLink href="/mes-avis-reclamations" class="nav-item">
+                    <MudIcon Icon="@Icons.Material.Filled.RateReview" Size="Size.Small" Class="nav-icon" />
+                    <span>Mes avis & réclamations</span>
+                </NavLink>
+            </Authorized>
+        </AuthorizeView>
+
+        <!-- Livraisons -->
+        <AuthorizeView Roles="LIVREUR">
+            <Authorized>
+                <div class="nav-section-label">Livraisons</div>
+                <NavLink href="/livraisons" class="nav-item" Match="NavLinkMatch.All">
+                    <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" Class="nav-icon" />
+                    <span>Courses & Livraisons</span>
+                </NavLink>
+                <NavLink href="/livraisons/historique" class="nav-item">
+                    <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Small" Class="nav-icon" />
+                    <span>Historique livraisons</span>
+                </NavLink>
+            </Authorized>
+        </AuthorizeView>
+
+        <!-- Administration -->
+        <AuthorizeView Roles="ADMIN">
+            <Authorized>
+                <div class="nav-section-label">Administration</div>
+                <NavLink href="/admin/reclamations" class="nav-item">
+                    <MudIcon Icon="@Icons.Material.Filled.ReportProblem" Size="Size.Small" Class="nav-icon" />
+                    <span>Gestion réclamations</span>
+                </NavLink>
+                <NavLink href="/admin/avis" class="nav-item">
+                    <MudIcon Icon="@Icons.Material.Filled.StarRate" Size="Size.Small" Class="nav-icon" />
+                    <span>Gestion des avis</span>
+                </NavLink>
+                <a href="/utilisateurs" class="nav-item">
+                    <MudIcon Icon="@Icons.Material.Filled.People" Size="Size.Small" Class="nav-icon" />
+                    <span>Gestion des utilisateurs</span>
+                </a>
+            </Authorized>
+        </AuthorizeView>
+
+    </nav>
+
+    <!-- Pied de sidebar -->
+    <div class="sidebar-footer">
+        <AuthorizeView>
+            <Authorized>
+                <a href="/profil" class="user-pill" style="text-decoration:none; color:inherit;" title="Mon Profil">
+                    <div class="user-avatar-sm">@GetInitiale(context.User.Identity?.Name)</div>
+                    <div class="user-info">
+                        <span class="user-name-text">@context.User.Identity?.Name</span>
+                        <span class="user-role-text">Mon Profil</span>
+                    </div>
+                </a>
+                <button class="logout-btn" @onclick="Logout">
+                    <MudIcon Icon="@Icons.Material.Filled.Logout" Size="Size.Small" />
+                    <span>Déconnexion</span>
+                </button>
+            </Authorized>
+            <NotAuthorized>
+                <a href="/login" class="login-btn">
+                    <MudIcon Icon="@Icons.Material.Filled.Login" Size="Size.Small" />
+                    <span>Se connecter</span>
+                </a>
+            </NotAuthorized>
+        </AuthorizeView>
+    </div>
+</div>
+
+<style>
+    .sidebar {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --sand: #F3F6FA;
+        --border: #E1E7EF;
+        --denim: #2B4C7E;
+        --denim-dark: #14263F;
+        --denim-tint: #E7EDF6;
+        --font-display: "Sora", "Inter", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        background: var(--paper);
+        font-family: var(--font-body);
+        border-right: 1px solid var(--border);
+    }
+
+    /* ===== Brand ===== */
+    .sidebar-brand {
+        padding: 20px 16px 16px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .brand-link {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+    }
+
+    .brand-mark {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        background: var(--denim);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .brand-name {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1.0625rem;
+        color: var(--ink);
+        letter-spacing: -0.01em;
+    }
+
+    /* ===== Navigation ===== */
+    .sidebar-nav {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .nav-section-label {
+        font-size: 0.6875rem;
+        font-weight: 700;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--ink-muted);
+        padding: 12px 8px 4px;
+        user-select: none;
+    }
+
+    .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--ink-muted);
+        text-decoration: none;
+        transition: background 0.15s ease, color 0.15s ease;
+    }
+
+        .nav-item:hover {
+            background: var(--sand);
+            color: var(--ink);
+        }
+
+        .nav-item.active-link {
+            background: var(--denim-tint);
+            color: var(--denim);
+            font-weight: 600;
+        }
+
+    .nav-icon {
+        flex-shrink: 0;
+        font-size: 1.125rem !important;
+    }
+
+    /* Badge rouge commandes en attente */
+    .nav-badge {
+        margin-left: auto;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+        border-radius: 10px;
+        background: #DC2626;
+        color: #fff;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        font-family: var(--font-body);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        box-shadow: 0 0 0 2px #fff;
+        animation: badgePop 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+
+    @@keyframes badgePop {
+        from {
+            transform: scale(0.5);
+            opacity: 0;
+        }
+
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    /* ===== Footer ===== */
+    .sidebar-footer {
+        padding: 12px 10px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .user-pill {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: var(--sand);
+    }
+
+    .user-avatar-sm {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: var(--denim);
+        color: #fff;
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .user-info {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .user-name-text {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--ink);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .user-role-text {
+        font-size: 0.6875rem;
+        color: var(--ink-muted);
+    }
+
+    .logout-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--paper);
+        color: var(--ink-muted);
+        font-family: var(--font-body);
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        text-align: left;
+    }
+
+        .logout-btn:hover {
+            background: #fef2f2;
+            border-color: #fca5a5;
+            color: #dc2626;
+        }
+
+    .login-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: var(--denim);
+        color: #fff;
+        font-family: var(--font-body);
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: background 0.15s ease;
+    }
+
+        .login-btn:hover {
+            background: var(--denim-dark);
+        }
+</style>
+
+@code {
+    private string GetInitiale(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        return name.Trim()[0].ToString().ToUpper();
+    }
+
+    private async Task Logout()
+    {
+        await AuthService.Logout();
+        Navigation.NavigateTo("/login");
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        CommandeBadgeService.OnCountChanged += OnBadgeChanged;
+
+        var role = await AuthService.ObtenirRole();
+        if (role is "ADMIN" or "RESPONSABLE_STOCK_PRODUCTION")
+        {
+            await CommandeBadgeService.RafraichirAsync();
+        }
+    }
+
+    private void OnBadgeChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        CommandeBadgeService.OnCountChanged -= OnBadgeChanged;
+    }
+}
+

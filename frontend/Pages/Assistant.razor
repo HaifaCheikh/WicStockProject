@@ -1,0 +1,2061 @@
+@page "/assistant"
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@using System.Text.Json
+@using Microsoft.JSInterop
+@using WicStock.Web.Models
+@using WicStock.Web.Components
+@implements IDisposable
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "ADMIN,RESPONSABLE_STOCK_PRODUCTION,CLIENT")]
+@inject AssistantIAService AssistantIAService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject AuthService AuthService
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>Assistant IA - WicStock</PageTitle>
+
+<HeadContent>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</HeadContent>
+
+<div class="assistant-page">
+    <!-- ===================== SIDEBAR ===================== -->
+    <aside class="sidebar">
+        <button class="btn-nouvelle-conv" @onclick="() => DemarrerNouvelleConversation(sauvegarder: true)">
+            <MudIcon Icon="@Icons.Material.Filled.Add" Size="Size.Small" />
+            <span>Nouvelle conversation</span>
+        </button>
+
+        <div class="liste-conversations">
+            @if (!conversations.Any())
+            {
+                <div class="aucune-conv">Aucune conversation enregistr&#233;e</div>
+            }
+            else
+            {
+                @foreach (var conv in conversations.OrderByDescending(c => c.DateModification))
+                {
+                    var estActive = conversationActive?.Id == conv.Id;
+                    var enRenommage = conversationIdEnRenommage == conv.Id;
+                    <div class="item-conv @(estActive ? "item-conv--actif" : "")"
+                         @onclick="() => { if (!enRenommage) SelectionnerConversation(conv); }">
+                        <MudIcon Icon="@Icons.Material.Filled.ChatBubbleOutline" Size="Size.Small" Class="item-conv-icon" />
+
+                        <div class="item-conv-corps">
+                            @if (enRenommage)
+                            {
+                                <input type="text" class="item-conv-input-renommer"
+                                       @bind="texteRenommage"
+                                       @bind:event="oninput"
+                                       @onkeydown="(e) => GererToucheRenommage(e, conv)"
+                                       @onblur="() => SauvegarderRenommage(conv)"
+                                       @onclick:stopPropagation="true"
+                                       @ref="inputRenommageRef" />
+                            }
+                            else
+                            {
+                                <div class="item-conv-titre" title="@conv.Titre">@conv.Titre</div>
+                                <div class="item-conv-date">@conv.DateModification.ToString("dd/MM/yyyy HH:mm")</div>
+                            }
+                        </div>
+
+                        <div class="item-conv-actions" @onclick:stopPropagation="true">
+                            @if (!enRenommage)
+                            {
+                                <button class="btn-conv-action" title="Renommer" @onclick="() => DemarrerRenommage(conv)">
+                                    <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" />
+                                </button>
+                                <button class="btn-conv-action btn-conv-action--danger" title="Supprimer" @onclick="() => DemanderSuppressionConversation(conv.Id)">
+                                    <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" />
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </aside>
+
+    <!-- ===================== CHAT CONTAINER ===================== -->
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="assistant-avatar">
+                <MudIcon Icon="@Icons.Material.Filled.SmartToy" Size="Size.Medium" />
+            </div>
+            <div>
+                <h2>Assistant WicStock</h2>
+                <p>Toujours pr&#234;t &#224; vous aider avec votre inventaire</p>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="zoneMessages">
+            @if (conversationActive is not null)
+            {
+                @foreach (var msg in conversationActive.Messages)
+                {
+                    <div class="msg-ligne @(msg.EstUtilisateur ? "msg-ligne-user" : "msg-ligne-ia")">
+                        <div class="avatar @(msg.EstUtilisateur ? "avatar-user" : "avatar-ia")">
+                            <MudIcon Icon="@(msg.EstUtilisateur ? Icons.Material.Filled.Person : Icons.Material.Filled.SmartToy)" Size="Size.Small" />
+                        </div>
+
+                        <div class="msg-bloc">
+                            <div class="msg-header">
+                                <span class="msg-auteur">@(msg.EstUtilisateur ? "Vous" : "Assistant WicStock")</span>
+                                <span class="msg-heure">@msg.Horodatage.ToString("HH:mm")</span>
+                            </div>
+
+                            @if (messageEnEditionId == msg.Id)
+                            {
+                                <div class="msg-edition">
+                                    <textarea class="msg-edition-textarea" @bind="texteEdition" @bind:event="oninput"></textarea>
+                                    <div class="msg-edition-actions">
+                                        <button class="btn-mini btn-annuler" @onclick="AnnulerEdition">Annuler</button>
+                                        <button class="btn-mini btn-valider" @onclick="() => SauvegarderEdition(msg)">Enregistrer</button>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="msg-content">
+                                    <p>@msg.Texte</p>
+                                </div>
+
+                                @if (!msg.EstUtilisateur && msg.Chart is not null && msg.Chart.Labels.Any())
+                                {
+                                    var chartId = $"chart-box-{msg.Id}";
+                                    <div class="msg-chart-container" id="@chartId">
+                                        <div class="msg-chart-header">
+                                            <div class="msg-chart-title">
+                                                <MudIcon Icon="@(msg.Chart.Type == "donut" ? Icons.Material.Filled.DonutLarge : (msg.Chart.Type == "line" ? Icons.Material.Filled.ShowChart : Icons.Material.Filled.BarChart))" Size="Size.Small" Class="chart-title-icon" />
+                                                <span>@msg.Chart.Title</span>
+                                            </div>
+                                            <div class="msg-chart-actions">
+                                                <div class="btn-chart-action-wrap">
+                                                    <button type="button" class="btn-chart-action btn-chart-action--zoom" title="Agrandir le graphique"
+                                                            @onclick="() => OuvrirModalZoom(msg.Chart)">
+                                                        <MudIcon Icon="@Icons.Material.Filled.Fullscreen" Size="Size.Small" />
+                                                    </button>
+                                                    <span class="btn-chart-tooltip" role="tooltip">Agrandir</span>
+                                                </div>
+                                                <div class="btn-chart-action-wrap">
+                                                    <button type="button" class="btn-chart-action btn-chart-action--png" title="Enregistrer en Image PNG"
+                                                            @onclick="() => ExporterChartPng(chartId, msg.Chart.Title)">
+                                                        <MudIcon Icon="@Icons.Material.Filled.Image" Size="Size.Small" />
+                                                    </button>
+                                                    <span class="btn-chart-tooltip" role="tooltip">Image PNG</span>
+                                                </div>
+                                                <div class="btn-chart-action-wrap">
+                                                    <button type="button" class="btn-chart-action btn-chart-action--pdf" title="Exporter en Document PDF"
+                                                            @onclick="() => ExporterChartPdf(chartId, msg.Chart.Title)">
+                                                        <MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" Size="Size.Small" />
+                                                    </button>
+                                                    <span class="btn-chart-tooltip" role="tooltip">Document PDF</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        @if (msg.Chart.Type == "donut")
+                                        {
+                                            <WicStockDonutChart Labels="@msg.Chart.Labels"
+                                                                Series="@msg.Chart.Series"
+                                                                Title="@msg.Chart.Title"
+                                                                Width="100%"
+                                                                Height="260px"
+                                                                MaxChartSize="320"
+                                                                UserRole="@role"
+                                                                OnDrillDown="NaviguerDrillDown" />
+                                        }
+                                        else if (msg.Chart.Type == "line")
+                                        {
+                                            <MudChart T="double" ChartType="ChartType.Line"
+                                                      ChartOptions="@WicStockChartConfig.DefaultChartOptions"
+                                                      ChartSeries="@ObtenirSeries(msg.Chart)"
+                                                      ChartLabels="@msg.Chart.Labels.ToArray()"
+                                                      Width="100%"
+                                                      Height="280px" />
+                                        }
+                                        else
+                                        {
+                                            <WicStockBarChart Labels="@msg.Chart.Labels"
+                                                              Series="@msg.Chart.Series"
+                                                              Width="100%"
+                                                              MaxBars="8" />
+                                        }
+                                    </div>
+                                }
+
+                                <div class="msg-actions @(msg.EstUtilisateur ? "msg-actions--user" : "msg-actions--ia")">
+                                    <button class="btn-icone" title="Copier le message" @onclick="() => CopierMessage(msg)">
+                                        <MudIcon Icon="@(messageIdCopie == msg.Id ? Icons.Material.Filled.Check : Icons.Material.Filled.ContentCopy)" Size="Size.Small" />
+                                    </button>
+
+                                    @if (msg.EstUtilisateur)
+                                    {
+                                        <button class="btn-icone" title="Modifier" @onclick="() => EditerMessage(msg)">
+                                            <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" />
+                                        </button>
+                                        <button class="btn-icone" title="Supprimer" @onclick="() => DemanderSuppressionMessage(msg.Id)">
+                                            <MudIcon Icon="@Icons.Material.Filled.Delete" Size="Size.Small" />
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+
+            @if (enChargement)
+            {
+                <div class="msg-ligne msg-ligne-ia">
+                    <div class="avatar avatar-ia avatar-sans-header">
+                        <MudIcon Icon="@Icons.Material.Filled.SmartToy" Size="Size.Small" />
+                    </div>
+                    <div class="msg-bloc">
+                        <div class="msg-content msg-typing">
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- ===================== QUICK PROMPTS (SUGGESTIONS) ===================== -->
+        @{
+            var suggestions = WicStockChartConfig.ObtenirSuggestionsParRole(role);
+            var suggestionsAffichees = afficherToutesSuggestions ? suggestions : suggestions.Take(4).ToList();
+        }
+        @if (suggestions.Any())
+        {
+            <div class="quick-prompts-bar">
+                <div class="quick-prompts-list">
+                    @foreach (var prompt in suggestionsAffichees)
+                    {
+                        <button type="button" class="chip-prompt" @onclick="() => EnvoyerQuestionSuggeree(prompt.Question)" disabled="@enChargement" title="@prompt.Question">
+                            <MudIcon Icon="@prompt.Icon" Size="Size.Small" Class="chip-icon" />
+                            <span>@prompt.Label</span>
+                        </button>
+                    }
+                    @if (suggestions.Count > 4)
+                    {
+                        <button type="button" class="chip-prompt chip-prompt--toggle" @onclick="() => afficherToutesSuggestions = !afficherToutesSuggestions">
+                            <MudIcon Icon="@(afficherToutesSuggestions ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" Size="Size.Small" />
+                            <span>@(afficherToutesSuggestions ? "Réduire" : $"+{suggestions.Count - 4} suggestions")</span>
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+
+        <EditForm Model="@modele" OnValidSubmit="Envoyer" class="chat-input-form">
+            <InputText class="form-control" @bind-Value="modele.Question"
+                       placeholder="@(enregistrementVocalEnCours ? "Je vous écoute..." : "Posez votre question (ex: Quels sont les produits en rupture de stock ?)...")" />
+
+            <button type="button" class="btn btn-mic @(enregistrementVocalEnCours ? "btn-mic--actif" : "")"
+                    title="@(enregistrementVocalEnCours ? "Arrêter l'enregistrement" : "Dicter un message vocal")"
+                    @onclick="BasculerEnregistrementVocal" disabled="@enChargement">
+                <MudIcon Icon="@(enregistrementVocalEnCours ? Icons.Material.Filled.Stop : Icons.Material.Filled.Mic)" Size="Size.Small" />
+            </button>
+
+            @if (enChargement)
+            {
+                <button type="button" class="btn btn-stop" title="Arrêter la génération" @onclick="ArreterReflexion">
+                    <MudIcon Icon="@Icons.Material.Filled.Stop" Size="Size.Small" />
+                </button>
+            }
+            else
+            {
+                <button type="submit" class="btn btn-primary" disabled="@string.IsNullOrWhiteSpace(modele.Question)">
+                    <MudIcon Icon="@Icons.Material.Filled.Send" Size="Size.Small" />
+                </button>
+            }
+        </EditForm>
+    </div>
+
+    <!-- ===================== MODAL ZOOM GRAPHIQUE ===================== -->
+    @if (chartZoom is not null)
+    {
+        <div class="modal-overlay" @onclick="FermerModalZoom">
+            <div class="modal-box modal-box--chart-zoom" id="modal-zoom-box" @onclick:stopPropagation="true">
+                <div class="modal-zoom-header">
+                    <div class="modal-zoom-title">
+                        <MudIcon Icon="@(chartZoom.Type == "donut" ? Icons.Material.Filled.DonutLarge : (chartZoom.Type == "line" ? Icons.Material.Filled.ShowChart : Icons.Material.Filled.BarChart))" Size="Size.Medium" Class="chart-title-icon" />
+                        <h3>@chartZoom.Title</h3>
+                    </div>
+                    <div class="modal-zoom-actions">
+                        <button type="button" class="btn-zoom-action btn-zoom-action--png" title="Enregistrer en image PNG"
+                                @onclick='() => ExporterChartPng("modal-zoom-box", chartZoom.Title)'>
+                            <MudIcon Icon="@Icons.Material.Filled.Image" Size="Size.Small" />
+                            <span>Image PNG</span>
+                        </button>
+                        <button type="button" class="btn-zoom-action btn-zoom-action--pdf" title="Exporter en document PDF"
+                                @onclick='() => ExporterChartPdf("modal-zoom-box", chartZoom.Title)'>
+                            <MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" Size="Size.Small" />
+                            <span>Document PDF</span>
+                        </button>
+                        <button type="button" class="btn-icone-fermer" title="Fermer" @onclick="FermerModalZoom">
+                            <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-zoom-body" id="modal-zoom-container">
+                    @if (chartZoom.Type == "donut")
+                    {
+                        <WicStockDonutChart Labels="@chartZoom.Labels"
+                                            Series="@chartZoom.Series"
+                                            Title="@chartZoom.Title"
+                                            Width="100%"
+                                            Height="380px"
+                                            MaxChartSize="420"
+                                            UserRole="@role"
+                                            OnDrillDown="NaviguerDrillDown" />
+                    }
+                    else if (chartZoom.Type == "line")
+                    {
+                        <MudChart T="double" ChartType="ChartType.Line"
+                                  ChartOptions="@WicStockChartConfig.DefaultChartOptions"
+                                  ChartSeries="@ObtenirSeries(chartZoom)"
+                                  ChartLabels="@chartZoom.Labels.ToArray()"
+                                  Width="100%"
+                                  Height="360px" />
+                    }
+                    else
+                    {
+                        <WicStockBarChart Labels="@chartZoom.Labels"
+                                          Series="@chartZoom.Series"
+                                          Width="100%"
+                                          MaxBars="15" />
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- ===================== MODAL CONFIRMATION SUPPRESSION CONVERSATION ===================== -->
+    @if (conversationIdASupprimer is not null)
+    {
+        <div class="modal-overlay" @onclick="AnnulerSuppressionConversation">
+            <div class="modal-box" @onclick:stopPropagation="true">
+                <div class="modal-icon-danger">
+                    <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Medium" />
+                </div>
+                <h4>Supprimer cette conversation ?</h4>
+                <p>Cette action est irr&#233;versible. Tous les messages de cette conversation seront d&#233;finitivement supprim&#233;s.</p>
+                <div class="modal-actions">
+                    <button class="btn-mini btn-annuler" @onclick="AnnulerSuppressionConversation">Annuler</button>
+                    <button class="btn-mini btn-danger" @onclick="ConfirmerSuppressionConversation">
+                        <MudIcon Icon="@Icons.Material.Filled.DeleteForever" Size="Size.Small" Class="mr-1" />
+                        Supprimer
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- ===================== MODAL CONFIRMATION SUPPRESSION MESSAGE ===================== -->
+    @if (messageIdASupprimer is not null)
+    {
+        <div class="modal-overlay" @onclick="AnnulerSuppressionMessage">
+            <div class="modal-box" @onclick:stopPropagation="true">
+                <div class="modal-icon-danger">
+                    <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Medium" />
+                </div>
+                <h4>Supprimer ce message ?</h4>
+                <p>Cette action est irr&#233;versible. S'il s'agit de votre question, la r&#233;ponse de l'assistant qui la suit sera &#233;galement supprim&#233;e.</p>
+                <div class="modal-actions">
+                    <button class="btn-mini btn-annuler" @onclick="AnnulerSuppressionMessage">Annuler</button>
+                    <button class="btn-mini btn-danger" @onclick="ConfirmerSuppressionMessage">
+                        <MudIcon Icon="@Icons.Material.Filled.DeleteForever" Size="Size.Small" Class="mr-1" />
+                        Supprimer
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- ===================== TOAST NOTIFICATION ===================== -->
+    @if (messageToast is not null)
+    {
+        <div class="toast-notification">
+            <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" />
+            <span>@messageToast</span>
+        </div>
+    }
+</div>
+
+<style>
+    .assistant-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --bg: #F8FAFC;
+        --sand: #F6F8FB;
+        --sand-tint: #F1F5F9;
+        --border: #E2E8F0;
+        --denim: #2B4C7E;
+        --denim-dark: #1E3A63;
+        --denim-tint: #EAF0F8;
+        --rust: #B5563A;
+        --rust-soft: #F9ECE8;
+        --pine: #1E6B4C;
+        --amber: #D97706;
+        --danger: #EF4444;
+        --danger-tint: #FEE2E2;
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+        --font-heading: "Sora", "Inter", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        display: flex;
+        height: calc(100vh - 84px);
+        background: var(--bg);
+        gap: 16px;
+        padding: 16px;
+        box-sizing: border-box;
+        font-family: var(--font-body);
+        color: var(--ink);
+    }
+
+    /* ---------- SIDEBAR ---------- */
+    .assistant-page .sidebar {
+        width: 280px;
+        min-width: 280px;
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .assistant-page .btn-nouvelle-conv {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 11px;
+        border: none;
+        border-radius: var(--radius-sm);
+        background: var(--denim);
+        color: #fff;
+        font-family: var(--font-body);
+        font-weight: 600;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: background 0.15s ease;
+        box-shadow: 0 6px 16px -6px rgba(43, 76, 126, 0.4);
+    }
+
+    .assistant-page .btn-nouvelle-conv:hover {
+        background: var(--denim-dark);
+    }
+
+    .assistant-page .liste-conversations {
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding-right: 2px;
+    }
+
+    .assistant-page .aucune-conv {
+        color: var(--ink-muted);
+        font-size: 0.85rem;
+        text-align: center;
+        margin-top: 24px;
+    }
+
+    .assistant-page .item-conv {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: var(--radius-sm);
+        border: 1px solid transparent;
+        background: transparent;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .assistant-page .item-conv:hover {
+        background: var(--sand-tint);
+        border-color: var(--border);
+    }
+
+    .assistant-page .item-conv--actif {
+        background: var(--denim-tint);
+        border-color: var(--denim);
+    }
+
+    .assistant-page .item-conv-icon {
+        color: var(--ink-muted);
+        flex-shrink: 0;
+    }
+
+    .assistant-page .item-conv--actif .item-conv-icon {
+        color: var(--denim);
+    }
+
+    .assistant-page .item-conv-corps {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .assistant-page .item-conv-titre {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--ink);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .assistant-page .item-conv-date {
+        font-size: 0.72rem;
+        color: var(--ink-muted);
+        font-family: var(--font-mono);
+    }
+
+    .assistant-page .item-conv-input-renommer {
+        width: 100%;
+        padding: 4px 6px;
+        font-size: 0.85rem;
+        border: 1px solid var(--denim);
+        border-radius: 4px;
+        outline: none;
+        box-sizing: border-box;
+    }
+
+    .assistant-page .item-conv-actions {
+        display: flex;
+        gap: 2px;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+    }
+
+    .assistant-page .item-conv:hover .item-conv-actions,
+    .assistant-page .item-conv--actif .item-conv-actions {
+        opacity: 1;
+    }
+
+    .assistant-page .btn-conv-action {
+        width: 26px;
+        height: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        border: none;
+        border-radius: 4px;
+        color: var(--ink-muted);
+        cursor: pointer;
+        padding: 0;
+    }
+
+    .assistant-page .btn-conv-action:hover {
+        background: rgba(0, 0, 0, 0.06);
+        color: var(--ink);
+    }
+
+    .assistant-page .btn-conv-action--danger:hover {
+        background: var(--danger-tint);
+        color: var(--danger);
+    }
+
+    /* ---------- CHAT CONTAINER ---------- */
+    .assistant-page .chat-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        min-width: 0;
+    }
+
+    .assistant-page .chat-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+        background: var(--paper);
+    }
+
+    .assistant-page .assistant-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--denim);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .assistant-page .chat-header h2 {
+        margin: 0;
+        font-family: var(--font-heading);
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--ink);
+    }
+
+    .assistant-page .chat-header p {
+        margin: 0;
+        font-size: 0.8rem;
+        color: var(--ink-muted);
+    }
+
+    .assistant-page .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        background: var(--bg);
+    }
+
+    .assistant-page .msg-ligne {
+        display: flex;
+        gap: 12px;
+        max-width: 86%;
+    }
+
+    .assistant-page .msg-ligne-user {
+        align-self: flex-end;
+        flex-direction: row-reverse;
+    }
+
+    .assistant-page .msg-ligne-ia {
+        align-self: flex-start;
+    }
+
+    .assistant-page .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        margin-top: 20px;
+    }
+
+    .assistant-page .avatar-sans-header {
+        margin-top: 0;
+    }
+
+    .assistant-page .avatar-ia {
+        background: var(--denim);
+        color: #fff;
+    }
+
+    .assistant-page .avatar-user {
+        background: var(--denim-tint);
+        color: var(--denim);
+    }
+
+    .assistant-page .msg-bloc {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .assistant-page .msg-header {
+        font-size: 0.75rem;
+        line-height: 1rem;
+        margin-bottom: 4px;
+        color: var(--ink-muted);
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+    }
+
+    .assistant-page .msg-heure {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+    }
+
+    .assistant-page .msg-ligne-user .msg-header {
+        justify-content: flex-end;
+    }
+
+    .assistant-page .msg-content {
+        padding: 12px 16px;
+        border-radius: 14px;
+        font-size: 0.925rem;
+        line-height: 1.5;
+        word-break: break-word;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .assistant-page .msg-ligne-user .msg-content {
+        background: var(--denim);
+        color: #fff;
+        border-bottom-right-radius: 4px;
+    }
+
+    .assistant-page .msg-ligne-ia .msg-content {
+        background: var(--paper);
+        color: var(--ink);
+        border: 1px solid var(--border);
+        border-bottom-left-radius: 4px;
+    }
+
+    .assistant-page .msg-content p {
+        margin: 0;
+        white-space: pre-wrap;
+    }
+
+    /* ---- Graphique dans le chat ---- */
+    .assistant-page .msg-chart-container {
+        margin-top: 12px;
+        padding: 18px;
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: 0 4px 18px -2px rgba(22, 35, 58, 0.08);
+        transition: box-shadow 0.2s ease;
+    }
+
+    .assistant-page .msg-chart-container:hover {
+        box-shadow: 0 8px 26px -4px rgba(22, 35, 58, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
+    }
+
+    .assistant-page .msg-chart-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        gap: 12px;
+    }
+
+    .assistant-page .msg-chart-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--ink);
+    }
+
+    .assistant-page .msg-chart-title .chart-title-icon {
+        color: var(--denim);
+    }
+
+    .assistant-page .msg-chart-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .assistant-page .btn-chart-action-wrap {
+        position: relative;
+        display: inline-flex;
+    }
+
+    .assistant-page .btn-chart-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        border: 1px solid transparent;
+    }
+
+    .assistant-page .btn-chart-action--zoom {
+        background: #f1f5f9;
+        color: #475569;
+        border-color: #cbd5e1;
+    }
+
+    .assistant-page .btn-chart-action--zoom:hover {
+        background: var(--denim);
+        color: #ffffff;
+        border-color: var(--denim);
+    }
+
+    .assistant-page .btn-chart-action--png {
+        background: #ecfdf5;
+        color: #059669;
+        border-color: #a7f3d0;
+    }
+
+    .assistant-page .btn-chart-action--png:hover {
+        background: #059669;
+        color: #ffffff;
+        border-color: #059669;
+    }
+
+    .assistant-page .btn-chart-action--pdf {
+        background: #fee2e2;
+        color: #dc2626;
+        border-color: #fca5a5;
+    }
+
+    .assistant-page .btn-chart-action--pdf:hover {
+        background: #dc2626;
+        color: #ffffff;
+        border-color: #dc2626;
+    }
+
+    .assistant-page .btn-chart-tooltip {
+        position: absolute;
+        bottom: calc(100% + 8px);
+        right: 0;
+        background: var(--ink);
+        color: #fff;
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 5px 9px;
+        border-radius: 6px;
+        white-space: nowrap;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(4px);
+        transition: all 0.15s ease;
+        pointer-events: none;
+        z-index: 20;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .assistant-page .btn-chart-tooltip::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        right: 10px;
+        border-width: 4px;
+        border-style: solid;
+        border-color: var(--ink) transparent transparent transparent;
+    }
+
+    .assistant-page .btn-chart-action-wrap:hover .btn-chart-tooltip {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+    }
+
+    /* ---------- MODAL ZOOM GRAPHIQUE ---------- */
+    .assistant-page .modal-box.modal-box--chart-zoom {
+        max-width: 960px !important;
+        width: 92vw !important;
+        padding: 26px 30px !important;
+        text-align: left !important;
+        border-radius: 18px !important;
+        box-shadow: 0 25px 60px rgba(15, 23, 42, 0.35) !important;
+    }
+
+    .assistant-page .modal-zoom-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--border);
+        gap: 16px;
+    }
+
+    .assistant-page .modal-zoom-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+        flex: 1;
+    }
+
+    .assistant-page .modal-zoom-title h3 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--ink);
+        font-family: var(--font-heading);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .assistant-page .modal-zoom-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+    }
+
+    .assistant-page .btn-zoom-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 14px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        border: 1px solid transparent;
+        font-family: var(--font-body);
+    }
+
+    .assistant-page .btn-zoom-action--png {
+        background: #ecfdf5;
+        color: #059669;
+        border-color: #a7f3d0;
+    }
+
+    .assistant-page .btn-zoom-action--png:hover {
+        background: #059669;
+        color: #ffffff;
+    }
+
+    .assistant-page .btn-zoom-action--pdf {
+        background: #fee2e2;
+        color: #dc2626;
+        border-color: #fca5a5;
+    }
+
+    .assistant-page .btn-zoom-action--pdf:hover {
+        background: #dc2626;
+        color: #ffffff;
+    }
+
+    .assistant-page .btn-icone-fermer {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--ink-muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .assistant-page .btn-icone-fermer:hover {
+        background: #f1f5f9;
+        color: var(--ink);
+    }
+
+    .assistant-page .modal-zoom-body {
+        padding: 24px;
+        background: #ffffff;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 380px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .assistant-page .msg-actions {
+        display: flex;
+        gap: 4px;
+        margin-top: 4px;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+    }
+
+    .assistant-page .msg-ligne:hover .msg-actions {
+        opacity: 1;
+    }
+
+    .assistant-page .msg-actions--user {
+        justify-content: flex-end;
+    }
+
+    .assistant-page .btn-icone {
+        width: 26px;
+        height: 26px;
+        border-radius: 4px;
+        background: transparent;
+        border: none;
+        color: var(--ink-muted);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+    }
+
+    .assistant-page .btn-icone:hover {
+        background: rgba(0, 0, 0, 0.05);
+        color: var(--ink);
+    }
+
+    .assistant-page .msg-edition {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        background: var(--paper);
+        border: 1px solid var(--denim);
+        border-radius: 14px;
+        padding: 12px;
+    }
+
+    .assistant-page .msg-edition-textarea {
+        width: 100%;
+        min-height: 70px;
+        border: none;
+        outline: none;
+        font-family: var(--font-body);
+        font-size: 0.925rem;
+        resize: vertical;
+        box-sizing: border-box;
+    }
+
+    .assistant-page .msg-edition-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+
+    .assistant-page .btn-mini {
+        padding: 6px 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .assistant-page .btn-annuler {
+        background: var(--sand);
+        color: var(--ink);
+    }
+
+    .assistant-page .btn-valider {
+        background: var(--denim);
+        color: #fff;
+    }
+
+    .assistant-page .btn-valider:hover {
+        background: var(--denim-dark);
+    }
+
+    .assistant-page .btn-danger {
+        background: var(--danger);
+        color: #fff;
+    }
+
+    .assistant-page .btn-danger:hover {
+        background: #B91C1C;
+    }
+
+    /* ---------- TYPING INDICATOR ---------- */
+    .assistant-page .msg-typing {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        padding: 14px 16px;
+    }
+
+    .assistant-page .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--ink-muted);
+        animation: assistant-bounce 1.2s infinite ease-in-out;
+    }
+
+    .assistant-page .dot:nth-child(2) {
+        animation-delay: 0.15s;
+    }
+
+    .assistant-page .dot:nth-child(3) {
+        animation-delay: 0.3s;
+    }
+
+    @@keyframes assistant-bounce {
+        0%, 60%, 100% {
+            transform: translateY(0);
+            opacity: 0.6;
+        }
+        30% {
+            transform: translateY(-4px);
+            opacity: 1;
+        }
+    }
+
+    /* ---------- QUICK PROMPTS (CHIPS) ---------- */
+    .assistant-page .quick-prompts-bar {
+        padding: 8px 18px 4px 18px;
+        background: var(--paper);
+        border-top: 1px solid var(--border);
+    }
+
+    .assistant-page .quick-prompts-list {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        scrollbar-width: none;
+    }
+
+    .assistant-page .quick-prompts-list::-webkit-scrollbar {
+        display: none;
+    }
+
+    .assistant-page .chip-prompt {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        background: var(--sand-tint);
+        color: var(--ink);
+        font-family: var(--font-body);
+        font-size: 0.8rem;
+        font-weight: 500;
+        white-space: nowrap;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .assistant-page .chip-prompt:hover:not(:disabled) {
+        background: var(--denim-tint);
+        border-color: var(--denim);
+        color: var(--denim);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(43, 76, 126, 0.12);
+    }
+
+    .assistant-page .chip-prompt:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .assistant-page .chip-icon {
+        font-size: 0.82rem !important;
+        color: var(--denim);
+    }
+
+    .assistant-page .chip-prompt--toggle {
+        background: transparent;
+        border-style: dashed;
+        color: var(--ink-muted);
+    }
+
+    /* ---------- CHAT INPUT FORM ---------- */
+    .assistant-page .chat-input-form {
+        display: flex;
+        padding: 16px 20px;
+        background: var(--paper);
+        border-top: 1px solid var(--border);
+        gap: 12px;
+    }
+
+    .assistant-page .chat-input-form .form-control {
+        flex: 1;
+        padding: 12px 16px;
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        font-family: var(--font-body);
+        font-size: 0.95rem;
+        transition: border-color 0.2s;
+    }
+
+    .assistant-page .chat-input-form .form-control:focus {
+        outline: none;
+        border-color: var(--denim);
+        box-shadow: 0 0 0 3px var(--denim-tint);
+    }
+
+    .assistant-page .chat-input-form .btn {
+        width: 46px;
+        height: 46px;
+        min-width: 46px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: none;
+        transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.2s ease;
+    }
+
+    .assistant-page .chat-input-form .btn-primary {
+        background: var(--denim);
+        color: #fff;
+    }
+
+    .assistant-page .chat-input-form .btn-primary:hover:not(:disabled) {
+        background: var(--denim-dark);
+    }
+
+    .assistant-page .chat-input-form .btn-mic {
+        background: var(--sand);
+        color: var(--ink-muted);
+        border: 1px solid var(--border);
+    }
+
+    .assistant-page .chat-input-form .btn-mic:hover:not(:disabled) {
+        background: var(--sand-dark, #cbd5e1);
+        color: var(--ink);
+    }
+
+    .assistant-page .chat-input-form .btn-mic--actif {
+        background: var(--danger-tint);
+        color: var(--danger);
+        border-color: var(--danger);
+        animation: pulse-mic 1.2s infinite;
+    }
+
+    .assistant-page .chat-input-form .btn-stop {
+        background: var(--danger);
+        color: #fff;
+    }
+
+    .assistant-page .chat-input-form .btn-stop:hover {
+        background: #B91C1C;
+    }
+
+    @@keyframes pulse-mic {
+        0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+        70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+    }
+
+    /* ---------- MODAL ---------- */
+    .assistant-page .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(22, 35, 58, 0.55);
+        backdrop-filter: blur(2px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        animation: overlay-fade 0.15s ease-out;
+    }
+
+    .assistant-page .modal-box {
+        background: var(--paper);
+        border-radius: var(--radius-lg);
+        padding: 28px;
+        max-width: 380px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 20px 45px -10px rgba(22, 35, 58, 0.35);
+        animation: modal-pop 0.18s ease-out;
+    }
+
+    .assistant-page .modal-icon-danger {
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        background: var(--danger-tint);
+        color: var(--danger);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 16px;
+    }
+
+    .assistant-page .modal-box h4 {
+        font-family: var(--font-heading);
+        margin: 0 0 8px 0;
+        color: var(--ink);
+        font-size: 1.1rem;
+    }
+
+    .assistant-page .modal-box p {
+        margin: 0 0 22px 0;
+        color: var(--ink-muted);
+        font-size: 0.875rem;
+        line-height: 1.5;
+    }
+
+    .assistant-page .modal-actions {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .assistant-page .modal-actions .btn-mini {
+        flex: 1;
+        justify-content: center;
+        padding: 10px 14px;
+    }
+
+    @@keyframes overlay-fade {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @@keyframes modal-pop {
+        from {
+            opacity: 0;
+            transform: scale(0.94) translateY(4px);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+    }
+
+    /* ---------- TOAST ---------- */
+    .assistant-page .toast-notification {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(22, 35, 58, 0.94);
+        color: #fff;
+        padding: 10px 18px;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.85rem;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        z-index: 2000;
+        animation: toast-in 0.2s ease-out;
+    }
+
+    @@keyframes toast-in {
+        from {
+            opacity: 0;
+            transform: translate(-50%, 10px);
+        }
+        to {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
+    }
+</style>
+
+<script>
+    // Export Image PNG Haute Resolution
+    window.wicstockExportPng = async function (elementId, titre) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+
+        const nomFichier = (titre || 'Graphique_WicStock')
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '_')
+            .replace(/_+/g, '_')
+            .trim();
+
+        const btns = el.querySelectorAll('.msg-chart-actions, .btn-chart-action-wrap, .modal-zoom-actions, .btn-export-pdf-wrap, .btn-icone-fermer');
+        btns.forEach(b => b.style.visibility = 'hidden');
+
+        try {
+            if (!window.html2canvas) {
+                console.error('html2canvas non charge');
+                return;
+            }
+
+            const canvas = await html2canvas(el, {
+                scale: 2.5,
+                backgroundColor: '#ffffff',
+                useCORS: true,
+                logging: false,
+                scrollX: 0,
+                scrollY: 0
+            });
+
+            const a = document.createElement('a');
+            a.download = nomFichier + '.png';
+            a.href = canvas.toDataURL('image/png', 1.0);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } catch (e) {
+            console.error('[wicstockExportPng]', e);
+        } finally {
+            btns.forEach(b => b.style.visibility = '');
+        }
+    };
+
+    // Export Document PDF Haute Definition A4 Paysage
+    window.wicstockExportPdf = async function (elementId, titre) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+
+        const nomFichier = (titre || 'Graphique_WicStock')
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '_')
+            .replace(/_+/g, '_')
+            .trim();
+
+        const btns = el.querySelectorAll('.msg-chart-actions, .btn-chart-action-wrap, .modal-zoom-actions, .btn-export-pdf-wrap, .btn-icone-fermer');
+        btns.forEach(b => b.style.visibility = 'hidden');
+
+        try {
+            if (!window.html2canvas) {
+                console.error('html2canvas non charge');
+                return;
+            }
+
+            const canvas = await html2canvas(el, {
+                scale: 2.5,
+                backgroundColor: '#ffffff',
+                useCORS: true,
+                logging: false,
+                scrollX: 0,
+                scrollY: 0
+            });
+
+            const jspdfModule = window.jspdf ? window.jspdf.jsPDF : (window.jsPDF || null);
+            if (!jspdfModule) {
+                console.error('jsPDF non charge');
+                return;
+            }
+
+            const pdf = new jspdfModule({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+            const pdfW = 297;
+            const pdfH = 210;
+            const margin = 15;
+            const maxW = pdfW - margin * 2;
+            const maxH = pdfH - margin * 2;
+
+            const ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
+            const imgW = canvas.width * ratio;
+            const imgH = canvas.height * ratio;
+            const posX = (pdfW - imgW) / 2;
+            const posY = (pdfH - imgH) / 2;
+
+            const imgData = canvas.toDataURL('image/png', 1.0);
+            pdf.addImage(imgData, 'PNG', posX, posY, imgW, imgH);
+            pdf.save(nomFichier + '.pdf');
+        } catch (e) {
+            console.error('[wicstockExportPdf]', e);
+        } finally {
+            btns.forEach(b => b.style.visibility = '');
+        }
+    };
+</script>
+
+<script>
+    // Dictee vocale basee sur la Web Speech API
+    window.wicstockVoice = window.wicstockVoice || (function () {
+        let recognition = null;
+        let dotNetRef = null;
+
+        function estSupporte() {
+            return ('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window);
+        }
+
+        function demarrer(ref) {
+            if (!estSupporte()) return false;
+            const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognitionCtor();
+            recognition.lang = 'fr-FR';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            dotNetRef = ref;
+
+            recognition.onresult = function (event) {
+                const texte = event.results[0][0].transcript;
+                if (dotNetRef) {
+                    dotNetRef.invokeMethodAsync('RecevoirTexteVocal', texte);
+                }
+            };
+
+            recognition.onerror = function () {
+                if (dotNetRef) {
+                    dotNetRef.invokeMethodAsync('SignalerErreurVocale');
+                }
+            };
+
+            recognition.onend = function () {
+                if (dotNetRef) {
+                    dotNetRef.invokeMethodAsync('SignalerFinEcoute');
+                }
+            };
+
+            try {
+                recognition.start();
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function arreter() {
+            if (recognition) {
+                try { recognition.stop(); } catch (e) {}
+                recognition = null;
+            }
+        }
+
+        return {
+            estSupporte: estSupporte,
+            demarrer: demarrer,
+            arreter: arreter
+        };
+    })();
+</script>
+
+@code {
+    private const string CLE_STORAGE_CONVERSATIONS = "wicstock_assistant_conversations_v1";
+    private const string TITRE_PAR_DEFAUT = "Nouvelle conversation";
+
+    private List<Conversation> conversations = new();
+    private Conversation? conversationActive;
+    private QuestionIARequest modele = new();
+    private bool enChargement = false;
+    private string? role;
+    private int? utilisateurId;
+
+    private bool afficherToutesSuggestions = false;
+    private string? messageEnEditionId;
+    private string texteEdition = string.Empty;
+
+    private string? conversationIdASupprimer;
+    private string? messageIdASupprimer;
+    private string? conversationIdEnRenommage;
+    private string texteRenommage = string.Empty;
+    private ElementReference inputRenommageRef;
+
+    private string? messageIdCopie;
+    private string? messageToast;
+
+    private int generationRequete = 0;
+    private bool enregistrementVocalEnCours = false;
+    private DotNetObjectReference<Assistant>? refDotNet;
+    private ChartDto? chartZoom;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        role = authState.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+        if (string.IsNullOrEmpty(role))
+        {
+            role = await AuthService.ObtenirRole();
+        }
+
+        var idClaim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                      ?? authState.User.FindFirst("sub")?.Value;
+        if (int.TryParse(idClaim, out var id))
+        {
+            utilisateurId = id;
+        }
+
+        refDotNet = DotNetObjectReference.Create(this);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await ChargerConversationsDepuisStockage();
+            StateHasChanged();
+        }
+
+        if (conversationIdEnRenommage is not null)
+        {
+            try
+            {
+                await inputRenommageRef.FocusAsync();
+            }
+            catch {}
+        }
+    }
+
+    public void Dispose()
+    {
+        refDotNet?.Dispose();
+    }
+
+    private void OuvrirModalZoom(ChartDto chart) => chartZoom = chart;
+    private void FermerModalZoom() => chartZoom = null;
+
+    private List<ChartSeries<double>> ObtenirSeries(ChartDto? chart)
+    {
+        if (chart is null) return new();
+        return new List<ChartSeries<double>> { new ChartSeries<double> { Name = chart.Title, Data = chart.Series.ToArray() } };
+    }
+
+    private void NaviguerDrillDown(string route)
+    {
+        if (!string.IsNullOrEmpty(route))
+        {
+            Navigation.NavigateTo(route);
+        }
+    }
+
+    // ===================== GESTION DES CONVERSATIONS =====================
+
+    private void DemarrerNouvelleConversation(bool sauvegarder = true)
+    {
+        var msgBienvenue = new MessageChat
+        {
+            Texte = "Bonjour ! Je suis l'Assistant WicStock 👋\nComment puis-je vous aider avec votre inventaire aujourd'hui ? Posez-moi votre question ou choisissez une suggestion ci-dessous !",
+            EstUtilisateur = false,
+            Horodatage = DateTime.Now
+        };
+
+        var nouvelle = new Conversation
+        {
+            Id = Guid.NewGuid().ToString(),
+            Titre = TITRE_PAR_DEFAUT,
+            DateCreation = DateTime.Now,
+            DateModification = DateTime.Now,
+            Messages = new List<MessageChat> { msgBienvenue }
+        };
+
+        conversations.Insert(0, nouvelle);
+        conversationActive = nouvelle;
+        modele = new QuestionIARequest { SessionId = nouvelle.Id };
+
+        if (sauvegarder)
+        {
+            _ = SauvegarderConversationsDansStockage();
+        }
+    }
+
+    private void SelectionnerConversation(Conversation conv)
+    {
+        conversationActive = conv;
+        modele = new QuestionIARequest { SessionId = conv.Id };
+        _ = ScrollEnBas();
+    }
+
+    private void DemanderSuppressionConversation(string conversationId)
+    {
+        conversationIdASupprimer = conversationId;
+    }
+
+    private void AnnulerSuppressionConversation()
+    {
+        conversationIdASupprimer = null;
+    }
+
+    private async Task ConfirmerSuppressionConversation()
+    {
+        if (conversationIdASupprimer is null) return;
+
+        var conv = conversations.FirstOrDefault(c => c.Id == conversationIdASupprimer);
+        if (conv is not null)
+        {
+            conversations.Remove(conv);
+
+            if (conversationActive?.Id == conv.Id)
+            {
+                generationRequete++;
+                enChargement = false;
+
+                if (conversations.Any())
+                {
+                    conversationActive = conversations.OrderByDescending(c => c.DateModification).First();
+                    modele = new QuestionIARequest { SessionId = conversationActive.Id };
+                }
+                else
+                {
+                    DemarrerNouvelleConversation(sauvegarder: false);
+                }
+            }
+
+            await SauvegarderConversationsDansStockage();
+        }
+
+        conversationIdASupprimer = null;
+    }
+
+    // ===================== RENOMMAGE CONVERSATION =====================
+
+    private void DemarrerRenommage(Conversation conv)
+    {
+        conversationIdEnRenommage = conv.Id;
+        texteRenommage = conv.Titre;
+    }
+
+    private async Task GererToucheRenommage(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e, Conversation conv)
+    {
+        if (e.Key == "Enter")
+        {
+            await SauvegarderRenommage(conv);
+        }
+        else if (e.Key == "Escape")
+        {
+            AnnulerRenommage();
+        }
+    }
+
+    private void AnnulerRenommage()
+    {
+        conversationIdEnRenommage = null;
+        texteRenommage = string.Empty;
+    }
+
+    private async Task SauvegarderRenommage(Conversation conv)
+    {
+        if (conversationIdEnRenommage != conv.Id) return;
+
+        var nouveauTitre = texteRenommage.Trim();
+        conv.Titre = string.IsNullOrWhiteSpace(nouveauTitre) ? TITRE_PAR_DEFAUT : nouveauTitre;
+
+        conversationIdEnRenommage = null;
+        texteRenommage = string.Empty;
+
+        await SauvegarderConversationsDansStockage();
+    }
+
+    // ===================== ENVOI DE MESSAGE =====================
+
+    private async Task Envoyer()
+    {
+        if (string.IsNullOrWhiteSpace(modele.Question) || conversationActive is null) return;
+
+        var question = modele.Question.Trim();
+        modele.Question = string.Empty;
+
+        conversationActive.Messages.Add(new MessageChat { Texte = question, EstUtilisateur = true });
+
+        if (conversationActive.Titre == TITRE_PAR_DEFAUT)
+        {
+            conversationActive.Titre = question.Length > 40 ? question[..40] + "…" : question;
+        }
+
+        conversationActive.DateModification = DateTime.Now;
+
+        await EnvoyerVersAssistant(question);
+    }
+
+    private async Task EnvoyerQuestionSuggeree(string question)
+    {
+        if (string.IsNullOrWhiteSpace(question)) return;
+        modele.Question = question;
+        await Envoyer();
+    }
+
+    private async Task EnvoyerVersAssistant(string question)
+    {
+        if (conversationActive is null) return;
+
+        var requeteToSend = new QuestionIARequest
+        {
+            SessionId = conversationActive.Id,
+            Question = question,
+            Role = role,
+            UtilisateurId = utilisateurId
+        };
+
+        var generation = ++generationRequete;
+        enChargement = true;
+        await ScrollEnBas();
+
+        ReponseIA? reponse = null;
+        try
+        {
+            reponse = await AssistantIAService.PoserQuestion(requeteToSend);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[EnvoyerVersAssistant Error] {ex.Message}");
+        }
+        finally
+        {
+            if (generation == generationRequete)
+            {
+                enChargement = false;
+                StateHasChanged();
+            }
+        }
+
+        if (generation != generationRequete) return;
+
+        conversationActive.Messages.Add(new MessageChat
+        {
+            Texte = reponse?.Reponse ?? "Erreur : impossible de contacter l'assistant. Veuillez vérifier que le service IA est en cours d'exécution.",
+            EstUtilisateur = false,
+            Chart = reponse?.Chart
+        });
+
+        conversationActive.DateModification = DateTime.Now;
+
+        await SauvegarderConversationsDansStockage();
+        await ScrollEnBas();
+        StateHasChanged();
+    }
+
+    private void ArreterReflexion()
+    {
+        generationRequete++;
+        enChargement = false;
+    }
+
+    // ===================== EDITION D'UN MESSAGE =====================
+
+    private void EditerMessage(MessageChat msg)
+    {
+        messageEnEditionId = msg.Id;
+        texteEdition = msg.Texte;
+    }
+
+    private void AnnulerEdition()
+    {
+        messageEnEditionId = null;
+        texteEdition = string.Empty;
+    }
+
+    private async Task SauvegarderEdition(MessageChat msg)
+    {
+        if (string.IsNullOrWhiteSpace(texteEdition) || conversationActive is null) return;
+
+        var index = conversationActive.Messages.IndexOf(msg);
+        if (index < 0) return;
+
+        var nouveauTexte = texteEdition.Trim();
+        msg.Texte = nouveauTexte;
+        messageEnEditionId = null;
+        texteEdition = string.Empty;
+
+        if (index + 1 < conversationActive.Messages.Count)
+        {
+            conversationActive.Messages.RemoveRange(index + 1, conversationActive.Messages.Count - index - 1);
+        }
+
+        conversationActive.DateModification = DateTime.Now;
+        await SauvegarderConversationsDansStockage();
+        await ScrollEnBas();
+
+        await EnvoyerVersAssistant(nouveauTexte);
+    }
+
+    // ===================== SUPPRESSION D'UN MESSAGE =====================
+
+    private void DemanderSuppressionMessage(string messageId)
+    {
+        messageIdASupprimer = messageId;
+    }
+
+    private void AnnulerSuppressionMessage()
+    {
+        messageIdASupprimer = null;
+    }
+
+    private async Task ConfirmerSuppressionMessage()
+    {
+        if (messageIdASupprimer is null || conversationActive is null)
+        {
+            messageIdASupprimer = null;
+            return;
+        }
+
+        var msg = conversationActive.Messages.FirstOrDefault(m => m.Id == messageIdASupprimer);
+        if (msg is not null)
+        {
+            var index = conversationActive.Messages.IndexOf(msg);
+            if (index >= 0)
+            {
+                if (msg.EstUtilisateur &&
+                    index + 1 < conversationActive.Messages.Count &&
+                    !conversationActive.Messages[index + 1].EstUtilisateur)
+                {
+                    conversationActive.Messages.RemoveAt(index + 1);
+                }
+
+                conversationActive.Messages.RemoveAt(index);
+                conversationActive.DateModification = DateTime.Now;
+
+                await SauvegarderConversationsDansStockage();
+            }
+        }
+
+        messageIdASupprimer = null;
+    }
+
+    private async Task ExporterChartPng(string chartElementId, string titre)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("wicstockExportPng", chartElementId, titre);
+        }
+        catch
+        {
+            await AfficherToast("Impossible d'exporter le graphique en image PNG.");
+        }
+    }
+
+    private async Task ExporterChartPdf(string chartElementId, string titre)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("wicstockExportPdf", chartElementId, titre);
+        }
+        catch
+        {
+            await AfficherToast("Impossible d'exporter le graphique en PDF.");
+        }
+    }
+
+    private async Task CopierMessage(MessageChat msg)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", msg.Texte);
+            messageIdCopie = msg.Id;
+            StateHasChanged();
+            await Task.Delay(1500);
+            if (messageIdCopie == msg.Id)
+            {
+                messageIdCopie = null;
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            await AfficherToast("Impossible de copier le message sur ce navigateur.");
+        }
+    }
+
+    // ===================== ASSISTANT VOCAL =====================
+
+    private async Task BasculerEnregistrementVocal()
+    {
+        if (enregistrementVocalEnCours)
+        {
+            await JS.InvokeVoidAsync("wicstockVoice.arreter");
+            return;
+        }
+
+        var supporte = await JS.InvokeAsync<bool>("wicstockVoice.estSupporte");
+        if (!supporte)
+        {
+            await AfficherToast("La dictée vocale n'est pas prise en charge par ce navigateur.");
+            return;
+        }
+
+        enregistrementVocalEnCours = true;
+        var demarre = await JS.InvokeAsync<bool>("wicstockVoice.demarrer", refDotNet);
+        if (!demarre)
+        {
+            enregistrementVocalEnCours = false;
+            await AfficherToast("Impossible de démarrer le microphone.");
+        }
+    }
+
+    [JSInvokable]
+    public void RecevoirTexteVocal(string texte)
+    {
+        if (!string.IsNullOrWhiteSpace(texte))
+        {
+            modele.Question = string.IsNullOrWhiteSpace(modele.Question)
+                ? texte
+                : $"{modele.Question.TrimEnd()} {texte}";
+        }
+
+        enregistrementVocalEnCours = false;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void SignalerErreurVocale()
+    {
+        enregistrementVocalEnCours = false;
+        _ = AfficherToast("La reconnaissance vocale a rencontré une erreur. Veuillez réessayer.");
+    }
+
+    [JSInvokable]
+    public void SignalerFinEcoute()
+    {
+        enregistrementVocalEnCours = false;
+        StateHasChanged();
+    }
+
+    // ===================== STOCKAGE LOCAL (LocalStorage) =====================
+
+    private async Task ChargerConversationsDepuisStockage()
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", CLE_STORAGE_CONVERSATIONS);
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var chargees = JsonSerializer.Deserialize<List<Conversation>>(json, options);
+                if (chargees is not null && chargees.Any())
+                {
+                    conversations = chargees;
+                    conversationActive = conversations.OrderByDescending(c => c.DateModification).First();
+                    modele = new QuestionIARequest { SessionId = conversationActive.Id };
+                    return;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ChargerConversations Error] {ex.Message}");
+        }
+
+        DemarrerNouvelleConversation(sauvegarder: true);
+    }
+
+    private async Task SauvegarderConversationsDansStockage()
+    {
+        try
+        {
+            var options = new JsonSerializerOptions { WriteIndented = false };
+            var json = JsonSerializer.Serialize(conversations, options);
+            await JS.InvokeVoidAsync("localStorage.setItem", CLE_STORAGE_CONVERSATIONS, json);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SauvegarderConversations Error] {ex.Message}");
+        }
+    }
+
+    private async Task ScrollEnBas()
+    {
+        try
+        {
+            await Task.Delay(50);
+            await JS.InvokeVoidAsync("eval", "var el = document.getElementById('zoneMessages'); if(el) el.scrollTop = el.scrollHeight;");
+        }
+        catch {}
+    }
+
+    private async Task AfficherToast(string message)
+    {
+        messageToast = message;
+        StateHasChanged();
+        await Task.Delay(3000);
+        if (messageToast == message)
+        {
+            messageToast = null;
+            StateHasChanged();
+        }
+    }
+
+    public class MessageChat
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+        public string Texte { get; set; } = string.Empty;
+        public bool EstUtilisateur { get; set; }
+        public DateTime Horodatage { get; set; } = DateTime.Now;
+        public ChartDto? Chart { get; set; }
+    }
+
+    private class Conversation
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+        public string Titre { get; set; } = TITRE_PAR_DEFAUT;
+        public DateTime DateCreation { get; set; } = DateTime.Now;
+        public DateTime DateModification { get; set; } = DateTime.Now;
+        public List<MessageChat> Messages { get; set; } = new();
+    }
+}

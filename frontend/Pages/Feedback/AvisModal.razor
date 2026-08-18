@@ -1,0 +1,419 @@
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@inject FeedbackService FeedbackService
+@inject ISnackbar Snackbar
+
+@if (IsOpen)
+{
+    <div class="wic-modal-overlay" @onclick="Fermer">
+        <div class="wic-modal-card" @onclick:stopPropagation="true">
+            <div class="wic-modal-header">
+                <div class="d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Filled.StarRate" Size="Size.Medium" Class="icon-star-gold" />
+                    <h3 class="wic-modal-title">@(AvisExistant != null ? "Modifier mon avis" : "Laisser un avis")</h3>
+                </div>
+                <button class="wic-modal-close" @onclick="Fermer">
+                    <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                </button>
+            </div>
+
+            <div class="wic-modal-body">
+                <!-- Produit concerné -->
+                <div class="product-summary">
+                    <div class="product-thumb">
+                        @if (!string.IsNullOrEmpty(ProduitImgUrl))
+                        {
+                            <img src="@ProduitImgUrl" alt="@ProduitNom" />
+                        }
+                        else
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.Layers" Size="Size.Medium" />
+                        }
+                    </div>
+                    <div>
+                        <span class="ref-code">@ProduitRef</span>
+                        <h4 class="product-title mt-1">@ProduitNom</h4>
+                    </div>
+                </div>
+
+                <!-- Note par étoiles -->
+                <div class="rating-section my-4">
+                    <label class="form-label mb-2">Votre note *</label>
+                    <div class="stars-picker">
+                        @for (int i = 1; i <= 5; i++)
+                        {
+                            int starValue = i;
+                            <button type="button" class="star-btn @(starValue <= currentNote ? "active" : "")"
+                                    @onclick="() => currentNote = starValue">
+                                <MudIcon Icon="@(starValue <= currentNote ? Icons.Material.Filled.Star : Icons.Material.Filled.StarBorder)" Size="Size.Large" />
+                            </button>
+                        }
+                    </div>
+                    <span class="rating-hint">@GetRatingHint(currentNote)</span>
+                </div>
+
+                <!-- Commentaire libre -->
+                <div class="form-group mb-4">
+                    <label class="form-label mb-2">Votre commentaire (facultatif)</label>
+                    <textarea class="form-control" rows="4" placeholder="Partagez votre avis sur la qualité du produit, la finition, la coupe..."
+                              @bind="commentaire"></textarea>
+                </div>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert--danger mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Size="Size.Small" />
+                        <span>@errorMessage</span>
+                    </div>
+                }
+            </div>
+
+            <div class="wic-modal-footer">
+                <button class="btn btn--outline" @onclick="Fermer" disabled="@isSubmitting">Annuler</button>
+                <button class="btn btn--primary" @onclick="SoumettreAvis" disabled="@isSubmitting">
+                    @if (isSubmitting)
+                    {
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                        <span>Envoi en cours...</span>
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Send" Size="Size.Small" />
+                        <span>@(AvisExistant != null ? "Mettre à jour mon avis" : "Envoyer mon avis")</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .wic-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(22, 35, 58, 0.6);
+        backdrop-filter: blur(4px);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+    }
+
+    .wic-modal-card {
+        background: var(--paper, #ffffff);
+        border: 1px solid var(--border, #e1e7ef);
+        border-radius: var(--radius-lg, 16px);
+        width: 100%;
+        max-width: 520px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        animation: fadeIn 0.2s ease-out;
+    }
+
+    .wic-modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border, #e1e7ef);
+        background: var(--sand, #f3f6fa);
+    }
+
+    .icon-star-gold {
+        color: #F59E0B;
+    }
+
+    .wic-modal-title {
+        font-family: "Sora", sans-serif;
+        font-weight: 700;
+        font-size: 1.15rem;
+        color: var(--ink, #16233a);
+        margin: 0;
+    }
+
+    .wic-modal-close {
+        background: transparent;
+        border: none;
+        color: var(--ink-muted, #64748b);
+        cursor: pointer;
+        padding: 6px;
+        border-radius: 6px;
+        transition: all 0.15s ease;
+    }
+
+        .wic-modal-close:hover {
+            background: rgba(0,0,0,0.05);
+            color: var(--ink, #16233a);
+        }
+
+    .wic-modal-body {
+        padding: 24px;
+    }
+
+    .wic-modal-footer {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 12px;
+        padding: 16px 24px;
+        border-top: 1px solid var(--border, #e1e7ef);
+        background: var(--sand, #f3f6fa);
+    }
+
+    .product-summary {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        background: var(--sand, #f3f6fa);
+        padding: 12px 16px;
+        border-radius: var(--radius-sm, 8px);
+        border: 1px solid var(--border, #e1e7ef);
+    }
+
+    .product-thumb {
+        width: 48px;
+        height: 48px;
+        border-radius: 6px;
+        overflow: hidden;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+        .product-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+    .product-title {
+        font-family: "Sora", sans-serif;
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: var(--ink, #16233a);
+        margin: 0;
+    }
+
+    .ref-code {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.75rem;
+        color: var(--denim, #2B4C7E);
+        background: #E7EDF6;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+
+    .stars-picker {
+        display: flex;
+        gap: 8px;
+    }
+
+    .star-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #CBD5E1;
+        transition: transform 0.15s ease, color 0.15s ease;
+        padding: 2px;
+    }
+
+        .star-btn.active {
+            color: #F59E0B;
+        }
+
+        .star-btn:hover {
+            transform: scale(1.15);
+        }
+
+    .rating-hint {
+        display: block;
+        font-size: 0.8125rem;
+        color: var(--ink-muted, #64748b);
+        margin-top: 6px;
+        font-weight: 500;
+    }
+
+    .form-label {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--ink, #16233a);
+        display: block;
+    }
+
+        /* Espace entre le label et le champ de saisie qui le suit */
+        .form-label.mb-2 {
+            margin-bottom: 8px;
+        }
+
+    .form-control {
+        width: 100%;
+        border: 1px solid var(--border, #e1e7ef);
+        border-radius: var(--radius-sm, 8px);
+        padding: 10px 14px;
+        font-family: "Inter", sans-serif;
+        font-size: 0.9rem;
+        color: var(--ink, #16233a);
+        outline: none;
+        transition: border-color 0.15s ease;
+    }
+
+        .form-control:focus {
+            border-color: var(--denim, #2B4C7E);
+            box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.1);
+        }
+
+    .alert--danger {
+        background: #FDE8E8;
+        color: #9B1C1C;
+        border: 1px solid #F8B4B4;
+        padding: 10px 14px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.875rem;
+    }
+
+    /* ===== BOUTONS DU FOOTER =====
+                   Ces classes n'existaient pas dans ce composant : le CSS de la page
+                   parente (mes-avis-reclamations.razor) est isolé par Blazor et ne
+                   s'applique pas ici, d'où le bouton "blanc/invisible". */
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 18px;
+        font-family: "Inter", sans-serif;
+        font-size: 0.875rem;
+        font-weight: 600;
+        border-radius: var(--radius-sm, 8px);
+        cursor: pointer;
+        transition: all 0.15s ease;
+        line-height: 1;
+    }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+    /* Spécificité renforcée (.wic-modal-footer .btn--primary) + !important
+               pour empêcher tout style global (MudBlazor / site.css chargé après)
+               d'écraser la couleur par défaut du bouton. */
+    .wic-modal-footer .btn--primary,
+    .wic-modal-footer button.btn--primary {
+        background-color: #2B4C7E !important;
+        background: #2B4C7E !important;
+        color: #FFFFFF !important;
+        border: 1px solid #2B4C7E !important;
+    }
+
+        .wic-modal-footer .btn--primary:hover:not(:disabled) {
+            background-color: #14263F !important;
+            background: #14263F !important;
+            border-color: #14263F !important;
+        }
+
+    .btn--outline {
+        background: transparent;
+        color: var(--ink-muted, #64748b);
+        border: 1px solid var(--border, #e1e7ef);
+    }
+
+        .btn--outline:hover:not(:disabled) {
+            background: #fff;
+            color: var(--ink, #16233a);
+            border-color: var(--ink-muted, #64748b);
+        }
+</style>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public int CommandeId { get; set; }
+    [Parameter] public int ProduitId { get; set; }
+    [Parameter] public string? ProduitNom { get; set; }
+    [Parameter] public string? ProduitRef { get; set; }
+    [Parameter] public string? ProduitImgUrl { get; set; }
+    [Parameter] public AvisDto? AvisExistant { get; set; }
+    [Parameter] public EventCallback OnAvisEnregistre { get; set; }
+
+    private int currentNote = 0;
+    private string? commentaire;
+    private bool isSubmitting = false;
+    private string? errorMessage;
+
+    protected override void OnParametersSet()
+    {
+        if (AvisExistant != null)
+        {
+            currentNote = AvisExistant.Note;
+            commentaire = AvisExistant.Commentaire;
+        }
+        else
+        {
+            currentNote = 0;
+            commentaire = string.Empty;
+        }
+        errorMessage = null;
+    }
+
+    private async Task Fermer()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(false);
+    }
+
+    private async Task SoumettreAvis()
+    {
+        if (currentNote < 1 || currentNote > 5)
+        {
+            errorMessage = "Veuillez sélectionner une note de 1 à 5 étoiles.";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        var dto = new CreerModifierAvisDto
+        {
+            CommandeId = CommandeId,
+            Note = currentNote,
+            Commentaire = commentaire
+        };
+
+        var res = await FeedbackService.SoumettreAvis(dto);
+        isSubmitting = false;
+
+        if (res.Succes)
+        {
+            Snackbar.Add("Votre avis a bien été enregistré. Merci !", Severity.Success);
+            await OnAvisEnregistre.InvokeAsync();
+            await Fermer();
+        }
+        else
+        {
+            errorMessage = res.Message;
+        }
+    }
+
+    private string GetRatingHint(int note) => note switch
+    {
+        0 => "Veuillez cliquer sur une étoile pour attribuer votre note (1 à 5)",
+        1 => "Très décevant (1/5)",
+        2 => "Moyen (2/5)",
+        3 => "Satisfaisant (3/5)",
+        4 => "Très bien (4/5)",
+        5 => "Excellent ! (5/5)",
+        _ => ""
+    };
+}

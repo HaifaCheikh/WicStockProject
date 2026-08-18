@@ -1,0 +1,938 @@
+﻿@page "/admin/avis"
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "ADMIN")]
+@inject FeedbackService FeedbackService
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+
+<PageTitle>Modération des Avis | WicStock Admin</PageTitle>
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="admin-page">
+    <!-- En-tête -->
+    <div class="admin-hero">
+        <div class="hero-text">
+            <h1 class="page-title">Gestion et Modération des Avis</h1>
+            <p class="page-subtitle">Consultez, publiez, masquez ou supprimez les avis déposés par les clients sur la boutique.</p>
+        </div>
+    </div>
+
+    @if (!isLoading && tousAvis.Any())
+    {
+        <!-- STATISTIQUES -->
+        <div class="stats-row mb-6">
+            <div class="stat-card">
+                <div class="stat-icon stat-icon--denim">
+                    <MudIcon Icon="@Icons.Material.Filled.RateReview" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@tousAvis.Count</div>
+                    <div class="stat-label">Avis au total</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon stat-icon--amber">
+                    <MudIcon Icon="@Icons.Material.Filled.Star" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@noteMoyenne.ToString("0.0")<span class="stat-value-suffix"> / 5</span></div>
+                    <div class="stat-label">Note moyenne</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon stat-icon--pine">
+                    <MudIcon Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@tousAvis.Count(a => !a.EstMasque)</div>
+                    <div class="stat-label">Visibles publiquement</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon stat-icon--rust">
+                    <MudIcon Icon="@Icons.Material.Filled.VisibilityOff" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@tousAvis.Count(a => a.EstMasque)</div>
+                    <div class="stat-label">Masqués du public</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FILTRES -->
+        <div class="filters-card mb-6">
+            <label class="filter-label">
+                <MudIcon Icon="@Icons.Material.Filled.FilterList" Size="Size.Small" />
+                Filtrer
+            </label>
+            <select class="filter-select" @bind="selectedVisibilite">
+                <option value="">Toutes visibilités</option>
+                <option value="visible">Visibles uniquement</option>
+                <option value="masque">Masqués uniquement</option>
+            </select>
+            <select class="filter-select" @bind="selectedStatut">
+                <option value="">Tous statuts</option>
+                <option value="PUBLIE">Publiés</option>
+                <option value="EN_ATTENTE">En attente</option>
+                <option value="REJETE">Rejetés</option>
+            </select>
+            <span class="filter-count">@AvisFiltres.Count() résultat(s)</span>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="d-flex justify-center my-12">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        </div>
+    }
+    else if (!tousAvis.Any())
+    {
+        <div class="empty-card">
+            <MudIcon Icon="@Icons.Material.Filled.RateReview" Size="Size.Large" Class="empty-icon" />
+            <h3 class="empty-title">Aucun avis client soumis</h3>
+            <p class="empty-subtitle">Les avis déposés par vos clients apparaîtront ici.</p>
+        </div>
+    }
+    else if (!AvisFiltres.Any())
+    {
+        <div class="empty-card">
+            <MudIcon Icon="@Icons.Material.Filled.FilterAltOff" Size="Size.Large" Class="empty-icon" />
+            <h3 class="empty-title">Aucun avis ne correspond à ce filtre</h3>
+            <p class="empty-subtitle">Essayez de modifier vos critères de filtrage.</p>
+        </div>
+    }
+    else
+    {
+        <div class="avis-grid">
+            @foreach (var a in AvisFiltres)
+            {
+                <div class="avis-card @(a.EstMasque ? "avis-card--masque" : "")">
+                    <div class="card-header">
+                        <div class="d-flex align-center gap-2">
+                            <span class="ref-code">@a.ProduitReference</span>
+                            <strong class="product-title">@a.ProduitNom</strong>
+                        </div>
+                        <div class="d-flex align-center gap-2">
+                            <span class="visibilite-tag @(a.EstMasque ? "masque" : "visible")">
+                                <MudIcon Icon="@(a.EstMasque ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)" Size="Size.Small" />
+                                @(a.EstMasque ? "Masqué du public" : "Visible sur fiche produit")
+                            </span>
+                            <span class="status-pill @GetStatutClass(a.Statut)">@GetStatutLabel(a.Statut)</span>
+                        </div>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="stars-row mb-2">
+                            <div class="stars-icons">
+                                @for (int i = 1; i <= 5; i++)
+                                {
+                                    int starVal = i;
+                                    <MudIcon Icon="@(starVal <= a.Note ? Icons.Material.Filled.Star : Icons.Material.Filled.StarBorder)" Size="Size.Small" Class="star-gold" />
+                                }
+                            </div>
+                            <span class="note-val">@a.Note<span class="note-val-muted">/5</span></span>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(a.Commentaire))
+                        {
+                            <div class="comment-box">
+                                <MudIcon Icon="@Icons.Material.Filled.FormatQuote" Size="Size.Small" Class="comment-quote-icon" />
+                                <p class="comment-text">@a.Commentaire</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="comment-empty"><em>Aucun commentaire écrit par le client</em></p>
+                        }
+
+                        <div class="meta-footer mt-3">
+                            <div class="client-chip">
+                                <span class="client-avatar">@GetInitiales(a.ClientNom)</span>
+                                <span class="client-name">@a.ClientNom</span>
+                            </div>
+                            <span class="meta-dot">•</span>
+                            <span class="meta-date">
+                                <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" />
+                                @a.DateCreation.ToString("dd MMMM yyyy à HH:mm")
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="card-actions">
+                        <button class="btn btn--toggle @(a.EstMasque ? "btn--publish" : "btn--hide")" @onclick="() => ToggleVisibilite(a)" disabled="@(togglingId == a.Id)">
+                            @if (togglingId == a.Id)
+                            {
+                                <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-1" Color="Color.Inherit" />
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@(a.EstMasque ? Icons.Material.Filled.Visibility : Icons.Material.Filled.VisibilityOff)" Size="Size.Small" />
+                            }
+                            <span>@(a.EstMasque ? "Rendre public" : "Masquer l'avis")</span>
+                        </button>
+                        <button class="btn btn--delete" @onclick="() => confirmDeleteId = a.Id">
+                            <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" />
+                            <span>Supprimer</span>
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @if (AvisASupprimer != null)
+    {
+        <div class="delete-modal-overlay" @onclick="() => FermerModaleSuppression()">
+            <div class="delete-modal-box" @onclick:stopPropagation="true">
+                <div class="delete-modal-icon">
+                    <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Large" />
+                </div>
+                <h3 class="delete-modal-title">Supprimer cet avis ?</h3>
+                <p class="delete-modal-text">
+                    Cette action est définitive et ne peut pas être annulée. L'avis de
+                    <strong>@AvisASupprimer.ClientNom</strong> concernant
+                    <strong>@AvisASupprimer.ProduitNom</strong> sera supprimé.
+                </p>
+                <div class="delete-modal-actions">
+                    <button class="btn btn--cancel" @onclick="() => FermerModaleSuppression()" disabled="@(deletingId == AvisASupprimer.Id)">
+                        Annuler
+                    </button>
+                    <button class="btn btn--confirm-delete" @onclick="() => SupprimerAvis(AvisASupprimer)" disabled="@(deletingId == AvisASupprimer.Id)">
+                        @if (deletingId == AvisASupprimer.Id)
+                        {
+                            <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-1" Color="Color.Inherit" />
+                        }
+                        else
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" />
+                        }
+                        <span>Supprimer</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .admin-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --sand: #F3F6FA;
+        --border: #E1E7EF;
+        --denim: #2B4C7E;
+        --denim-dark: #1E3A63;
+        --denim-soft: #E7EDF6;
+        --rust: #B5563A;
+        --rust-soft: #F9ECE8;
+        --pine: #1E6B4C;
+        --pine-soft: #E4F3EC;
+        --amber: #D97706;
+        --amber-soft: #FEF3C7;
+        --radius-sm: 8px;
+        --radius-md: 10px;
+        --radius-lg: 16px;
+        --font-display: "Sora", "Inter", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        font-family: var(--font-body);
+    }
+
+        .admin-page .admin-hero {
+            margin-bottom: 20px;
+        }
+
+        .admin-page .page-title {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.75rem;
+            color: var(--ink);
+            margin: 0 0 6px 0;
+            letter-spacing: -0.02em;
+        }
+
+        .admin-page .page-subtitle {
+            color: var(--ink-muted);
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        /* ===== Statistiques ===== */
+        .admin-page .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 14px;
+        }
+
+        .admin-page .stat-card {
+            background: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 16px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 8px rgba(22, 35, 58, 0.03);
+        }
+
+        .admin-page .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .admin-page .stat-icon--denim {
+            background: var(--denim-soft);
+            color: var(--denim);
+        }
+
+        .admin-page .stat-icon--amber {
+            background: var(--amber-soft);
+            color: var(--amber);
+        }
+
+        .admin-page .stat-icon--pine {
+            background: var(--pine-soft);
+            color: var(--pine);
+        }
+
+        .admin-page .stat-icon--rust {
+            background: var(--rust-soft);
+            color: var(--rust);
+        }
+
+        .admin-page .stat-value {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--ink);
+            line-height: 1.1;
+        }
+
+        .admin-page .stat-value-suffix {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--ink-muted);
+        }
+
+        .admin-page .stat-label {
+            font-size: 0.78rem;
+            color: var(--ink-muted);
+            margin-top: 2px;
+        }
+
+        /* ===== Filtres ===== */
+        .admin-page .filters-card {
+            background: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .admin-page .filter-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--ink-muted);
+            white-space: nowrap;
+        }
+
+        .admin-page .filter-select {
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 8px 14px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            font-family: var(--font-body);
+            color: var(--ink);
+            background: var(--paper);
+            cursor: pointer;
+            outline: none;
+            min-width: 170px;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+            .admin-page .filter-select:focus {
+                border-color: var(--denim);
+                box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.14);
+            }
+
+        .admin-page .filter-count {
+            margin-left: auto;
+            font-size: 0.8rem;
+            color: var(--ink-muted);
+            font-weight: 600;
+        }
+
+        /* ===== Grille des avis ===== */
+        .admin-page .avis-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .admin-page .avis-card {
+            background: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 22px 24px;
+            box-shadow: 0 2px 8px rgba(22, 35, 58, 0.03);
+            transition: box-shadow 0.15s ease, border-color 0.15s ease;
+        }
+
+            .admin-page .avis-card:hover {
+                box-shadow: 0 8px 20px -10px rgba(22, 35, 58, 0.18);
+            }
+
+        .admin-page .avis-card--masque {
+            background: var(--sand);
+            border-style: dashed;
+        }
+
+        .admin-page .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+
+        .admin-page .ref-code {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--denim);
+            background: var(--denim-soft);
+            padding: 3px 9px;
+            border-radius: 5px;
+            font-weight: 600;
+        }
+
+        .admin-page .product-title {
+            font-family: var(--font-display);
+            font-size: 1.02rem;
+            color: var(--ink);
+        }
+
+        .admin-page .visibilite-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 4px 11px;
+            border-radius: 999px;
+            line-height: 1;
+        }
+
+            .admin-page .visibilite-tag.visible {
+                background: var(--pine-soft);
+                color: var(--pine);
+            }
+
+            .admin-page .visibilite-tag.masque {
+                background: var(--amber-soft);
+                color: var(--amber);
+            }
+
+        .admin-page .status-pill {
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 999px;
+            line-height: 1;
+        }
+
+        .admin-page .status-pill--done {
+            background: var(--pine-soft);
+            color: var(--pine);
+        }
+
+        .admin-page .status-pill--pending {
+            background: var(--amber-soft);
+            color: var(--amber);
+        }
+
+        .admin-page .status-pill--rejected {
+            background: var(--rust-soft);
+            color: var(--rust);
+        }
+
+        .admin-page .stars-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .admin-page .stars-icons {
+            display: flex;
+            align-items: center;
+            gap: 1px;
+        }
+
+        .admin-page .star-gold {
+            color: #F59E0B;
+        }
+
+        .admin-page .note-val {
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: var(--ink);
+            font-family: var(--font-display);
+        }
+
+        .admin-page .note-val-muted {
+            font-weight: 500;
+            color: var(--ink-muted);
+        }
+
+        .admin-page .comment-box {
+            position: relative;
+            background: var(--sand);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 12px 14px 12px 36px;
+            margin-top: 8px;
+        }
+
+        .admin-page .comment-quote-icon {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: var(--denim);
+            opacity: 0.5;
+        }
+
+        .admin-page .comment-text {
+            font-size: 0.92rem;
+            color: var(--ink);
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        .admin-page .comment-empty {
+            font-size: 0.88rem;
+            color: var(--ink-muted);
+            margin: 8px 0 0 0;
+        }
+
+        .admin-page .meta-footer {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.8125rem;
+            color: var(--ink-muted);
+            flex-wrap: wrap;
+        }
+
+        .admin-page .client-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .admin-page .client-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--denim);
+            color: #fff;
+            font-size: 0.68rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-family: var(--font-display);
+        }
+
+        .admin-page .client-name {
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .admin-page .meta-dot {
+            color: var(--border);
+        }
+
+        .admin-page .meta-date {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .admin-page .card-actions {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 10px;
+            margin-top: 16px;
+            padding-top: 14px;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .admin-page .btn--toggle {
+            border: 1.5px solid var(--border);
+            padding: 9px 18px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            font-family: var(--font-body);
+            transition: all 0.15s ease;
+        }
+
+            .admin-page .btn--toggle:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+        .admin-page .btn--publish {
+            background: var(--pine-soft);
+            color: var(--pine);
+            border-color: #A7F3D0;
+        }
+
+            .admin-page .btn--publish:hover:not(:disabled) {
+                background: #D4EEE0;
+                transform: translateY(-1px);
+            }
+
+        .admin-page .btn--hide {
+            background: var(--amber-soft);
+            color: var(--amber);
+            border-color: #FDE68A;
+        }
+
+            .admin-page .btn--hide:hover:not(:disabled) {
+                background: #FDE9B0;
+                transform: translateY(-1px);
+            }
+
+        /* ===== Bouton de suppression ===== */
+        .admin-page .btn--delete {
+            border: 1.5px solid var(--border);
+            padding: 9px 18px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            font-family: var(--font-body);
+            background: var(--rust-soft);
+            color: var(--rust);
+            border-color: #F3C6B8;
+            transition: all 0.15s ease;
+        }
+
+            .admin-page .btn--delete:hover:not(:disabled) {
+                background: #F5DAD1;
+                transform: translateY(-1px);
+            }
+
+        .admin-page .btn--cancel {
+            border: 1.5px solid var(--border);
+            background: var(--paper);
+            color: var(--ink-muted);
+            padding: 10px 22px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-family: var(--font-body);
+            transition: all 0.15s ease;
+        }
+
+            .admin-page .btn--cancel:hover:not(:disabled) {
+                background: var(--sand);
+            }
+
+            .admin-page .btn--cancel:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+        .admin-page .btn--confirm-delete {
+            border: 1.5px solid var(--rust);
+            background: var(--rust);
+            color: #fff;
+            padding: 10px 22px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            font-family: var(--font-body);
+            transition: all 0.15s ease;
+        }
+
+            .admin-page .btn--confirm-delete:hover:not(:disabled) {
+                background: #9C4830;
+            }
+
+            .admin-page .btn--confirm-delete:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+        /* ===== Modale de confirmation de suppression ===== */
+        .admin-page .delete-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(22, 35, 58, 0.45);
+            backdrop-filter: blur(3px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1300;
+            padding: 20px;
+            animation: fadeInOverlay 0.15s ease;
+        }
+
+    @@keyframes fadeInOverlay {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    .admin-page .delete-modal-box {
+        background: var(--paper);
+        border-radius: var(--radius-lg);
+        padding: 36px 40px;
+        max-width: 460px;
+        width: 100%;
+        text-align: center;
+        box-shadow: 0 24px 60px -12px rgba(22, 35, 58, 0.35);
+        animation: popInModal 0.18s ease;
+    }
+
+    @@keyframes popInModal {
+        from {
+            opacity: 0;
+            transform: scale(0.96) translateY(6px);
+        }
+
+        to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+    }
+
+    .admin-page .delete-modal-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: var(--rust-soft);
+        color: var(--rust);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 18px auto;
+    }
+
+    .admin-page .delete-modal-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1.25rem;
+        color: var(--ink);
+        margin: 0 0 10px 0;
+    }
+
+    .admin-page .delete-modal-text {
+        font-size: 0.92rem;
+        color: var(--ink-muted);
+        line-height: 1.55;
+        margin: 0 0 26px 0;
+    }
+
+        .admin-page .delete-modal-text strong {
+            color: var(--ink);
+        }
+
+    .admin-page .delete-modal-actions {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+    }
+
+    /* ===== État vide ===== */
+    .admin-page .empty-card {
+        text-align: center;
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 48px 24px;
+    }
+
+    .admin-page .empty-icon {
+        font-size: 48px;
+        color: var(--pine);
+    }
+
+    .admin-page .empty-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: var(--ink);
+        margin-top: 12px;
+    }
+
+    .admin-page .empty-subtitle {
+        color: var(--ink-muted);
+        font-size: 0.9rem;
+    }
+</style>
+
+@code {
+    private List<AvisDto> tousAvis = new();
+    private bool isLoading = true;
+    private string selectedVisibilite = "";
+    private string selectedStatut = "";
+    private int? togglingId = null;
+    private int? confirmDeleteId = null;
+    private int? deletingId = null;
+
+    private double noteMoyenne => tousAvis.Any() ? tousAvis.Average(a => a.Note) : 0;
+
+    private AvisDto? AvisASupprimer => confirmDeleteId.HasValue
+        ? tousAvis.FirstOrDefault(a => a.Id == confirmDeleteId.Value)
+        : null;
+
+    private IEnumerable<AvisDto> AvisFiltres => tousAvis.Where(a =>
+        (selectedVisibilite == "" || (selectedVisibilite == "visible" && !a.EstMasque) || (selectedVisibilite == "masque" && a.EstMasque)) &&
+        (selectedStatut == "" || string.Equals(a.Statut, selectedStatut, StringComparison.OrdinalIgnoreCase))
+    );
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ChargerAvis();
+    }
+
+    private async Task ChargerAvis()
+    {
+        isLoading = true;
+        try
+        {
+            tousAvis = await FeedbackService.ObtenirToutesAvisAdmin();
+        }
+        catch { }
+        finally { isLoading = false; }
+    }
+
+    private async Task ToggleVisibilite(AvisDto a)
+    {
+        togglingId = a.Id;
+        try
+        {
+            var dto = new ModererAvisDto
+            {
+                Statut = a.Statut,
+                EstMasque = !a.EstMasque
+            };
+
+            var ok = await FeedbackService.ModererAvis(a.Id, dto);
+            if (ok)
+            {
+                a.EstMasque = !a.EstMasque;
+                Snackbar.Add(a.EstMasque ? "L'avis a été masqué du public." : "L'avis est maintenant public.", Severity.Info);
+            }
+            else
+            {
+                Snackbar.Add("Erreur lors de la mise à jour de l'avis.", Severity.Error);
+            }
+        }
+        finally
+        {
+            togglingId = null;
+        }
+    }
+
+    private void FermerModaleSuppression()
+    {
+        if (deletingId == null)
+        {
+            confirmDeleteId = null;
+        }
+    }
+
+    private async Task SupprimerAvis(AvisDto a)
+    {
+        deletingId = a.Id;
+        try
+        {
+            var ok = await FeedbackService.SupprimerAvis(a.Id);
+            if (ok)
+            {
+                tousAvis.Remove(a);
+                Snackbar.Add("L'avis a été supprimé définitivement.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Erreur lors de la suppression de l'avis.", Severity.Error);
+            }
+        }
+        finally
+        {
+            deletingId = null;
+            confirmDeleteId = null;
+        }
+    }
+
+    private string GetInitiales(string? nom)
+    {
+        if (string.IsNullOrWhiteSpace(nom)) return "?";
+        var parts = nom.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length switch
+        {
+            0 => "?",
+            1 => parts[0][0].ToString().ToUpperInvariant(),
+            _ => $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant()
+        };
+    }
+
+    private string GetStatutClass(string statut) => statut?.ToUpperInvariant() switch
+    {
+        "PUBLIE" => "status-pill--done",
+        "REJETE" => "status-pill--rejected",
+        _ => "status-pill--pending"
+    };
+
+    private string GetStatutLabel(string statut) => statut?.ToUpperInvariant() switch
+    {
+        "PUBLIE" => "Publié",
+        "REJETE" => "Rejeté",
+        "EN_ATTENTE" => "En attente",
+        _ => statut ?? string.Empty
+    };
+}
+

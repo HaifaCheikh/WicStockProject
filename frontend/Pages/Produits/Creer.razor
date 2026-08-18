@@ -1,0 +1,365 @@
+@page "/produits/creer"
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
+@inject ProduitService ProduitService
+@inject NavigationManager Navigation
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="creer-produit-page">
+    <MudStack Spacing="5" Style="max-width: 640px; margin: 0 auto;">
+        <div class="d-flex align-center gap-2">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" href="/produits" Class="back-btn" Size="Size.Medium" />
+            <div>
+                <MudText Typo="Typo.h4" Class="page-title">Nouveau produit</MudText>
+                <MudText Typo="Typo.body2" Class="page-subtitle">Ajoutez une nouvelle référence de tissu au catalogue</MudText>
+            </div>
+        </div>
+
+        <div class="form-card">
+            <EditForm Model="@produit" OnValidSubmit="Enregistrer">
+                <DataAnnotationsValidator />
+
+                <MudGrid Spacing="4">
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.subtitle2" Class="field-label mb-2">Image de l'article</MudText>
+                        <div class="d-flex align-center gap-4 flex-wrap">
+                            @if (!string.IsNullOrEmpty(imagePreviewUrl))
+                            {
+                                <div class="image-preview">
+                                    <MudImage Src="@imagePreviewUrl" Width="100" Height="100" Alt="Aperçu" Class="preview-img" />
+                                    <button type="button" class="remove-img-btn" @onclick="SupprimerImage" aria-label="Supprimer l'image">
+                                        <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                                    </button>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="upload-placeholder">
+                                    <MudIcon Icon="@Icons.Material.Filled.Image" Size="Size.Large" />
+                                </div>
+                            }
+
+                            <div class="d-flex flex-column gap-1">
+                                <label for="fileInput" class="upload-btn">
+                                    <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Small" />
+                                    <span>Choisir un fichier</span>
+                                </label>
+                                <InputFile id="fileInput" OnChange="OnFileChanged" accept=".jpg,.jpeg,.png,.webp" style="display: none;" />
+                                <MudText Typo="Typo.caption" Class="hint-text">JPG, PNG ou WEBP (Max. 2 Mo)</MudText>
+                            </div>
+                        </div>
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="produit.Reference"
+                                      Label="Référence"
+                                      Variant="Variant.Outlined"
+                                      Required="true"
+                                      Class="styled-field"
+                                      Placeholder="Ex: TIS-COT-2026" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="produit.Nom"
+                                      Label="Nom du produit"
+                                      Variant="Variant.Outlined"
+                                      Required="true"
+                                      Class="styled-field"
+                                      Placeholder="Ex: Coton Biologique Premium" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="produit.TypeTissu"
+                                      Label="Type de tissu"
+                                      Variant="Variant.Outlined"
+                                      Class="styled-field"
+                                      Placeholder="Ex: Coton, Lin, Soie" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="produit.Categorie"
+                                   Label="Catégorie"
+                                   Variant="Variant.Outlined"
+                                   Class="styled-field"
+                                   Placeholder="Choisir une catégorie">
+                            <MudSelectItem Value="@("Jacket")">Jacket</MudSelectItem>
+                            <MudSelectItem Value="@("Pants")">Pants</MudSelectItem>
+                            <MudSelectItem Value="@("Set")">Set</MudSelectItem>
+                            <MudSelectItem Value="@("Shirt")">Shirt</MudSelectItem>
+                            <MudSelectItem Value="@("Dress")">Dress</MudSelectItem>
+                            <MudSelectItem Value="@("Coat")">Coat</MudSelectItem>
+                            <MudSelectItem Value="@("Skirt")">Skirt</MudSelectItem>
+                            <MudSelectItem Value="@("Shorts")">Shorts</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField @bind-Value="produit.Stock!.QuantiteActuelle"
+                                         Label="Quantité en stock (articles)"
+                                         Variant="Variant.Outlined"
+                                         Min="0"
+                                         Class="styled-field"
+                                         Placeholder="Ex: 250" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField @bind-Value="produit.PrixUnitaire"
+                                         Label="Prix unitaire de vente (DT)"
+                                         Variant="Variant.Outlined"
+                                         Min="0m"
+                                         Step="0.50m"
+                                         Format="F2"
+                                         Class="styled-field"
+                                         Placeholder="Ex: 49.90" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="produit.CycleDeVie"
+                                      Label="Cycle de vie"
+                                      Variant="Variant.Outlined"
+                                      Class="styled-field"
+                                      Placeholder="Ex: Actif, Obsolète" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudCheckBox @bind-Value="produit.DisponibleSurCommande"
+                                     Label="Autoriser les commandes même hors stock (sur commande)"
+                                     Color="Color.Primary" />
+                        <MudText Typo="Typo.caption" Class="hint-text">
+                            Si coché, les clients pourront commander ce produit même à stock zéro ou insuffisant.
+                        </MudText>
+                    </MudItem>
+                </MudGrid>
+
+                <div class="d-flex justify-end gap-3 mt-6">
+                    <button type="button" class="btn btn--outline" @onclick='() => Navigation.NavigateTo("/produits")'>
+                        Annuler
+                    </button>
+                    <button type="submit" class="btn btn--primary">
+                        Enregistrer le produit
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </MudStack>
+</div>
+
+<style>
+    .creer-produit-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --sand: #F3F6FA;
+        --border: #E1E7EF;
+        --denim: #2B4C7E;
+        --denim-dark: #14263F;
+        --denim-tint: #E7EDF6;
+        --rust: #A23B2E;
+        --rust-tint: #F7E9E6;
+        --radius-sm: 8px;
+        --radius-lg: 16px;
+        --font-display: "Sora", "Inter", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        font-family: var(--font-body);
+        color: var(--ink);
+    }
+
+        .creer-produit-page .back-btn {
+            color: var(--ink-muted) !important;
+        }
+
+            .creer-produit-page .back-btn:hover {
+                color: var(--denim) !important;
+                background: var(--denim-tint) !important;
+            }
+
+        .creer-produit-page .page-title {
+            font-family: var(--font-display);
+            font-weight: 700;
+            color: var(--ink);
+            letter-spacing: -0.02em;
+        }
+
+        .creer-produit-page .page-subtitle {
+            color: var(--ink-muted);
+        }
+
+        .creer-produit-page .form-card {
+            background: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            box-shadow: 0 1px 3px rgba(20,38,63,0.06);
+        }
+
+        .creer-produit-page .field-label {
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .creer-produit-page .hint-text {
+            color: var(--ink-muted);
+        }
+
+        /* Champs de formulaire */
+        .creer-produit-page .styled-field .mud-input-outlined-border {
+            border-radius: var(--radius-sm) !important;
+            border-color: var(--border) !important;
+        }
+
+        .creer-produit-page .styled-field .mud-input-outlined.mud-shrink .mud-input-outlined-border,
+        .creer-produit-page .styled-field:focus-within .mud-input-outlined-border {
+            border-color: var(--denim) !important;
+        }
+
+        .creer-produit-page .styled-field .mud-input-label.mud-input-label-outlined.mud-shrink {
+            color: var(--denim) !important;
+        }
+
+        /* Zone image */
+        .creer-produit-page .upload-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100px;
+            height: 100px;
+            background: var(--sand);
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-lg);
+            color: var(--ink-muted);
+        }
+
+        .creer-produit-page .image-preview {
+            position: relative;
+        }
+
+        .creer-produit-page .preview-img {
+            border-radius: var(--radius-lg);
+            object-fit: cover;
+            border: 1px solid var(--border);
+        }
+
+        .creer-produit-page .remove-img-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--paper);
+            color: var(--rust);
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(20,38,63,0.15);
+        }
+
+            .creer-produit-page .remove-img-btn:hover {
+                background: var(--rust-tint);
+            }
+
+        .creer-produit-page .upload-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            height: 34px;
+            padding: 0 14px;
+            background: var(--denim);
+            color: #fff;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-body);
+            font-weight: 600;
+            font-size: 0.8125rem;
+            cursor: pointer;
+            width: fit-content;
+            transition: background 0.15s ease;
+        }
+
+            .creer-produit-page .upload-btn:hover {
+                background: var(--denim-dark);
+            }
+
+        /* Boutons d'action (mêmes classes que la page d'accueil) */
+        .creer-produit-page .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-body);
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            border: none;
+            transition: all 0.15s ease;
+        }
+
+        .creer-produit-page .btn--primary {
+            background: var(--denim);
+            color: #fff;
+            box-shadow: 0 6px 16px -6px rgba(43,76,126,0.4);
+        }
+
+            .creer-produit-page .btn--primary:hover {
+                background: var(--denim-dark);
+            }
+
+        .creer-produit-page .btn--outline {
+            background: transparent;
+            color: var(--ink-muted);
+            border: 1px solid var(--border);
+        }
+
+            .creer-produit-page .btn--outline:hover {
+                border-color: var(--denim);
+                color: var(--denim);
+            }
+</style>
+
+@code {
+    private ProduitDto produit = new();
+    private string? imagePreviewUrl;
+
+    private async Task OnFileChanged(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            var format = file.ContentType;
+            // Redimensionne à max 400x400 pour garder le payload base64 léger
+            var resizedImage = await file.RequestImageFileAsync(format, 400, 400);
+            var buffer = new byte[resizedImage.Size];
+            using (var stream = resizedImage.OpenReadStream(2 * 1024 * 1024))
+            {
+                await stream.ReadAsync(buffer);
+            }
+
+            produit.ImageBase64 = $"data:{format};base64,{Convert.ToBase64String(buffer)}";
+            imagePreviewUrl = produit.ImageBase64;
+        }
+    }
+
+    private void SupprimerImage()
+    {
+        produit.ImageBase64 = null;
+        imagePreviewUrl = null;
+    }
+
+    private async Task Enregistrer()
+    {
+        var succes = await ProduitService.Creer(produit);
+        if (succes)
+        {
+            Navigation.NavigateTo("/produits");
+        }
+    }
+}

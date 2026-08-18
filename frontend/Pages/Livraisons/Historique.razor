@@ -1,0 +1,590 @@
+﻿@page "/livraisons/historique"
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "LIVREUR")]
+@inject LivraisonService LivraisonService
+@inject ISnackbar Snackbar
+@inject HttpClient Http
+
+<PageTitle>Historique des livraisons | WicStock</PageTitle>
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="livraison-historique-page">
+    <MudStack Spacing="6">
+
+        <!-- ===== EN-TÊTE DE LA PAGE ===== -->
+        <div class="d-flex justify-space-between align-center flex-wrap gap-4">
+            <div>
+                <div class="d-flex align-center gap-3">
+                    <MudText Typo="Typo.h4" Class="page-title">Historique des livraisons</MudText>
+                    <span class="count-badge">@livraisonsLivrees.Count livraison(s) terminée(s)</span>
+                </div>
+                <MudText Typo="Typo.body2" Class="page-subtitle mt-1">
+                    Consultez l'ensemble de vos livraisons finalisées avec succès.
+                </MudText>
+            </div>
+
+            <div class="d-flex align-center gap-2">
+                <div class="search-box">
+                    <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" Class="search-icon" />
+                    <input type="text" placeholder="Rechercher par client, article..." @bind="recherche" @bind:event="oninput" class="search-input" />
+                </div>
+                <button class="btn btn--icon" @onclick="ChargerDonnees" title="Rafraîchir">
+                    <MudIcon Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" />
+                </button>
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="d-flex justify-center my-12">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            </div>
+        }
+        else if (!LivraisonsFiltrees.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <MudIcon Icon="@Icons.Material.Filled.HistoryToggleOff" Size="Size.Large" />
+                </div>
+                <MudText Typo="Typo.h6" Class="empty-title mt-3">Aucune livraison trouvée</MudText>
+                <MudText Typo="Typo.body2" Class="empty-subtitle mt-1">
+                    @(string.IsNullOrWhiteSpace(recherche) ? "Vous n'avez pas encore finalisé de livraison." : "Aucun résultat ne correspond à votre recherche.")
+                </MudText>
+            </div>
+        }
+        else
+        {
+            <div class="cards-grid">
+                @foreach (var item in LivraisonsFiltrees)
+                {
+                    <div class="livraison-card">
+                        <!-- Top -->
+                        <div class="card-top">
+                            <div>
+                                <span class="commande-ref">Commande client</span>
+                                <span class="commande-date">Payée le @(item.DatePaiement?.ToString("dd/MM/yyyy") ?? item.DateVente.ToString("dd/MM/yyyy"))</span>
+                            </div>
+                            <span class="status-pill status-pill--done">
+                                ✓ Livrée
+                            </span>
+                        </div>
+
+                        <!-- Date de livraison effective -->
+                        <div class="delivery-time-banner">
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
+                            <span>Livrée le @(item.DateLivraison?.ToString("dd/MM/yyyy à HH:mm") ?? "Date inconnue")</span>
+                        </div>
+
+                        <!-- Produit -->
+                        <div class="product-info-block">
+                            <div class="product-thumb">
+                                @if (!string.IsNullOrEmpty(item.ProduitImageUrl))
+                                {
+                                    <img src="@GetFullImageUrl(item.ProduitImageUrl)" alt="@item.ProduitNom" />
+                                }
+                                else
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.Layers" Size="Size.Medium" />
+                                }
+                            </div>
+                            <div>
+                                <div class="product-name">@item.ProduitNom</div>
+                                <div class="product-meta">Réf : @item.ProduitReference • Qte : <strong>@item.QuantiteVendue pièce(s)</strong></div>
+                            </div>
+                        </div>
+
+                        <!-- Carte Client & Destination -->
+                        <div class="client-card">
+                            <div class="client-card-title">
+                                <MudIcon Icon="@Icons.Material.Filled.PersonPin" Size="Size.Small" />
+                                <span>COORDONNÉES CLIENT</span>
+                            </div>
+                            <div class="client-name">@item.ClientNom</div>
+                            @if (!string.IsNullOrEmpty(item.ClientTelephone))
+                            {
+                                <a href="tel:@item.ClientTelephone" class="client-phone">
+                                    <MudIcon Icon="@Icons.Material.Filled.Phone" Size="Size.Small" />
+                                    <span>@item.ClientTelephone</span>
+                                </a>
+                            }
+                            <div class="client-email">
+                                <MudIcon Icon="@Icons.Material.Filled.Email" Size="Size.Small" />
+                                <span>@item.ClientEmail</span>
+                            </div>
+
+                            <!-- ADRESSE ET CODE POSTAL -->
+                            <div class="delivery-address-box">
+                                <div class="dest-title">
+                                    <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Small" Class="dest-pin" />
+                                    <span>ADRESSE DE LIVRAISON</span>
+                                </div>
+                                <div class="dest-content">
+                                    @if (!string.IsNullOrWhiteSpace(item.AdresseLivraison))
+                                    {
+                                        <div class="address-main">@item.AdresseLivraison</div>
+                                    }
+                                    <div class="dest-tags-row">
+                                        @if (!string.IsNullOrWhiteSpace(item.CodePostal))
+                                        {
+                                            <span class="badge-postal">
+                                                <MudIcon Icon="@Icons.Material.Filled.LocalPostOffice" Size="Size.Small" />
+                                                <span>CP: @item.CodePostal</span>
+                                            </span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(item.Ville))
+                                        {
+                                            <span class="badge-geo">@item.Ville</span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(item.Pays) && item.Pays != item.AdresseLivraison)
+                                        {
+                                            <span class="badge-geo">@item.Pays</span>
+                                        }
+                                    </div>
+                                    @if (string.IsNullOrWhiteSpace(item.AdresseLivraison) && string.IsNullOrWhiteSpace(item.CodePostal))
+                                    {
+                                        <div class="address-empty">Adresse de livraison non spécifiée</div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Statut Paiement -->
+                        <div class="payment-status-tag">
+                            <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Size="Size.Small" />
+                            <span>Montant réglé : @item.TotalCommande.ToString("N2") TND</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </MudStack>
+</div>
+
+<style>
+    .livraison-historique-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --sand: #F8FAFC;
+        --border: #E2E8F0;
+        --denim: #2B4C7E;
+        --denim-tint: #EBF1F9;
+        --forest: #15803D;
+        --forest-tint: #DCFCE7;
+        --radius-lg: 16px;
+        --radius-md: 12px;
+        --radius-sm: 8px;
+        --font-display: "Sora", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        font-family: var(--font-body);
+        color: var(--ink);
+        padding: 8px;
+    }
+
+    .page-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: var(--ink);
+    }
+
+    .page-subtitle {
+        color: var(--ink-muted);
+    }
+
+    .count-badge {
+        background: var(--forest-tint);
+        color: var(--forest);
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 0.75rem;
+        padding: 4px 10px;
+        border-radius: 20px;
+    }
+
+    .search-box {
+        position: relative;
+        display: flex;
+        align-items: center;
+        width: 280px;
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 12px;
+        color: var(--ink-muted);
+        pointer-events: none;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 9px 12px 9px 36px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border);
+        background: var(--paper);
+        font-family: var(--font-body);
+        font-size: 0.875rem;
+        color: var(--ink);
+        outline: none;
+        transition: all 0.2s ease;
+    }
+
+        .search-input:focus {
+            border-color: var(--denim);
+            box-shadow: 0 0 0 3px var(--denim-tint);
+        }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 18px;
+        border-radius: var(--radius-md);
+        font-family: var(--font-body);
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: none;
+    }
+
+    .btn--icon {
+        padding: 10px;
+        background: var(--paper);
+        border: 1px solid var(--border);
+        color: var(--ink);
+    }
+
+        .btn--icon:hover {
+            background: var(--sand);
+            border-color: var(--denim);
+        }
+
+    .cards-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 20px;
+    }
+
+    .livraison-card {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        transition: all 0.2s ease;
+    }
+
+        .livraison-card:hover {
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+
+    .card-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .commande-ref {
+        font-family: var(--font-mono);
+        font-weight: 700;
+        font-size: 0.875rem;
+        color: var(--denim);
+        display: block;
+    }
+
+    .commande-date {
+        font-size: 0.75rem;
+        color: var(--ink-muted);
+    }
+
+    .status-pill {
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 20px;
+    }
+
+    .status-pill--done {
+        background: var(--forest-tint);
+        color: var(--forest);
+    }
+
+    .delivery-time-banner {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--forest-tint);
+        color: var(--forest);
+        padding: 10px 14px;
+        border-radius: var(--radius-md);
+        font-size: 0.84rem;
+        font-weight: 600;
+    }
+
+    .product-info-block {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        background: var(--sand);
+        padding: 12px;
+        border-radius: var(--radius-md);
+    }
+
+    .product-thumb {
+        width: 48px;
+        height: 48px;
+        border-radius: var(--radius-sm);
+        background: var(--paper);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border: 1px solid var(--border);
+    }
+
+        .product-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+    .product-name {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 0.9375rem;
+        color: var(--ink);
+    }
+
+    .product-meta {
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+    }
+
+    .client-card {
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: var(--radius-md);
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .client-card-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--denim);
+        letter-spacing: 0.05em;
+    }
+
+    .client-name {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: var(--ink);
+    }
+
+    .client-phone, .client-email {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.875rem;
+        color: var(--ink-muted);
+        text-decoration: none;
+    }
+
+    .client-phone {
+        color: var(--forest);
+        font-weight: 600;
+    }
+
+        .client-phone:hover {
+            text-decoration: underline;
+        }
+
+    /* ===== ADRESSE & CODE POSTAL ===== */
+    .delivery-address-box {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px dashed #CBD5E1;
+    }
+
+    .dest-title {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #0F766E;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    .dest-pin {
+        color: #0F766E;
+    }
+
+    .dest-content {
+        font-size: 0.875rem;
+    }
+
+    .address-main {
+        font-weight: 600;
+        color: var(--ink);
+        line-height: 1.35;
+        margin-bottom: 4px;
+    }
+
+    .dest-tags-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .badge-postal {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #CCFBF1;
+        color: #0F766E;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 0.75rem;
+        font-family: var(--font-mono);
+        border: 1px solid #99F6E4;
+    }
+
+    .badge-geo {
+        display: inline-flex;
+        align-items: center;
+        background: #E2E8F0;
+        color: #334155;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .address-empty {
+        color: var(--ink-muted);
+        font-style: italic;
+        font-size: 0.8125rem;
+    }
+
+    .payment-status-tag {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--forest-tint);
+        color: var(--forest);
+        padding: 8px 12px;
+        border-radius: var(--radius-sm);
+        font-size: 0.8125rem;
+        font-weight: 700;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        background: var(--paper);
+        border: 1px dashed var(--border);
+        border-radius: var(--radius-lg);
+    }
+
+    .empty-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: var(--sand);
+        color: var(--ink-muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+    }
+
+    .empty-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: var(--ink);
+    }
+
+    .empty-subtitle {
+        color: var(--ink-muted);
+    }
+</style>
+
+@code {
+    private List<LivraisonCommandeDto> livraisonsLivrees = new();
+    private bool isLoading = true;
+    private string recherche = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ChargerDonnees();
+    }
+
+    private async Task ChargerDonnees()
+    {
+        isLoading = true;
+        try
+        {
+            var raw = await LivraisonService.ObtenirMesLivraisons();
+            livraisonsLivrees = raw.Where(l => l.Statut == "LIVREE")
+                                   .OrderByDescending(l => l.DateLivraison ?? l.DateVente)
+                                   .ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erreur de chargement de l'historique: {ex.Message}", Severity.Warning);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private IEnumerable<LivraisonCommandeDto> LivraisonsFiltrees
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(recherche))
+                return livraisonsLivrees;
+
+            var term = recherche.Trim().ToLower();
+            return livraisonsLivrees.Where(l =>
+                (l.ClientNom != null && l.ClientNom.ToLower().Contains(term)) ||
+                (l.ProduitNom != null && l.ProduitNom.ToLower().Contains(term)) ||
+                (l.ProduitReference != null && l.ProduitReference.ToLower().Contains(term)) ||
+                (l.ClientTelephone != null && l.ClientTelephone.Contains(term)) ||
+                (l.AdresseLivraison != null && l.AdresseLivraison.ToLower().Contains(term)) ||
+                (l.CodePostal != null && l.CodePostal.Contains(term)) ||
+                (l.Ville != null && l.Ville.ToLower().Contains(term))
+            );
+        }
+    }
+
+    private string GetFullImageUrl(string? relativeUrl)
+    {
+        if (string.IsNullOrEmpty(relativeUrl)) return "";
+        return $"{Http.BaseAddress}{relativeUrl.TrimStart('/')}";
+    }
+}

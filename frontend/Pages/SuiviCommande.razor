@@ -1,0 +1,1235 @@
+﻿@page "/mes-commandes/suivi/{Id:int}"
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@using WicStock.Web.Pages.Feedback
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "CLIENT,ADMIN,RESPONSABLE_STOCK_PRODUCTION")]
+@inject CatalogueService CatalogueService
+@inject FeedbackService FeedbackService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject HttpClient Http
+
+<PageTitle>Suivi commande | WicStock</PageTitle>
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="suivi-page">
+    @if (isLoading)
+    {
+        <div class="d-flex justify-center my-12">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        </div>
+    }
+    else if (suivi == null)
+    {
+        <div class="empty-state">
+            <div class="empty-icon">
+                <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" />
+            </div>
+            <MudText Typo="Typo.h6" Class="empty-title mt-3">Commande introuvable</MudText>
+            <MudText Typo="Typo.body2" Class="empty-subtitle mt-1">Cette commande n'existe pas ou n'est plus accessible.</MudText>
+            <button class="btn btn--primary mt-4" @onclick="Retour">
+                <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Small" />
+                <span>Retour à mes commandes</span>
+            </button>
+        </div>
+    }
+    else
+    {
+        <MudStack Spacing="6">
+
+            @if (PaymentQuery == "success")
+            {
+                <div class="payment-alert payment-alert--success">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
+                    <span>Votre paiement a été reçu avec succès ! Merci pour votre confiance.</span>
+                </div>
+            }
+            else if (PaymentQuery == "cancelled")
+            {
+                <div class="payment-alert payment-alert--warning">
+                    <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" />
+                    <span>Le paiement a été annulé. Vous pouvez réessayer à tout moment.</span>
+                </div>
+            }
+
+            <!-- ===== EN-TÊTE ===== -->
+            <div class="suivi-header">
+                <button class="back-btn" @onclick="Retour" title="Retour">
+                    <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Small" />
+                </button>
+                <div>
+                    <MudText Typo="Typo.h4" Class="page-title">Suivi de commande</MudText>
+                    <MudText Typo="Typo.body2" Class="page-subtitle">Commandée le @suivi.DateVente.ToString("dd MMMM yyyy à HH:mm")</MudText>
+                </div>
+                <span class="status-pill @GetStatusPillClass()">
+                    <MudIcon Icon="@GetStatusIcon()" Size="Size.Small" />
+                    @GetStatusLabel()
+                </span>
+            </div>
+
+            <!-- ===== CARTE PRODUIT ===== -->
+            <div class="info-card">
+                <div class="product-block">
+                    <div class="product-img">
+                        @if (!string.IsNullOrEmpty(suivi.ProduitImageUrl))
+                        {
+                            <img src="@GetFullImageUrl(suivi.ProduitImageUrl)" alt="@suivi.ProduitNom" @onclick="() => OuvrirImageAgrandie(GetFullImageUrl(suivi.ProduitImageUrl), suivi.ProduitNom)" style="cursor: zoom-in;" title="Cliquer pour agrandir l'image" />
+                        }
+                        else
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.Layers" Size="Size.Large" />
+                        }
+                    </div>
+                    <div class="product-details">
+                        <span class="ref-code">@suivi.ProduitReference</span>
+                        <h2 class="product-name">@suivi.ProduitNom</h2>
+
+                        <div class="meta-grid">
+                            <div class="meta-item">
+                                <span class="meta-label">Quantité commandée</span>
+                                <span class="meta-value">@suivi.QuantiteVendue pièce(s)</span>
+                            </div>
+                            @if (suivi.DateSouhaitee.HasValue)
+                            {
+                                <div class="meta-item">
+                                    <span class="meta-label">Date souhaitée</span>
+                                    <span class="meta-value">@suivi.DateSouhaitee.Value.ToString("dd/MM/yyyy")</span>
+                                </div>
+                            }
+                            @if (suivi.DateEstimeePreparation.HasValue)
+                            {
+                                <div class="meta-item">
+                                    <span class="meta-label">Préparation estimée</span>
+                                    <span class="meta-value">@suivi.DateEstimeePreparation.Value.ToString("dd/MM/yyyy")</span>
+                                </div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(suivi.AdresseLivraison) || !string.IsNullOrWhiteSpace(suivi.CodePostal))
+                            {
+                                <div class="meta-item">
+                                    <span class="meta-label">Adresse de livraison</span>
+                                    <span class="meta-value">
+                                        @suivi.AdresseLivraison
+                                        @if (!string.IsNullOrWhiteSpace(suivi.CodePostal))
+                                        {
+                                            <span style="display: inline-block; font-size: 0.75rem; background: #DCFCE7; color: #15803D; padding: 2px 6px; border-radius: 4px; font-weight: 700; margin-left: 4px;">CP: @suivi.CodePostal</span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(suivi.Ville))
+                                        {
+                                            <span>, @suivi.Ville</span>
+                                        }
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== FEEDBACK / RECLAMATION (SI LIVRÉE) ===== -->
+            @if (IsLivree())
+            {
+                if (EstDelaiExceder14Jours())
+                {
+                    <div class="feedback-expired-card">
+                        <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Medium" Class="expired-icon" />
+                        <div>
+                            <h4 class="feedback-card-title">Délai d'avis & réclamation expiré</h4>
+                            <p class="feedback-card-subtitle">Le délai de 14 jours après la livraison pour déposer un avis ou effectuer une réclamation est dépassé.</p>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="feedback-action-card">
+                        <div class="feedback-action-header">
+                            <div>
+                                <h3 class="feedback-card-title">Avis & Réclamation client</h3>
+                                <p class="feedback-card-subtitle">Votre commande a été livrée ! Vous avez 14 jours pour donner votre avis ou signaler un problème.</p>
+                            </div>
+                            <div class="feedback-buttons-row">
+                                <button class="btn btn--primary" @onclick="() => showAvisModal = true">
+                                    <MudIcon Icon="@Icons.Material.Filled.StarRate" Size="Size.Small" />
+                                    <span>@(avisExistant != null ? "Modifier mon avis" : "Laisser un avis")</span>
+                                </button>
+                                <button class="btn btn--outline-rust" @onclick="() => showReclamationModal = true">
+                                    <MudIcon Icon="@Icons.Material.Filled.ReportProblem" Size="Size.Small" />
+                                    <span>Signaler un problème</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        @if (avisExistant != null)
+                        {
+                            <div class="avis-preview-box mt-4">
+                                <div class="avis-preview-header">
+                                    <div class="d-flex align-center gap-2">
+                                        <div class="stars-display">
+                                            @for (int i = 1; i <= 5; i++)
+                                            {
+                                                int starVal = i;
+                                                <MudIcon Icon="@(starVal <= avisExistant.Note ? Icons.Material.Filled.Star : Icons.Material.Filled.StarBorder)" Size="Size.Small" Class="star-gold" />
+                                            }
+                                        </div>
+                                        <span class="avis-date">Avis déposé le @avisExistant.DateCreation.ToString("dd/MM/yyyy")</span>
+                                    </div>
+                                    <span class="status-pill status-pill--done avis-status-pill">@avisExistant.Statut</span>
+                                </div>
+                                @if (!string.IsNullOrEmpty(avisExistant.Commentaire))
+                                {
+                                    <p class="avis-comment-text mt-2">« @avisExistant.Commentaire »</p>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            }
+
+            <!-- ===== BOUTON DE PAIEMENT ===== -->
+            @if (CanShowPaymentButton())
+            {
+                <div class="payment-action-card">
+                    <div class="payment-action-content">
+                        <div class="payment-action-info">
+                            <MudIcon Icon="@Icons.Material.Filled.Payments" Size="Size.Large" Class="payment-action-icon" />
+                            <div>
+                                <h3 class="payment-action-title">Payer votre commande</h3>
+                                <p class="payment-action-subtitle">Montant : @GetTotalAmount().ToString("N2") TND</p>
+                            </div>
+                        </div>
+                        <button class="btn btn--primary payment-action-btn" @onclick="ProceedToPayment">
+                            <MudIcon Icon="@Icons.Material.Filled.CreditCard" Size="Size.Small" />
+                            <span>Payer maintenant</span>
+                        </button>
+                    </div>
+                </div>
+            }
+
+            <!-- ===== TIMELINE DE PROGRESSION ===== -->
+            <div class="timeline-card">
+                <div class="timeline-card-head">
+                    <h3 class="timeline-title">Progression de la commande</h3>
+                    <span class="timeline-subtitle">Étape @(GetCurrentStepIndex() + 1) sur @GetEtapes().Count()</span>
+                </div>
+
+                <div class="timeline-horizontal">
+                    @{
+                        var etapesList = GetEtapes().ToList();
+                        for (int i = 0; i < etapesList.Count; i++)
+                        {
+                            var step = etapesList[i];
+                            var state = GetStepState(step.Key);
+                            <div class="timeline-step @state">
+                                <div class="step-icon">
+                                    @if (state == "done")
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Medium" />
+                                    }
+                                    else if (state == "current")
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.RadioButtonChecked" Size="Size.Medium" />
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.RadioButtonUnchecked" Size="Size.Medium" />
+                                    }
+                                </div>
+                                <div class="step-label">@step.Label</div>
+                                @if (GetStepDate(step.Key) is DateTime date)
+                                {
+                                    <div class="step-date">@date.ToString("dd/MM/yyyy")</div>
+                                }
+                                else if (state == "current")
+                                {
+                                    <div class="step-date step-date--pending">En cours</div>
+                                }
+                            </div>
+                            @if (i < etapesList.Count - 1)
+                            {
+                                <div class="timeline-connector @(IsConnectorDone(step.Key) ? "done" : "")"></div>
+                            }
+                        }
+                    }
+                </div>
+            </div>
+
+            <!-- Modales Avis & Réclamation -->
+            @if (suivi != null)
+            {
+                <AvisModal @bind-IsOpen="showAvisModal"
+                           CommandeId="@suivi.Id"
+                           ProduitId="@suivi.ProduitId"
+                           ProduitNom="@suivi.ProduitNom"
+                           ProduitRef="@suivi.ProduitReference"
+                           ProduitImgUrl="@GetFullImageUrl(suivi.ProduitImageUrl)"
+                           AvisExistant="@avisExistant"
+                           OnAvisEnregistre="ChargerAvisExistant" />
+
+                <ReclamationModal @bind-IsOpen="showReclamationModal"
+                                  CommandeId="@suivi.Id"
+                                  ProduitId="@suivi.ProduitId"
+                                  ProduitNom="@suivi.ProduitNom"
+                                  ProduitRef="@suivi.ProduitReference"
+                                  ProduitImgUrl="@GetFullImageUrl(suivi.ProduitImageUrl)" />
+            }
+
+        </MudStack>
+    }
+</div>
+
+<!-- ===== LIGHTBOX IMAGE AGRANDIE ===== -->
+@if (!string.IsNullOrEmpty(imageAgrandieUrl))
+{
+    <div class="image-lightbox-overlay" @onclick="FermerImageAgrandie">
+        <button class="lightbox-close-btn" @onclick="FermerImageAgrandie" @onclick:stopPropagation="true" aria-label="Fermer">
+            <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Large" />
+        </button>
+        <img src="@imageAgrandieUrl" alt="@imageAgrandieAlt" class="lightbox-img" @onclick:stopPropagation="true" />
+        @if (!string.IsNullOrEmpty(imageAgrandieAlt))
+        {
+            <div class="lightbox-caption">@imageAgrandieAlt</div>
+        }
+    </div>
+}
+
+<style>
+    .suivi-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --sand: #F3F6FA;
+        --border: #E1E7EF;
+        --denim: #2B4C7E;
+        --denim-dark: #14263F;
+        --denim-tint: #E7EDF6;
+        --pine: #1E6B4C;
+        --pine-tint: #E4F3EC;
+        --amber: #D97706;
+        --amber-tint: #FEF3C7;
+        --rust: #B5563A;
+        --rust-tint: #F9ECE8;
+        --radius-sm: 8px;
+        --radius-md: 10px;
+        --radius-lg: 16px;
+        --font-display: "Sora", "Inter", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        font-family: var(--font-body);
+        color: var(--ink);
+    }
+
+    /* ===== Payment Alerts ===== */
+    .payment-alert {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        border-radius: var(--radius-md);
+        font-weight: 600;
+        font-size: 0.9375rem;
+    }
+
+    .payment-alert--success {
+        background: var(--denim-tint);
+        color: var(--denim);
+        border: 1px solid rgba(43, 76, 126, 0.2);
+    }
+
+    .payment-alert--warning {
+        background: #FEF3C7;
+        color: #D97706;
+        border: 1px solid #FDE68A;
+    }
+
+    /* ===== Payment Action Card — style clair, identique au hero de la page Profil ===== */
+    .payment-action-card {
+        background: linear-gradient(180deg, var(--denim-tint) 0%, var(--paper) 100%);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 28px 32px;
+    }
+
+    .payment-action-content {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        flex-wrap: wrap;
+    }
+
+    .payment-action-info {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .payment-action-icon {
+        color: var(--denim);
+        font-size: 40px;
+        flex-shrink: 0;
+    }
+
+    .payment-action-title {
+        color: var(--ink);
+        font-family: var(--font-display);
+        font-size: 1.15rem;
+        font-weight: 700;
+        margin: 0 0 4px 0;
+        letter-spacing: -0.01em;
+    }
+
+    .payment-action-subtitle {
+        color: var(--ink-muted);
+        font-size: 0.9rem;
+        margin: 0;
+    }
+
+    .payment-action-btn {
+        background: var(--denim);
+        color: #fff;
+        border: none;
+        padding: 12px 24px;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 6px 16px -6px rgba(43, 76, 126, 0.4);
+        transition: all 0.15s ease;
+    }
+
+        .payment-action-btn:hover {
+            background: var(--denim-dark);
+            transform: translateY(-1px);
+        }
+
+    /* ===== En-tête ===== */
+    .suivi-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .back-btn {
+        width: 40px;
+        height: 40px;
+        flex-shrink: 0;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--paper);
+        color: var(--ink-muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+        .back-btn:hover {
+            background: var(--sand);
+            border-color: var(--denim);
+            color: var(--denim);
+        }
+
+    .suivi-header > div {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .page-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--ink);
+    }
+
+    .page-subtitle {
+        color: var(--ink-muted);
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.8125rem;
+        font-weight: 700;
+        padding: 8px 16px;
+        border-radius: 999px;
+        white-space: nowrap;
+    }
+
+    .status-pill--pending {
+        background: var(--amber-tint);
+        color: var(--amber);
+    }
+
+    .status-pill--progress {
+        background: var(--denim-tint);
+        color: var(--denim);
+    }
+
+    .status-pill--done {
+        background: var(--pine-tint);
+        color: var(--pine);
+    }
+
+    /* Aligné sur le style "role-pill" de la page Profil (denim, plus de vert) */
+    .status-pill--ready {
+        background: var(--denim-tint);
+        color: var(--denim);
+        border: 1px solid rgba(43, 76, 126, 0.15);
+    }
+
+    .status-pill--paid {
+        background: #EEF2FF;
+        color: #4F46E5;
+        border: 1px solid #C7D2FE;
+    }
+
+    .status-pill--refused {
+        background: var(--rust-tint);
+        color: var(--rust);
+    }
+
+    .status-pill--rejected {
+        background: var(--rust-tint);
+        color: var(--rust);
+    }
+
+    /* ===== Cartes ===== */
+    .info-card, .timeline-card {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 28px;
+        box-shadow: 0 2px 10px rgba(22, 35, 58, 0.03);
+    }
+
+    .product-block {
+        display: flex;
+        gap: 24px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .product-img {
+        width: 128px;
+        height: 128px;
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        background: var(--sand);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        color: var(--ink-muted);
+        border: 1px solid var(--border);
+    }
+
+        .product-img img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+    .product-details {
+        flex: 1;
+        min-width: 220px;
+    }
+
+    .ref-code {
+        display: inline-block;
+        font-family: var(--font-mono);
+        font-weight: 600;
+        font-size: 0.75rem;
+        color: var(--denim);
+        background: var(--denim-tint);
+        padding: 3px 10px;
+        border-radius: 6px;
+    }
+
+    .product-name {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1.375rem;
+        color: var(--ink);
+        margin: 10px 0 16px;
+        letter-spacing: -0.01em;
+    }
+
+    .meta-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 12px;
+    }
+
+    .meta-item {
+        background: var(--sand);
+        border-radius: var(--radius-sm);
+        padding: 10px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .meta-label {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--ink-muted);
+    }
+
+    .meta-value {
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-size: 0.9375rem;
+        color: var(--ink);
+    }
+
+    /* ===== Timeline ===== */
+    .timeline-card-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 28px;
+    }
+
+    .timeline-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1.0625rem;
+        color: var(--ink);
+        margin: 0;
+    }
+
+    .timeline-subtitle {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--denim);
+        background: var(--denim-tint);
+        padding: 3px 10px;
+        border-radius: 999px;
+    }
+
+    .timeline-horizontal {
+        display: flex;
+        align-items: flex-start;
+        gap: 0;
+        overflow-x: auto;
+        padding-bottom: 4px;
+    }
+
+    .timeline-step {
+        flex: 1;
+        min-width: 130px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .step-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--sand);
+        border: 2px solid var(--border);
+        color: #94A3B8;
+        transition: all 0.2s ease;
+    }
+
+    .timeline-step.done .step-icon {
+        color: var(--pine);
+        border-color: var(--pine);
+        background: var(--pine-tint);
+    }
+
+    .timeline-step.current .step-icon {
+        color: var(--denim);
+        border-color: var(--denim);
+        background: var(--denim-tint);
+        animation: pulse 1.6s ease-in-out infinite;
+    }
+
+    .timeline-step.future .step-icon {
+        color: #94A3B8;
+    }
+
+    .step-label {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+    }
+
+    .timeline-step.done .step-label {
+        color: var(--pine);
+    }
+
+    .timeline-step.current .step-label {
+        color: var(--denim);
+        font-weight: 700;
+    }
+
+    .step-date {
+        font-family: var(--font-mono);
+        font-size: 0.6875rem;
+        color: var(--ink-muted);
+    }
+
+    .step-date--pending {
+        color: var(--denim);
+        font-weight: 600;
+    }
+
+    .timeline-connector {
+        flex: 1;
+        height: 2px;
+        background: var(--border);
+        margin-top: 22px;
+        min-width: 24px;
+        transition: background 0.2s ease;
+    }
+
+        .timeline-connector.done {
+            background: var(--pine);
+        }
+
+    @@keyframes pulse {
+        0%, 100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+
+        50% {
+            transform: scale(1.08);
+            opacity: 0.85;
+        }
+    }
+
+    /* ===== Boutons ===== */
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: none;
+        border-radius: var(--radius-sm);
+        padding: 10px 20px;
+        font-family: var(--font-body);
+        font-weight: 600;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .btn--primary {
+        background: var(--denim);
+        color: #fff;
+        box-shadow: 0 6px 16px -6px rgba(43,76,126,0.4);
+    }
+
+        .btn--primary:hover {
+            background: var(--denim-dark);
+        }
+
+    .btn--outline {
+        background: var(--paper);
+        color: var(--ink);
+        border: 1px solid var(--border);
+    }
+
+        .btn--outline:hover {
+            border-color: var(--denim);
+            color: var(--denim);
+        }
+
+    /* ===== Empty state ===== */
+    .empty-state {
+        background: var(--paper);
+        border: 1px dashed var(--border);
+        border-radius: var(--radius-lg);
+        padding: 64px 24px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        max-width: 480px;
+        margin: 48px auto;
+    }
+
+    .empty-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: var(--sand);
+        color: var(--ink-muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .empty-title {
+        font-family: var(--font-display);
+        font-weight: 600;
+        color: var(--ink);
+    }
+
+    .empty-subtitle {
+        color: var(--ink-muted);
+    }
+
+    /* ===== Responsive ===== */
+    @@media (max-width: 640px) {
+        .info-card, .timeline-card {
+            padding: 20px;
+        }
+
+        .product-block {
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .meta-grid {
+            width: 100%;
+        }
+
+        .suivi-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .status-pill {
+            order: -1;
+        }
+    }
+
+    /* ===== Feedback Action & Expired Cards ===== */
+    .feedback-action-card {
+        background: linear-gradient(180deg, #F3F6FA 0%, #FFFFFF 100%);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 24px 28px;
+    }
+
+    .feedback-action-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .feedback-card-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: var(--ink);
+        margin: 0 0 4px 0;
+    }
+
+    .feedback-card-subtitle {
+        color: var(--ink-muted);
+        font-size: 0.875rem;
+        margin: 0;
+    }
+
+    .feedback-buttons-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .btn--outline-rust {
+        background: transparent;
+        color: var(--rust, #B5563A);
+        border: 1px solid var(--rust, #B5563A);
+        padding: 10px 18px;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.15s ease;
+    }
+
+        .btn--outline-rust:hover {
+            background: var(--rust-tint, #F9ECE8);
+        }
+
+    .feedback-expired-card {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 20px 24px;
+        background: #FEF3C7;
+        border: 1px solid #FDE68A;
+        border-radius: var(--radius-lg);
+    }
+
+    .expired-icon {
+        color: #D97706;
+    }
+
+    .avis-preview-box {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 16px;
+    }
+
+    /* ===== Ligne d'en-tête de l'aperçu d'avis (étoiles/date à gauche, statut à droite) ===== */
+    .avis-preview-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .avis-date {
+        margin-left: 4px;
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+    }
+
+    .avis-status-pill {
+        margin-left: 12px;
+        font-size: 0.75rem;
+        padding: 4px 10px;
+        flex-shrink: 0;
+    }
+
+    .star-gold {
+        color: #F59E0B;
+    }
+
+    .avis-comment-text {
+        font-style: italic;
+        color: var(--ink);
+        font-size: 0.9rem;
+        margin: 0;
+    }
+
+    /* Lightbox image agrandie */
+    .image-lightbox-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.85);
+        backdrop-filter: blur(6px);
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        animation: fadeIn 0.2s ease-out;
+    }
+
+    .lightbox-img {
+        max-width: 90vw;
+        max-height: 85vh;
+        border-radius: 12px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        object-fit: contain;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .lightbox-caption {
+        margin-top: 12px;
+        color: #FFFFFF;
+        font-family: var(--font-display, "Sora", sans-serif);
+        font-weight: 600;
+        font-size: 1rem;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 6px 16px;
+        border-radius: 999px;
+    }
+
+    .lightbox-close-btn {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: #FFFFFF;
+        border-radius: 50%;
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+        .lightbox-close-btn:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(1.1);
+        }
+</style>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private string? imageAgrandieUrl;
+    private string? imageAgrandieAlt;
+
+    private void OuvrirImageAgrandie(string? url, string? alt)
+    {
+        if (string.IsNullOrEmpty(url)) return;
+        imageAgrandieUrl = url;
+        imageAgrandieAlt = alt ?? "Image du produit";
+    }
+
+    private void FermerImageAgrandie()
+    {
+        imageAgrandieUrl = null;
+        imageAgrandieAlt = null;
+    }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "payment")]
+    public string? PaymentQuery { get; set; }
+
+    private SuiviCommandeDto? suivi;
+    private AvisDto? avisExistant;
+    private bool showAvisModal = false;
+    private bool showReclamationModal = false;
+    private bool isLoading = true;
+
+    private record TimelineStep(string Key, string Label);
+
+    private static readonly TimelineStep[] EtapesStandard =
+    {
+        new("CONFIRMEE", "Confirmée"),
+        new("PAYEE", "Payée"),
+        new("EN_LIVRAISON", "En livraison"),
+        new("LIVREE", "Livrée")
+    };
+
+    private static readonly TimelineStep[] EtapesSurCommande =
+    {
+        new("RECUE", "Commande reçue"),
+        new("CONFIRMEE", "Confirmée"),
+        new("PREPARATION", "En préparation"),
+        new("PRETE", "Prête"),
+        new("PAYEE", "Payée"),
+        new("EN_LIVRAISON", "En livraison"),
+        new("LIVREE", "Livrée")
+    };
+
+    private IEnumerable<TimelineStep> GetEtapes()
+    {
+        if (suivi != null && suivi.EstSurCommande)
+            return EtapesSurCommande;
+        return EtapesStandard;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        isLoading = true;
+        try
+        {
+            suivi = await CatalogueService.ObtenirSuiviCommande(Id);
+            if (suivi != null && IsLivree())
+            {
+                avisExistant = await FeedbackService.ObtenirAvisCommande(suivi.Id);
+            }
+        }
+        catch { suivi = null; }
+        finally { isLoading = false; }
+    }
+
+    private bool IsLivree()
+    {
+        if (suivi == null) return false;
+        var st = suivi.Statut?.ToUpperInvariant() ?? suivi.StatutCommande?.ToUpperInvariant() ?? "";
+        return st == "LIVREE";
+    }
+
+    private bool EstDelaiExceder14Jours()
+    {
+        if (suivi == null) return true;
+        var refDate = suivi.DateLivraison ?? suivi.DateVente;
+        return (DateTime.Now - refDate).TotalDays > 14;
+    }
+
+    private async Task ChargerAvisExistant()
+    {
+        if (suivi != null)
+        {
+            avisExistant = await FeedbackService.ObtenirAvisCommande(suivi.Id);
+        }
+    }
+
+    private void Retour() => Navigation.NavigateTo("/mes-commandes");
+
+    private string GetFullImageUrl(string? url) =>
+        string.IsNullOrEmpty(url) ? "" : $"{Http.BaseAddress}{url.TrimStart('/')}";
+
+    private int GetCurrentStepIndex()
+    {
+        if (suivi == null) return -1;
+        var statut = suivi.Statut?.ToUpperInvariant() ?? "";
+
+        if (suivi.EstSurCommande)
+        {
+            return statut switch
+            {
+                "EN_ATTENTE_CONFIRMATION" or "EN_ATTENTE" => 0,
+                "CONFIRMEE" => 1,
+                "EN_PREPARATION" => 2,
+                "PRETE" => 3,
+                "PAYEE" => 4,
+                "EN_LIVRAISON" => 5,
+                "LIVREE" => 6,
+                _ => 0
+            };
+        }
+        else
+        {
+            return statut switch
+            {
+                "PAYEE" => 1,
+                "EN_LIVRAISON" => 2,
+                "LIVREE" => 3,
+                _ => 0 // ACCEPTEE / CONFIRMEE -> Step 0 (Confirmée)
+            };
+        }
+    }
+
+    private string GetStepState(string key)
+    {
+        var idx = GetCurrentStepIndex();
+        var etapesList = GetEtapes().ToList();
+        int stepIdx = etapesList.FindIndex(e => e.Key == key);
+        if (stepIdx == -1) return "future";
+        if (idx > stepIdx) return "done";
+        if (idx == stepIdx) return "current";
+        return "future";
+    }
+
+    private bool IsConnectorDone(string key)
+    {
+        var idx = GetCurrentStepIndex();
+        var etapesList = GetEtapes().ToList();
+        int stepIdx = etapesList.FindIndex(e => e.Key == key);
+        return stepIdx != -1 && idx > stepIdx;
+    }
+
+    private DateTime? GetStepDate(string key) => suivi == null ? null : key switch
+    {
+        "RECUE" => suivi.DateVente,
+        "CONFIRMEE" => suivi.DateConfirmation ?? suivi.DateVente,
+        "PREPARATION" => suivi.DateDebutPreparation,
+        "PRETE" => suivi.DatePrete,
+        "PAYEE" => suivi.DatePaiement,
+        "LIVRAISON" => suivi.DateLivraison,
+        "LIVREE" => suivi.DateLivraison,
+        _ => null
+    };
+
+    private bool CanShowPaymentButton()
+    {
+        if (suivi == null) return false;
+
+        // Déjà payée ou plus loin dans le cycle → pas de bouton
+        var statut = suivi.Statut?.ToUpperInvariant() ?? "";
+        if (statut == "PAYEE" || statut == "EN_LIVRAISON" || statut == "LIVREE")
+            return false;
+
+        // Commande simple acceptée automatiquement (pas sur commande)
+        if (!suivi.EstSurCommande && suivi.StatutCommande == "ACCEPTEE")
+            return true;
+
+        // Commande sur commande prête
+        if (statut == "PRETE")
+            return true;
+
+        return false;
+    }
+
+    private decimal GetTotalAmount()
+    {
+        if (suivi == null) return 0;
+        return suivi.QuantiteVendue * suivi.PrixUnitaire;
+    }
+
+    private void ProceedToPayment()
+    {
+        if (suivi == null) return;
+        Navigation.NavigateTo($"/payment/checkout/{suivi.Id}");
+    }
+
+    private string GetStatusLabel()
+    {
+        if (suivi == null) return "Inconnu";
+        var statut = suivi.Statut?.ToUpperInvariant() ?? suivi.StatutCommande?.ToUpperInvariant() ?? "";
+        return statut switch
+        {
+            "EN_ATTENTE_CONFIRMATION" or "EN_ATTENTE" => "En attente de confirmation",
+            "ACCEPTEE" when !suivi.EstSurCommande => "Acceptée — En attente de paiement",
+            "CONFIRMEE" => "Confirmée",
+            "EN_PREPARATION" => "En préparation",
+            "PRETE" => "Prête — En attente de paiement",
+            "PAYEE" => "Payée",
+            "EN_LIVRAISON" => "En livraison",
+            "LIVREE" => "Livrée",
+            "REFUSEE" => "Refusée",
+            _ => "En cours"
+        };
+    }
+
+    private string GetStatusPillClass()
+    {
+        if (suivi == null) return "status-pill--pending";
+        var statut = suivi.Statut?.ToUpperInvariant() ?? suivi.StatutCommande?.ToUpperInvariant() ?? "";
+        return statut switch
+        {
+            "LIVREE" => "status-pill--done",
+            "PAYEE" or "EN_LIVRAISON" => "status-pill--paid",
+            "PRETE" or "ACCEPTEE" when !suivi.EstSurCommande => "status-pill--ready",
+            "REFUSEE" => "status-pill--refused",
+            "EN_ATTENTE_CONFIRMATION" or "EN_ATTENTE" => "status-pill--pending",
+            _ => "status-pill--progress"
+        };
+    }
+
+    private string GetStatusIcon()
+    {
+        if (suivi == null) return Icons.Material.Filled.HourglassTop;
+        var statut = suivi.Statut?.ToUpperInvariant() ?? suivi.StatutCommande?.ToUpperInvariant() ?? "";
+        return statut switch
+        {
+            "LIVREE" => Icons.Material.Filled.CheckCircle,
+            "EN_LIVRAISON" => Icons.Material.Filled.LocalShipping,
+            "PAYEE" => Icons.Material.Filled.Payments,
+            "PRETE" or "ACCEPTEE" when !suivi.EstSurCommande => Icons.Material.Filled.ShoppingBag,
+            "REFUSEE" => Icons.Material.Filled.Cancel,
+            "EN_ATTENTE_CONFIRMATION" or "EN_ATTENTE" => Icons.Material.Filled.HourglassTop,
+            _ => Icons.Material.Filled.Autorenew
+        };
+    }
+}
+

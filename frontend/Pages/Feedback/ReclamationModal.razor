@@ -1,0 +1,480 @@
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@inject FeedbackService FeedbackService
+@inject ISnackbar Snackbar
+
+@if (IsOpen)
+{
+    <div class="wic-modal-overlay" @onclick="Fermer">
+        <div class="wic-modal-card" @onclick:stopPropagation="true">
+            <div class="wic-modal-header">
+                <div class="d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Filled.ReportProblem" Size="Size.Medium" Class="icon-warning-rust" />
+                    <h3 class="wic-modal-title">Signaler un problème sur la commande</h3>
+                </div>
+                <button class="wic-modal-close" @onclick="Fermer">
+                    <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                </button>
+            </div>
+
+            <div class="wic-modal-body">
+                <!-- Produit concerné -->
+                <div class="product-summary">
+                    <div class="product-thumb">
+                        @if (!string.IsNullOrEmpty(ProduitImgUrl))
+                        {
+                            <img src="@ProduitImgUrl" alt="@ProduitNom" />
+                        }
+                        else
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.Layers" Size="Size.Medium" />
+                        }
+                    </div>
+                    <div>
+                        <span class="ref-code">@ProduitRef</span>
+                        <h4 class="product-title mt-1">@ProduitNom</h4>
+                    </div>
+                </div>
+
+                <!-- Motif de réclamation -->
+                <div class="form-group my-4">
+                    <label class="form-label mb-2">Motif du problème *</label>
+                    <select class="form-control" @bind="motif">
+                        <option value="">-- Sélectionnez un motif --</option>
+                        <option value="Article défectueux">Article défectueux / endommagé</option>
+                        <option value="Mauvaise référence livrée">Mauvaise référence livrée</option>
+                        <option value="Quantité incorrecte">Quantité incorrecte ou manquante</option>
+                        <option value="Produit non conforme à la description">Produit non conforme à la description</option>
+                        <option value="Retard de livraison">Retard de livraison important</option>
+                        <option value="Autre">Autre problème</option>
+                    </select>
+                </div>
+
+                <!-- Description détaillée -->
+                <div class="form-group mb-4">
+                    <label class="form-label mb-2">Description détaillée *</label>
+                    <textarea class="form-control" rows="4" placeholder="Expliquez précisément le problème rencontré (défaut constaté, quantité reçue, état du colis...)"
+                              @bind="description"></textarea>
+                </div>
+
+                <!-- Upload de photos -->
+                <div class="form-group mb-4">
+                    <label class="form-label">Photos justificatives (facultatif)</label>
+                    <p class="form-hint">Vous pouvez ajouter des photos pour accélérer le traitement de votre dossier.</p>
+
+                    <div class="photo-upload-zone">
+                        <InputFile OnChange="HandlePhotoUpload" multiple accept="image/*" id="photo-input" style="display:none;" />
+                        <label for="photo-input" class="upload-btn">
+                            <MudIcon Icon="@Icons.Material.Filled.AddAPhoto" Size="Size.Small" />
+                            <span>Ajouter des photos</span>
+                        </label>
+                        @if (isUploadingPhoto)
+                        {
+                            <div class="d-flex align-center gap-2 text-muted">
+                                <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                                <span style="font-size: 0.8125rem;">Téléchargement en cours...</span>
+                            </div>
+                        }
+                    </div>
+
+                    @if (uploadedPhotos.Any())
+                    {
+                        <div class="photos-preview-grid mt-3">
+                            @foreach (var photo in uploadedPhotos)
+                            {
+                                <div class="photo-preview-item">
+                                    <img src="@photo" alt="Photo jointe" />
+                                    <button type="button" class="photo-remove-btn" @onclick="() => SupprimerPhoto(photo)" title="Supprimer">
+                                        <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert--danger mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Size="Size.Small" />
+                        <span>@errorMessage</span>
+                    </div>
+                }
+            </div>
+
+            <div class="wic-modal-footer">
+                <button class="btn btn--outline" @onclick="Fermer" disabled="@isSubmitting">Annuler</button>
+                <button class="btn btn--rust" @onclick="SoumettreReclamation" disabled="@isSubmitting">
+                    @if (isSubmitting)
+                    {
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                        <span>Envoi en cours...</span>
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Send" Size="Size.Small" />
+                        <span>Envoyer la réclamation</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .wic-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(22, 35, 58, 0.6);
+        backdrop-filter: blur(4px);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+    }
+
+    .wic-modal-card {
+        background: var(--paper, #ffffff);
+        border: 1px solid var(--border, #e1e7ef);
+        border-radius: var(--radius-lg, 16px);
+        width: 100%;
+        max-width: 540px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        animation: fadeIn 0.2s ease-out;
+    }
+
+    .wic-modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border, #e1e7ef);
+        background: var(--sand, #f3f6fa);
+    }
+
+    .icon-warning-rust {
+        color: var(--rust, #B5563A);
+    }
+
+    .wic-modal-title {
+        font-family: "Sora", sans-serif;
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: var(--ink, #16233a);
+        margin: 0;
+    }
+
+    .wic-modal-close {
+        background: transparent;
+        border: none;
+        color: var(--ink-muted, #64748b);
+        cursor: pointer;
+        padding: 6px;
+        border-radius: 6px;
+        transition: all 0.15s ease;
+    }
+
+        .wic-modal-close:hover {
+            background: rgba(0,0,0,0.05);
+            color: var(--ink, #16233a);
+        }
+
+    .wic-modal-body {
+        padding: 24px;
+    }
+
+    .wic-modal-footer {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 12px;
+        padding: 16px 24px;
+        border-top: 1px solid var(--border, #e1e7ef);
+        background: var(--sand, #f3f6fa);
+    }
+
+    .product-summary {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        background: var(--sand, #f3f6fa);
+        padding: 12px 16px;
+        border-radius: var(--radius-sm, 8px);
+        border: 1px solid var(--border, #e1e7ef);
+    }
+
+    .product-thumb {
+        width: 48px;
+        height: 48px;
+        border-radius: 6px;
+        overflow: hidden;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+        .product-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+    .product-title {
+        font-family: "Sora", sans-serif;
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: var(--ink, #16233a);
+        margin: 0;
+    }
+
+    .ref-code {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.75rem;
+        color: var(--denim, #2B4C7E);
+        background: #E7EDF6;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+
+    .form-label {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--ink, #16233a);
+        display: block;
+    }
+
+        /* Espace entre le label et le champ de saisie qui le suit */
+        .form-label.mb-2 {
+            margin-bottom: 8px;
+        }
+
+    .form-hint {
+        font-size: 0.8125rem;
+        color: var(--ink-muted, #64748b);
+        margin: 2px 0 8px 0;
+    }
+
+    .form-control {
+        width: 100%;
+        border: 1px solid var(--border, #e1e7ef);
+        border-radius: var(--radius-sm, 8px);
+        padding: 10px 14px;
+        font-family: "Inter", sans-serif;
+        font-size: 0.9rem;
+        color: var(--ink, #16233a);
+        outline: none;
+        transition: border-color 0.15s ease;
+    }
+
+        .form-control:focus {
+            border-color: var(--denim, #2B4C7E);
+            box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.1);
+        }
+
+    .photo-upload-zone {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .upload-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: var(--sand, #f3f6fa);
+        border: 1px dashed var(--border, #e1e7ef);
+        border-radius: var(--radius-sm, 8px);
+        color: var(--denim, #2B4C7E);
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+        .upload-btn:hover {
+            background: #E7EDF6;
+            border-color: var(--denim, #2B4C7E);
+        }
+
+    .photos-preview-grid {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .photo-preview-item {
+        position: relative;
+        width: 64px;
+        height: 64px;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid var(--border, #e1e7ef);
+    }
+
+        .photo-preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+    .photo-remove-btn {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        background: rgba(0,0,0,0.6);
+        color: #fff;
+        border: none;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+
+    .btn--rust {
+        background: var(--rust, #B5563A);
+        color: #ffffff;
+        border: none;
+        padding: 10px 20px;
+        border-radius: var(--radius-sm, 8px);
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: background 0.15s ease;
+    }
+
+        .btn--rust:hover {
+            background: #964229;
+        }
+
+    .alert--danger {
+        background: #FDE8E8;
+        color: #9B1C1C;
+        border: 1px solid #F8B4B4;
+        padding: 10px 14px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.875rem;
+    }
+</style>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public int CommandeId { get; set; }
+    [Parameter] public int ProduitId { get; set; }
+    [Parameter] public string? ProduitNom { get; set; }
+    [Parameter] public string? ProduitRef { get; set; }
+    [Parameter] public string? ProduitImgUrl { get; set; }
+    [Parameter] public EventCallback OnReclamationEnregistree { get; set; }
+
+    private string motif = string.Empty;
+    private string description = string.Empty;
+    private List<string> uploadedPhotos = new();
+    private bool isUploadingPhoto = false;
+    private bool isSubmitting = false;
+    private string? errorMessage;
+
+    protected override void OnParametersSet()
+    {
+        motif = string.Empty;
+        description = string.Empty;
+        uploadedPhotos.Clear();
+        errorMessage = null;
+    }
+
+    private async Task Fermer()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(false);
+    }
+
+    private async Task HandlePhotoUpload(InputFileChangeEventArgs e)
+    {
+        isUploadingPhoto = true;
+        errorMessage = null;
+
+        try
+        {
+            var files = e.GetMultipleFiles(5);
+            foreach (var file in files)
+            {
+                var photoUrl = await FeedbackService.UploadPhoto(file);
+                if (!string.IsNullOrEmpty(photoUrl))
+                {
+                    uploadedPhotos.Add(photoUrl);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Erreur lors du téléchargement de la photo : " + ex.Message;
+        }
+        finally
+        {
+            isUploadingPhoto = false;
+        }
+    }
+
+    private void SupprimerPhoto(string photoUrl)
+    {
+        uploadedPhotos.Remove(photoUrl);
+    }
+
+    private async Task SoumettreReclamation()
+    {
+        if (string.IsNullOrWhiteSpace(motif))
+        {
+            errorMessage = "Veuillez sélectionner un motif de réclamation.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            errorMessage = "Veuillez fournir une description détaillée du problème.";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        var dto = new CreerReclamationDto
+        {
+            CommandeId = CommandeId,
+            Motif = motif,
+            Description = description,
+            PhotosUrls = uploadedPhotos.Any() ? string.Join(",", uploadedPhotos) : null
+        };
+
+        var res = await FeedbackService.CreerReclamation(dto);
+        isSubmitting = false;
+
+        if (res.Succes)
+        {
+            Snackbar.Add("Votre réclamation a été transmise au service client.", Severity.Success);
+            await OnReclamationEnregistree.InvokeAsync();
+            await Fermer();
+        }
+        else
+        {
+            errorMessage = res.Message;
+        }
+    }
+}

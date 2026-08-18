@@ -1,0 +1,957 @@
+@page "/manager/dashboard"
+@attribute [Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
+@inject DashboardService DashboardService
+@inject NavigationManager Navigation
+
+<PageTitle>Tableau de bord Responsable | WicStock</PageTitle>
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="dashboard-page pa-4 pa-md-6">
+
+    <!-- ===== HEADER ===== -->
+    <div class="dashboard-header mb-6">
+        <div>
+            <span class="dashboard-kicker">Suivi opérationnel</span>
+            <h1 class="dashboard-title">Tableau de bord Responsable Stock &amp; Production</h1>
+            <p class="dashboard-subtitle">Stock, alertes de réapprovisionnement et mouvements récents</p>
+        </div>
+        <div class="header-actions">
+            @if (derniereMiseAJour.HasValue)
+            {
+                <span class="last-updated">
+                    <MudIcon Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" />
+                    Mis à jour à @derniereMiseAJour.Value.ToString("HH:mm")
+                </span>
+            }
+            <a class="btn btn--primary" href="/commandes">
+                <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Small" />
+                <span>Commandes à traiter</span>
+            </a>
+            <button class="btn btn--outline" @onclick="ChargerDonnees" disabled="@isLoading">
+                <MudIcon Icon="@(isLoading ? Icons.Material.Filled.HourglassTop : Icons.Material.Filled.Refresh)" Size="Size.Small" />
+                <span>@(isLoading ? "Actualisation..." : "Actualiser")</span>
+            </button>
+        </div>
+    </div>
+
+    @if (data == null)
+    {
+        <div class="skeleton-wrap">
+            <div class="skeleton-row mb-6">
+                <div class="skeleton skeleton-kpi"></div>
+                <div class="skeleton skeleton-kpi"></div>
+                <div class="skeleton skeleton-kpi"></div>
+                <div class="skeleton skeleton-kpi"></div>
+            </div>
+            <div class="skeleton-row-2 mb-6">
+                <div class="skeleton skeleton-table"></div>
+                <div class="skeleton skeleton-table"></div>
+            </div>
+            <div class="skeleton skeleton-table skeleton-table--wide"></div>
+        </div>
+    }
+    else
+    {
+        @if (data.ProduitsStockFaible > 0)
+        {
+            <div class="alert-rupture mb-6">
+                <span class="alert-icon"><MudIcon Icon="@Icons.Material.Filled.WarningAmber" Size="Size.Small" /></span>
+                <span class="alert-text"><strong>Attention :</strong> @data.ProduitsStockFaible produit(s) sont sous le seuil d'alerte de stock ou en rupture.</span>
+                <a href="#alertes-stock" class="alert-action">Voir les articles concernés <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" /></a>
+            </div>
+        }
+
+        <!-- ===== KPI CARDS ===== -->
+        <MudGrid Class="mb-6">
+            <MudItem xs="12" sm="6" md="3">
+                <div class="kpi-card kpi-card--denim">
+                    <div class="kpi-top">
+                        <div class="kpi-icon">
+                            <MudIcon Icon="@Icons.Material.Filled.Layers" Size="Size.Small" />
+                        </div>
+                        <span class="kpi-label">Stock Total</span>
+                    </div>
+                    <h2 class="kpi-value">@data.TotalStockArticles.ToString("N0")</h2>
+                    <span class="kpi-sub">Articles physiques disponibles</span>
+                </div>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <div class="kpi-card kpi-card--pine">
+                    <div class="kpi-top">
+                        <div class="kpi-icon">
+                            <MudIcon Icon="@Icons.Material.Filled.Sell" Size="Size.Small" />
+                        </div>
+                        <span class="kpi-label">Produits Vendus</span>
+                    </div>
+                    <h2 class="kpi-value">@data.TotalProduitsVendus.ToString("N0")</h2>
+                    <span class="kpi-sub">Total des articles vendus</span>
+                </div>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <div class="kpi-card kpi-card--ochre kpi-card--clickable"
+                     role="button" tabindex="0"
+                     @onclick='() => Navigation.NavigateTo("/commandes")'
+                     @onkeydown="@(e => OnKpiKeydown(e, "/commandes"))">
+                    <div class="kpi-top">
+                        <div class="kpi-icon">
+                            <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Size="Size.Small" />
+                        </div>
+                        <span class="kpi-label">Commandes à Traiter</span>
+                    </div>
+                    <h2 class="kpi-value">@data.CommandesEnAttenteCount.ToString("N0")</h2>
+                    <span class="kpi-sub kpi-sub--link">En attente de validation <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" /></span>
+                </div>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <div class="kpi-card kpi-card--pine">
+                    <div class="kpi-top">
+                        <div class="kpi-icon">
+                            <MudIcon Icon="@Icons.Material.Filled.SwapVert" Size="Size.Small" />
+                        </div>
+                        <span class="kpi-label">Mouvements Aujourd'hui</span>
+                    </div>
+                    <h2 class="kpi-value">@mouvementsAujourdhui.ToString("N0")</h2>
+                    <div class="kpi-mvt-row">
+                        <span class="kpi-mvt-badge kpi-mvt-badge--entree">
+                            <MudIcon Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" />
+                            <span>@entreesAujourdhui Entrée@(entreesAujourdhui > 1 ? "s" : "")</span>
+                        </span>
+                        <span class="kpi-mvt-badge kpi-mvt-badge--sortie">
+                            <MudIcon Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" />
+                            <span>@sortiesAujourdhui Sortie@(sortiesAujourdhui > 1 ? "s" : "")</span>
+                        </span>
+                    </div>
+                    <span class="kpi-sub" style="font-size:0.72rem; margin-top:6px; display:block;">produits ajoutés · produits vendus</span>
+                </div>
+            </MudItem>
+        </MudGrid>
+
+        <!-- ===== TABLES ET ALERTES ===== -->
+        <MudGrid Class="mb-6">
+            <!-- Alertes Stock Faible -->
+            <MudItem xs="12" lg="6">
+                <div id="alertes-stock" class="table-card h-100 d-flex flex-column">
+                    <div class="chart-header d-flex justify-space-between align-center flex-wrap gap-2">
+                        <div>
+                            <h3 class="chart-title chart-title--rust">
+                                <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Size="Size.Small" />
+                                Articles en Stock Faible ou Rupture
+                            </h3>
+                            <span class="chart-subtitle">Niveaux nécessitant un réapprovisionnement</span>
+                        </div>
+                        <span class="chart-badge chart-badge--rust">@data.ProduitsAlerte.Count alerte(s)</span>
+                    </div>
+
+                    <div class="table-responsive table-scroll flex-1">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Référence</th>
+                                    <th>Article</th>
+                                    <th>Stock actuel</th>
+                                    <th>Seuil d'alerte</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (data.ProduitsAlerte != null && data.ProduitsAlerte.Any())
+                                {
+                                    @foreach (var prod in data.ProduitsAlerte)
+                                    {
+                                        <tr>
+                                            <td><span class="ref-code">@prod.Reference</span></td>
+                                            <td class="cell-strong">@prod.Nom</td>
+                                            <td>
+                                                <span class="badge-statut @(prod.QuantiteActuelle == 0 ? "statut-refusee" : "statut-ochre")">
+                                                    @(prod.QuantiteActuelle == 0 ? "Rupture (0)" : $"{prod.QuantiteActuelle} articles")
+                                                </span>
+                                            </td>
+                                            <td class="cell-muted">@prod.SeuilAlerte</td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="4">
+                                            <div class="empty-state empty-state--inline">
+                                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" />
+                                                <p>Tous les niveaux de stock sont optimaux.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </MudItem>
+
+            <!-- Alertes Surstock -->
+            <MudItem xs="12" lg="6">
+                <div class="table-card h-100 d-flex flex-column">
+                    <div class="chart-header d-flex justify-space-between align-center flex-wrap gap-2">
+                        <div>
+                            <h3 class="chart-title chart-title--ochre">
+                                <MudIcon Icon="@Icons.Material.Filled.Inventory" Size="Size.Small" />
+                                Articles en Surstock
+                            </h3>
+                            <span class="chart-subtitle">Références à écouler en priorité</span>
+                        </div>
+                        <span class="chart-badge chart-badge--ochre">@data.ProduitsEnSurstock.Count alerte(s)</span>
+                    </div>
+
+                    <div class="table-responsive table-scroll flex-1">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Référence</th>
+                                    <th>Article</th>
+                                    <th>Stock actuel</th>
+                                    <th>Excédent</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (data.ProduitsEnSurstock != null && data.ProduitsEnSurstock.Any())
+                                {
+                                    @foreach (var prod in data.ProduitsEnSurstock)
+                                    {
+                                        <tr>
+                                            <td><span class="ref-code">@prod.Reference</span></td>
+                                            <td class="cell-strong">@prod.Nom</td>
+                                            <td>@prod.QuantiteActuelle</td>
+                                            <td><span class="badge-statut statut-ochre">+@prod.PourcentageSurstock</span></td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="4">
+                                            <div class="empty-state empty-state--inline">
+                                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" />
+                                                <p>Aucun excédent détecté.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </MudItem>
+        </MudGrid>
+
+        <!-- Mouvements de Stock Récents -->
+        <MudGrid Class="mb-6">
+            <MudItem xs="12">
+                <div class="table-card h-100 d-flex flex-column">
+                    <div class="chart-header d-flex justify-space-between align-center flex-wrap gap-2">
+                        <div>
+                            <h3 class="chart-title">
+                                <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Small" />
+                                Derniers Mouvements de Stock
+                            </h3>
+                            <span class="chart-subtitle">Historique récent des entrées et sorties</span>
+                        </div>
+                        <span class="chart-badge">@data.MouvementsRecents.Count enregistrement(s)</span>
+                    </div>
+
+                    <div class="table-responsive table-scroll flex-1">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Article</th>
+                                    <th>Type</th>
+                                    <th>Quantité</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (data.MouvementsRecents != null && data.MouvementsRecents.Any())
+                                {
+                                    @foreach (var mvt in data.MouvementsRecents)
+                                    {
+                                        <tr>
+                                            <td class="cell-strong">@mvt.ProduitNom</td>
+                                            <td>
+                                                <span class="badge-statut @(EstEntree(mvt.TypeMouvement) ? "statut-acceptee" : "statut-refusee")">
+                                                    <MudIcon Icon="@(EstEntree(mvt.TypeMouvement) ? Icons.Material.Filled.ArrowDownward : Icons.Material.Filled.ArrowUpward)" Size="Size.Small" />
+                                                    @(EstEntree(mvt.TypeMouvement) ? "Entrée" : "Sortie")
+                                                </span>
+                                            </td>
+                                            <td class="cell-amount">@mvt.Quantite</td>
+                                            <td class="cell-muted">@mvt.DateMouvement.ToString("dd/MM/yyyy HH:mm")</td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="4">
+                                            <div class="empty-state empty-state--inline">
+                                                <MudIcon Icon="@Icons.Material.Filled.SwapVert" />
+                                                <p>Aucun mouvement récent enregistré.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </MudItem>
+        </MudGrid>
+    }
+</div>
+
+<style>
+    .dashboard-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --sand: #F3F6FA;
+        --border: #E1E7EF;
+        --denim: #2B4C7E;
+        --denim-dark: #14263F;
+        --denim-tint: #E7EDF6;
+        --pine: #1E8E3E;
+        --pine-tint: #E6F4EA;
+        --ochre: #B45309;
+        --ochre-tint: #FEF3C7;
+        --plum: #7E22CE;
+        --plum-tint: #F3E8FD;
+        --rust: #DC2626;
+        --rust-tint: #FEE2E2;
+        --font-display: "Sora", "Inter", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+        --shadow-sm: 0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.06);
+        --shadow-md: 0 8px 24px -12px rgba(20,38,63,0.18);
+        font-family: var(--font-body);
+        color: var(--ink);
+    }
+
+    /* ===== Header ===== */
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .dashboard-kicker {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--denim);
+        margin-bottom: 6px;
+    }
+
+    .dashboard-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1.625rem;
+        letter-spacing: -0.01em;
+        color: var(--ink);
+        margin: 0;
+    }
+
+    .dashboard-subtitle {
+        font-size: 0.875rem;
+        color: var(--ink-muted);
+        margin: 4px 0 0 0;
+    }
+
+    .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .last-updated {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+    }
+
+        .last-updated .mud-icon-root {
+            font-size: 1rem;
+        }
+
+    /* ===== Buttons ===== */
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 18px;
+        border-radius: var(--radius-sm);
+        font-family: var(--font-body);
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        transition: all 0.15s ease;
+        text-decoration: none;
+    }
+
+    .btn--primary {
+        background: var(--denim);
+        color: #FFFFFF;
+        box-shadow: 0 6px 16px -6px rgba(43,76,126,0.4);
+    }
+
+        .btn--primary:hover {
+            background: var(--denim-dark);
+        }
+
+    .btn--outline {
+        border: 1px solid var(--border);
+        background: var(--paper);
+        color: var(--ink);
+    }
+
+        .btn--outline:hover {
+            background: var(--sand);
+            border-color: var(--denim);
+            color: var(--denim);
+        }
+
+        .btn--outline:disabled {
+            opacity: 0.6;
+            cursor: default;
+        }
+
+    /* ===== Alert ===== */
+    .alert-rupture {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 18px;
+        background: var(--rust-tint);
+        border: 1px solid #FCA5A5;
+        border-radius: var(--radius-md);
+        color: #991B1B;
+        font-size: 0.875rem;
+        flex-wrap: wrap;
+    }
+
+    .alert-icon {
+        display: flex;
+        color: var(--rust);
+        flex-shrink: 0;
+    }
+
+    .alert-text {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .alert-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-weight: 700;
+        color: var(--rust);
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+        .alert-action:hover {
+            text-decoration: underline;
+        }
+
+    /* ===== KPI Cards ===== */
+    .kpi-card {
+        position: relative;
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 20px 22px;
+        box-shadow: var(--shadow-sm);
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+        overflow: hidden;
+        height: 100%;
+        box-sizing: border-box;
+    }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--accent, var(--denim));
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md);
+        }
+
+    .kpi-card--denim {
+        --accent: var(--denim);
+    }
+
+    .kpi-card--pine {
+        --accent: var(--pine);
+    }
+
+    .kpi-card--ochre {
+        --accent: var(--ochre);
+    }
+
+    .kpi-card--rust {
+        --accent: var(--rust);
+    }
+
+    .kpi-card--clickable {
+        cursor: pointer;
+    }
+
+        .kpi-card--clickable:focus-visible {
+            outline: 2px solid var(--denim);
+            outline-offset: 2px;
+        }
+
+    .kpi-top {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+
+    .kpi-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        background: var(--sand);
+        color: var(--accent, var(--denim));
+    }
+
+    .kpi-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--ink-muted);
+    }
+
+    .kpi-value {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1.85rem;
+        color: var(--ink);
+        margin: 0 0 4px 0;
+        letter-spacing: -0.01em;
+        line-height: 1.1;
+    }
+
+    .kpi-sub {
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+    }
+
+    /* Mouvements badges */
+    .kpi-mvt-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+        flex-wrap: wrap;
+    }
+
+    .kpi-mvt-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+
+    .kpi-mvt-badge .mud-icon-root {
+        font-size: 0.85rem;
+    }
+
+    .kpi-mvt-badge--entree {
+        background: var(--pine-tint);
+        color: var(--pine);
+        border: 1px solid rgba(30, 142, 62, 0.2);
+    }
+
+    .kpi-mvt-badge--sortie {
+        background: var(--rust-tint);
+        color: var(--rust);
+        border: 1px solid rgba(220, 38, 38, 0.2);
+    }
+
+    .kpi-sub--link {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--ochre);
+        font-weight: 600;
+    }
+
+        .kpi-sub--link .mud-icon-root {
+            font-size: 0.9rem;
+        }
+
+    /* ===== Table Cards ===== */
+    .table-card {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .chart-header {
+        padding: 18px 22px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .chart-title {
+        font-family: var(--font-display);
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--ink);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .chart-title--rust {
+        color: var(--rust);
+    }
+
+    .chart-title--ochre {
+        color: var(--ochre);
+    }
+
+    .chart-subtitle {
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+    }
+
+    .chart-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        background: var(--denim-tint);
+        color: var(--denim);
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .chart-badge--rust {
+        background: var(--rust-tint);
+        color: var(--rust);
+    }
+
+    .chart-badge--ochre {
+        background: var(--ochre-tint);
+        color: var(--ochre);
+    }
+
+    /* ===== Tables ===== */
+    .table-scroll {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+        .data-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: var(--sand);
+            padding: 12px 22px;
+            text-align: left;
+            font-size: 0.6875rem;
+            color: var(--ink-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-weight: 700;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .data-table td {
+            padding: 13px 22px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.875rem;
+            color: var(--ink);
+        }
+
+        .data-table tbody tr {
+            transition: background 0.12s ease;
+        }
+
+            .data-table tbody tr:hover {
+                background: var(--sand);
+            }
+
+            .data-table tbody tr:last-child td {
+                border-bottom: none;
+            }
+
+    .cell-strong {
+        font-weight: 600;
+        color: var(--ink);
+    }
+
+    .cell-muted {
+        color: var(--ink-muted);
+        font-weight: 600;
+    }
+
+    .cell-amount {
+        font-weight: 700;
+        color: var(--denim);
+        font-family: var(--font-mono);
+        font-size: 0.8125rem;
+    }
+
+    .badge-statut {
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 3px 9px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+        .badge-statut .mud-icon-root {
+            font-size: 0.85rem;
+        }
+
+    .statut-acceptee {
+        background: var(--pine-tint);
+        color: var(--pine);
+    }
+
+    .statut-ochre {
+        background: var(--ochre-tint);
+        color: var(--ochre);
+    }
+
+    .statut-refusee {
+        background: var(--rust-tint);
+        color: var(--rust);
+    }
+
+    .ref-code {
+        font-family: var(--font-mono);
+        font-weight: 600;
+        font-size: 0.75rem;
+        color: var(--denim);
+        background: var(--denim-tint);
+        padding: 3px 8px;
+        border-radius: 6px;
+    }
+
+    /* ===== Empty state ===== */
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 40px 20px;
+        color: var(--ink-muted);
+        text-align: center;
+    }
+
+        .empty-state .mud-icon-root {
+            font-size: 2rem;
+            color: var(--pine);
+        }
+
+        .empty-state p {
+            margin: 0;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+    .empty-state--inline {
+        padding: 28px 12px;
+    }
+
+    /* ===== Loading skeletons ===== */
+    .skeleton-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+    }
+
+    .skeleton-row-2 {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+
+    .skeleton {
+        background: linear-gradient(90deg, var(--sand) 25%, #EAF0F7 37%, var(--sand) 63%);
+        background-size: 400% 100%;
+        animation: shimmer 1.4s ease infinite;
+        border-radius: var(--radius-lg);
+    }
+
+    .skeleton-kpi {
+        height: 118px;
+    }
+
+    .skeleton-table {
+        height: 280px;
+    }
+
+    .skeleton-table--wide {
+        height: 260px;
+    }
+
+    @@keyframes shimmer {
+        0% {
+            background-position: 100% 0;
+        }
+
+        100% {
+            background-position: 0 0;
+        }
+    }
+
+    @@media (max-width: 900px) {
+        .skeleton-row, .skeleton-row-2 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @@media (max-width: 600px) {
+        .skeleton-row, .skeleton-row-2 {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+@code {
+    private ManagerDashboardDto? data;
+    private bool isLoading;
+    private DateTime? derniereMiseAJour;
+
+    private int mouvementsAujourdhui;
+    private int entreesAujourdhui;
+    private int sortiesAujourdhui;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ChargerDonnees();
+    }
+
+    private async Task ChargerDonnees()
+    {
+        isLoading = true;
+        try
+        {
+            data = await DashboardService.GetManagerDashboard();
+            derniereMiseAJour = DateTime.Now;
+            CalculerMouvementsDuJour(data);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erreur chargement dashboard manager: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Détermine si un mouvement est une entrée de stock, de façon tolérante
+    /// à la casse et aux accents (ex: "ENTREE", "Entrée", "entree" sont tous reconnus).
+    /// Si votre backend utilise une valeur différente (ex: "IN", un enum numérique...),
+    /// ajoutez-la dans la comparaison ci-dessous.
+    /// </summary>
+    private static bool EstEntree(string? typeMouvement)
+    {
+        if (string.IsNullOrWhiteSpace(typeMouvement)) return false;
+
+        var normalise = typeMouvement
+            .Trim()
+            .Normalize(System.Text.NormalizationForm.FormD);
+
+        var sansAccents = new string(normalise
+            .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            .ToArray());
+
+        return sansAccents.Equals("ENTREE", StringComparison.OrdinalIgnoreCase)
+            || sansAccents.Equals("IN", StringComparison.OrdinalIgnoreCase)
+            || sansAccents.Equals("ENTREE_STOCK", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Dérive le nombre d'entrées/sorties du jour à partir de MouvementsRecents
+    /// et des ventes du jour (les ventes sont comptées comme des sorties).
+    /// </summary>
+    private void CalculerMouvementsDuJour(ManagerDashboardDto? source)
+    {
+        var mouvements = source?.MouvementsRecents;
+        if (mouvements == null)
+        {
+            mouvementsAujourdhui = 0;
+            entreesAujourdhui = 0;
+            sortiesAujourdhui = 0;
+            return;
+        }
+
+        var aujourdhui = mouvements.Where(m => m.DateMouvement.Date == DateTime.Today).ToList();
+        entreesAujourdhui = aujourdhui.Count(m => EstEntree(m.TypeMouvement));
+        sortiesAujourdhui = aujourdhui.Count - entreesAujourdhui;
+        
+        // Ajouter les ventes du jour comme sorties
+        var ventesDuJour = source?.TotalProduitsVendus ?? 0;
+        sortiesAujourdhui += ventesDuJour;
+        
+        mouvementsAujourdhui = entreesAujourdhui + sortiesAujourdhui;
+    }
+
+    private void OnKpiKeydown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e, string url)
+    {
+        if (e.Key == "Enter" || e.Key == " ")
+        {
+            Navigation.NavigateTo(url);
+        }
+    }
+}

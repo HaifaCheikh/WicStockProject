@@ -1,0 +1,702 @@
+@using System.Globalization
+@using WicStock.Web.Models
+
+<div class="wicstock-donut-wrapper">
+    <div class="donut-chart-area" style="width: @Width; height: @Height; max-width: @(MaxChartSize ?? 340)px; max-height: @(MaxChartSize ?? 340)px;">
+        <svg class="donut-svg" viewBox="0 0 @SvgSize @SvgSize" width="100%" height="100%">
+            <defs>
+                <filter id="donut-shadow" x="-10%" y="-10%" width="130%" height="130%">
+                    <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.08" />
+                </filter>
+            </defs>
+
+            <!-- Arcs du donut -->
+            <g class="donut-slices" filter="url(#donut-shadow)">
+                @if (TousSegmentsMasques || TotalVisible <= 0 || !SegmentsVisibles.Any())
+                {
+                    <circle cx="@Center" cy="@Center" r="@OuterRadius"
+                            fill="none" stroke="var(--sand, #F3F6FA)"
+                            stroke-dasharray="4 4"
+                            stroke-width="@(OuterRadius - InnerRadius)" />
+                }
+                else if (SegmentsVisibles.Count == 1)
+                {
+                    var seg = SegmentsVisibles[0];
+                    var isHovered = hoveredIndex == seg.Index;
+                    var isClickable = EstNavigable(seg.Label);
+                    <circle cx="@Center" cy="@Center"
+                            r="@((OuterRadius + InnerRadius) / 2)"
+                            fill="none"
+                            stroke="@seg.Color"
+                            stroke-width="@(OuterRadius - InnerRadius)"
+                            class="donut-slice @(isHovered ? "donut-slice--active" : "") @(isClickable ? "donut-slice--clickable" : "")"
+                            @onmouseenter="() => SetHovered(seg.Index)"
+                            @onmouseleave="ClearHovered"
+                            @onclick="() => GererClicSegment(seg.Label)" />
+                }
+                else
+                {
+                    @foreach (var seg in SegmentsVisibles)
+                    {
+                        var isHovered = hoveredIndex == seg.Index;
+                        var isDimmed = hoveredIndex != null && hoveredIndex != seg.Index;
+                        var isClickable = EstNavigable(seg.Label);
+
+                        <path d="@seg.PathData"
+                              fill="@seg.Color"
+                              stroke="var(--paper, #FFFFFF)"
+                              stroke-width="2.5"
+                              stroke-linejoin="round"
+                              class="donut-slice @(isHovered ? "donut-slice--active" : "") @(isDimmed ? "donut-slice--dimmed" : "") @(isClickable ? "donut-slice--clickable" : "")"
+                              @onmouseenter="() => SetHovered(seg.Index)"
+                              @onmouseleave="ClearHovered"
+                              @onclick="() => GererClicSegment(seg.Label)" />
+                    }
+                }
+            </g>
+        </svg>
+
+        <!-- Texte central en HTML / CSS (Sora + Inter / JetBrains Mono) -->
+        <div class="donut-center-content">
+            @if (TousSegmentsMasques || TotalVisible <= 0)
+            {
+                <span class="center-empty-icon">
+                    <MudIcon Icon="@Icons.Material.Filled.VisibilityOff" Size="Size.Small" />
+                </span>
+                <span class="center-empty-text">Tous masquÃ©s</span>
+                <button type="button" class="btn-reset-filter" @onclick="ReinitialiserFiltres" title="Afficher tous les segments">
+                    Tout rÃ©activer
+                </button>
+            }
+            else if (hoveredIndex.HasValue && TousLesSegments.Any(s => s.Index == hoveredIndex.Value))
+            {
+                var activeSeg = TousLesSegments.First(s => s.Index == hoveredIndex.Value);
+                var isNav = EstNavigable(activeSeg.Label);
+                <span class="center-val center-val--hover">@WicStockChartConfig.FormatNumber(activeSeg.Value)</span>
+                <span class="center-lbl center-lbl--hover" title="@activeSeg.Label">
+                    @Truncate(activeSeg.Label, 13) (@activeSeg.Percentage.ToString("0.#")%)
+                </span>
+                @if (isNav)
+                {
+                    <span class="center-nav-hint">
+                        <MudIcon Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small" Class="nav-hint-icon" />
+                        <span>Explorer</span>
+                    </span>
+                }
+            }
+            else
+            {
+                <span class="center-val">@WicStockChartConfig.FormatNumber(TotalVisible, compact: TotalVisible >= 100000)</span>
+                <span class="center-lbl">@CenterSubLabel</span>
+                @if (hiddenIndices.Any())
+                {
+                    <span class="center-filter-badge">
+                        @(SegmentsVisibles.Count)/@(TousLesSegments.Count) actifs
+                    </span>
+                }
+            }
+        </div>
+
+        <!-- Tooltip flottant lors du survol -->
+        @if (hoveredIndex.HasValue && TousLesSegments.Any(s => s.Index == hoveredIndex.Value))
+        {
+            var active = TousLesSegments.First(s => s.Index == hoveredIndex.Value);
+            var isNav = EstNavigable(active.Label);
+            <div class="donut-floating-tooltip">
+                <span class="tooltip-color-dot" style="background-color: @active.Color;"></span>
+                <span class="tooltip-label">@active.Label :</span>
+                <span class="tooltip-value">@WicStockChartConfig.FormatNumber(active.Value)</span>
+                <span class="tooltip-percent">(@active.Percentage.ToString("0.#")%)</span>
+                @if (isNav)
+                {
+                    <span class="tooltip-drill-badge" title="Cliquer pour naviguer">
+                        <MudIcon Icon="@Icons.Material.Filled.ArrowOutward" Size="Size.Small" />
+                    </span>
+                }
+            </div>
+        }
+    </div>
+
+    <!-- LÃ©gende interactive avec filtrage local & drill-down -->
+    @if (ShowLegend && TousLesSegments.Any())
+    {
+        <div class="donut-legend-header">
+            <span class="legend-hint">Cliquez sur un badge pour masquer/afficher</span>
+            @if (hiddenIndices.Any())
+            {
+                <button type="button" class="btn-tout-afficher" @onclick="ReinitialiserFiltres">
+                    Tout rÃ©activer
+                </button>
+            }
+        </div>
+
+        <div class="donut-legend-grid" role="group" aria-label="LÃ©gende et filtres du graphique">
+            @for (int i = 0; i < TousLesSegments.Count; i++)
+            {
+                var seg = TousLesSegments[i];
+                var idx = seg.Index;
+                var isHidden = hiddenIndices.Contains(idx);
+                var isHovered = hoveredIndex == idx;
+                var isNav = EstNavigable(seg.Label);
+
+                <button type="button"
+                        class="legend-badge @(isHidden ? "legend-badge--hidden" : "") @(isHovered ? "legend-badge--active" : "") @(isNav ? "legend-badge--navigable" : "")"
+                        role="switch"
+                        aria-checked="@(!isHidden)"
+                        aria-label="@(isHidden ? $"Afficher {seg.Label}" : $"Masquer {seg.Label}")"
+                        @onmouseenter="() => SetHovered(idx)"
+                        @onmouseleave="ClearHovered"
+                        @onclick="() => BasculerSegment(idx)">
+                    <span class="legend-dot @(isHidden ? "legend-dot--hidden" : "")" style="background-color: @seg.Color;"></span>
+                    <span class="legend-label" title="@seg.Label">@seg.Label</span>
+                    <span class="legend-val">@WicStockChartConfig.FormatNumber(seg.Value)</span>
+                    <span class="legend-pct">@seg.Percentage.ToString("0.#")%</span>
+
+                    @if (isNav && !isHidden)
+                    {
+                        <span class="legend-nav-icon"
+                              title="AccÃ©der Ã  la vue dÃ©taillÃ©e"
+                              @onclick:stopPropagation="true"
+                              @onclick="() => GererClicSegment(seg.Label)">
+                            <MudIcon Icon="@Icons.Material.Filled.Launch" Size="Size.Small" />
+                        </span>
+                    }
+                </button>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .wicstock-donut-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        font-family: var(--font-body, 'Inter', sans-serif);
+    }
+
+    .donut-chart-area {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 4px auto;
+    }
+
+    .donut-svg {
+        display: block;
+        overflow: visible;
+        animation: donutFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @@keyframes donutFadeIn {
+        from {
+            opacity: 0;
+            transform: scale(0.94) rotate(-8deg);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1) rotate(0deg);
+        }
+    }
+
+    .donut-slice {
+        cursor: default;
+        transition: transform 0.22s cubic-bezier(0.2, 0, 0.2, 1), opacity 0.2s ease, filter 0.2s ease;
+        transform-origin: 130px 130px;
+    }
+
+    .donut-slice--clickable {
+        cursor: pointer;
+    }
+
+    .donut-slice:hover,
+    .donut-slice--active {
+        transform: scale(1.038);
+        filter: brightness(1.08);
+        opacity: 1 !important;
+    }
+
+    .donut-slice--dimmed {
+        opacity: 0.35;
+    }
+
+    /* Centre du donut HTML */
+    .donut-center-content {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        user-select: none;
+        width: 136px;
+        z-index: 2;
+    }
+
+    .center-val {
+        font-family: var(--font-display, 'Sora', sans-serif);
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: var(--ink, #16233A);
+        line-height: 1.15;
+        transition: all 0.2s ease;
+    }
+
+    .center-val--hover {
+        font-size: 1.25rem;
+        color: var(--denim, #2B4C7E);
+    }
+
+    .center-lbl {
+        font-family: var(--font-body, 'Inter', sans-serif);
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--ink-muted, #64748B);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-top: 2px;
+        max-width: 120px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .center-lbl--hover {
+        font-family: var(--font-mono, 'JetBrains Mono', monospace);
+        font-size: 0.68rem;
+        text-transform: none;
+        letter-spacing: 0;
+        color: var(--ink, #16233A);
+        font-weight: 600;
+    }
+
+    .center-filter-badge {
+        font-family: var(--font-mono, 'JetBrains Mono', monospace);
+        font-size: 0.65rem;
+        background: var(--denim-tint, #E7EDF6);
+        color: var(--denim, #2B4C7E);
+        padding: 1px 6px;
+        border-radius: 10px;
+        margin-top: 4px;
+        font-weight: 600;
+    }
+
+    .center-nav-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: var(--denim, #2B4C7E);
+        margin-top: 2px;
+    }
+
+    .nav-hint-icon {
+        font-size: 0.75rem !important;
+    }
+
+    .center-empty-icon {
+        color: var(--ink-muted, #64748B);
+        margin-bottom: 2px;
+    }
+
+    .center-empty-text {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--ink-muted, #64748B);
+    }
+
+    .btn-reset-filter {
+        background: var(--denim, #2B4C7E);
+        color: #fff;
+        border: none;
+        border-radius: 12px;
+        font-size: 0.68rem;
+        font-weight: 600;
+        padding: 3px 8px;
+        margin-top: 6px;
+        cursor: pointer;
+        transition: background 0.15s ease;
+    }
+
+    .btn-reset-filter:hover {
+        background: var(--denim-dark, #14263F);
+    }
+
+    /* Tooltip stylÃ© semi-transparent */
+    .donut-floating-tooltip {
+        position: absolute;
+        bottom: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(22, 35, 58, 0.94);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        color: #FFFFFF;
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        pointer-events: none;
+        white-space: nowrap;
+        box-shadow: 0 8px 22px -3px rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        z-index: 10;
+        animation: tooltipPop 0.18s ease-out;
+    }
+
+    @@keyframes tooltipPop {
+        from {
+            opacity: 0;
+            transform: translate(-50%, 4px) scale(0.96);
+        }
+        to {
+            opacity: 1;
+            transform: translate(-50%, 0) scale(1);
+        }
+    }
+
+    .tooltip-color-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 2px;
+        flex-shrink: 0;
+    }
+
+    .tooltip-label {
+        font-family: var(--font-body, 'Inter', sans-serif);
+        font-weight: 500;
+        color: #E2E8F0;
+    }
+
+    .tooltip-value {
+        font-family: var(--font-mono, 'JetBrains Mono', monospace);
+        font-weight: 700;
+        color: #FFFFFF;
+    }
+
+    .tooltip-percent {
+        font-family: var(--font-mono, 'JetBrains Mono', monospace);
+        font-size: 0.7rem;
+        color: #94A3B8;
+    }
+
+    .tooltip-drill-badge {
+        display: inline-flex;
+        align-items: center;
+        color: #93C5FD;
+        margin-left: 2px;
+    }
+
+    /* LÃ©gende en badges */
+    .donut-legend-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        max-width: 440px;
+        margin-top: 10px;
+        padding: 0 4px;
+    }
+
+    .legend-hint {
+        font-size: 0.7rem;
+        color: var(--ink-muted, #64748B);
+    }
+
+    .btn-tout-afficher {
+        background: transparent;
+        border: none;
+        color: var(--denim, #2B4C7E);
+        font-size: 0.72rem;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 0;
+        text-decoration: underline;
+    }
+
+    .donut-legend-grid {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 6px 8px;
+        margin-top: 6px;
+        width: 100%;
+        max-width: 440px;
+    }
+
+    .legend-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 9px;
+        background: var(--sand, #F3F6FA);
+        border: 1px solid var(--border, #E1E7EF);
+        border-radius: 7px;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.15s ease;
+        font-size: 0.78rem;
+        outline: none;
+    }
+
+    .legend-badge:focus-visible {
+        box-shadow: 0 0 0 2px var(--denim, #2B4C7E);
+    }
+
+    .legend-badge:hover,
+    .legend-badge--active {
+        background: var(--denim-tint, #E7EDF6);
+        border-color: var(--denim, #2B4C7E);
+        transform: translateY(-1px);
+        box-shadow: 0 3px 8px rgba(43, 76, 126, 0.15);
+    }
+
+    .legend-badge--hidden {
+        opacity: 0.45;
+        background: var(--paper, #FFFFFF);
+        border-style: dashed;
+        text-decoration: line-through;
+    }
+
+    .legend-badge--hidden:hover {
+        opacity: 0.8;
+        text-decoration: none;
+    }
+
+    .legend-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 2.5px;
+        flex-shrink: 0;
+        transition: transform 0.15s ease;
+    }
+
+    .legend-dot--hidden {
+        transform: scale(0.7);
+        filter: grayscale(1);
+    }
+
+    .legend-label {
+        font-family: var(--font-body, 'Inter', sans-serif);
+        font-weight: 500;
+        color: var(--ink, #16233A);
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .legend-val {
+        font-family: var(--font-mono, 'JetBrains Mono', monospace);
+        font-weight: 600;
+        color: var(--ink-muted, #64748B);
+        font-size: 0.74rem;
+    }
+
+    .legend-pct {
+        font-family: var(--font-mono, 'JetBrains Mono', monospace);
+        font-size: 0.68rem;
+        background: rgba(255, 255, 255, 0.85);
+        color: var(--ink, #16233A);
+        padding: 1px 4px;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+
+    .legend-nav-icon {
+        display: inline-flex;
+        align-items: center;
+        color: var(--denim, #2B4C7E);
+        opacity: 0.7;
+        margin-left: 2px;
+        transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+
+    .legend-nav-icon:hover {
+        opacity: 1;
+        transform: scale(1.15);
+    }
+
+    .legend-nav-icon ::deep svg {
+        font-size: 0.85rem !important;
+    }
+</style>
+
+@code {
+    [Parameter] public List<string> Labels { get; set; } = new();
+    [Parameter] public List<double> Series { get; set; } = new();
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string Width { get; set; } = "240px";
+    [Parameter] public string Height { get; set; } = "240px";
+    [Parameter] public double? MaxChartSize { get; set; } = 340;
+    [Parameter] public bool ShowLegend { get; set; } = true;
+    [Parameter] public string CenterSubLabel { get; set; } = "Total";
+    [Parameter] public string? UserRole { get; set; }
+    [Parameter] public EventCallback<string> OnDrillDown { get; set; }
+
+    private const double SvgSize = 260;
+    private const double Center = 130;
+    private const double OuterRadius = 104;
+    private const double InnerRadius = 81; // Cutout ~78%
+
+    private int? hoveredIndex = null;
+    private HashSet<int> hiddenIndices = new();
+
+    private class DonutSegment
+    {
+        public int Index { get; set; }
+        public string Label { get; set; } = string.Empty;
+        public double Value { get; set; }
+        public double Percentage { get; set; }
+        public string Color { get; set; } = string.Empty;
+        public string PathData { get; set; } = string.Empty;
+    }
+
+    private List<DonutSegment> TousLesSegments = new();
+    private List<DonutSegment> SegmentsVisibles = new();
+    private double TotalVisible = 0;
+    private bool TousSegmentsMasques => hiddenIndices.Count >= TousLesSegments.Count && TousLesSegments.Any();
+
+    protected override void OnParametersSet()
+    {
+        CalculerSegments();
+    }
+
+    private void CalculerSegments()
+    {
+        TousLesSegments.Clear();
+        SegmentsVisibles.Clear();
+        TotalVisible = 0;
+
+        if (Series == null || !Series.Any()) return;
+
+        var count = Math.Min(Labels?.Count ?? 0, Series.Count);
+        if (count == 0) return;
+
+        // 1. Calcul des segments globaux avec leur couleur originale
+        for (int i = 0; i < count; i++)
+        {
+            var val = Math.Max(0, Series[i]);
+            var label = i < (Labels?.Count ?? 0) ? Labels![i] : $"CatÃ©gorie {i + 1}";
+            var color = WicStockChartConfig.GetColor(i);
+
+            TousLesSegments.Add(new DonutSegment
+            {
+                Index = i,
+                Label = label,
+                Value = val,
+                Color = color
+            });
+        }
+
+        // 2. Calcul du total des segments visibles
+        var actifs = TousLesSegments.Where(s => !hiddenIndices.Contains(s.Index)).ToList();
+        TotalVisible = actifs.Sum(s => s.Value);
+
+        // Mettre Ã  jour les pourcentages par rapport au total visible
+        if (TotalVisible > 0)
+        {
+            double currentAngle = -Math.PI / 2.0;
+
+            foreach (var seg in actifs)
+            {
+                seg.Percentage = (seg.Value / TotalVisible) * 100.0;
+                var sliceAngle = (seg.Value / TotalVisible) * (2.0 * Math.PI);
+                var nextAngle = currentAngle + sliceAngle;
+
+                seg.PathData = ConstruireArcPath(currentAngle, nextAngle, OuterRadius, InnerRadius);
+                currentAngle = nextAngle;
+                SegmentsVisibles.Add(seg);
+            }
+        }
+    }
+
+    private string ConstruireArcPath(double startAngle, double endAngle, double rOuter, double rInner)
+    {
+        var ci = CultureInfo.InvariantCulture;
+
+        var diff = endAngle - startAngle;
+        if (diff >= 2.0 * Math.PI - 0.0001)
+        {
+            diff = 2.0 * Math.PI - 0.0001;
+            endAngle = startAngle + diff;
+        }
+
+        double x1Outer = Center + rOuter * Math.Cos(startAngle);
+        double y1Outer = Center + rOuter * Math.Sin(startAngle);
+
+        double x2Outer = Center + rOuter * Math.Cos(endAngle);
+        double y2Outer = Center + rOuter * Math.Sin(endAngle);
+
+        double x1Inner = Center + rInner * Math.Cos(startAngle);
+        double y1Inner = Center + rInner * Math.Sin(startAngle);
+
+        double x2Inner = Center + rInner * Math.Cos(endAngle);
+        double y2Inner = Center + rInner * Math.Sin(endAngle);
+
+        int largeArcFlag = diff > Math.PI ? 1 : 0;
+
+        return $"M {x1Outer.ToString("0.00", ci)} {y1Outer.ToString("0.00", ci)} " +
+               $"A {rOuter.ToString("0.00", ci)} {rOuter.ToString("0.00", ci)} 0 {largeArcFlag} 1 {x2Outer.ToString("0.00", ci)} {y2Outer.ToString("0.00", ci)} " +
+               $"L {x2Inner.ToString("0.00", ci)} {y2Inner.ToString("0.00", ci)} " +
+               $"A {rInner.ToString("0.00", ci)} {rInner.ToString("0.00", ci)} 0 {largeArcFlag} 0 {x1Inner.ToString("0.00", ci)} {y1Inner.ToString("0.00", ci)} Z";
+    }
+
+    private void BasculerSegment(int idx)
+    {
+        if (hiddenIndices.Contains(idx))
+        {
+            hiddenIndices.Remove(idx);
+        }
+        else
+        {
+            hiddenIndices.Add(idx);
+        }
+        CalculerSegments();
+    }
+
+    private void ReinitialiserFiltres()
+    {
+        hiddenIndices.Clear();
+        CalculerSegments();
+    }
+
+    private void SetHovered(int idx)
+    {
+        hoveredIndex = idx;
+    }
+
+    private void ClearHovered()
+    {
+        hoveredIndex = null;
+    }
+
+    private bool EstNavigable(string label)
+    {
+        var route = WicStockChartConfig.ResoudreRouteDrillDown(label, Title, UserRole);
+        return !string.IsNullOrEmpty(route);
+    }
+
+    private async Task GererClicSegment(string label)
+    {
+        var route = WicStockChartConfig.ResoudreRouteDrillDown(label, Title, UserRole);
+        if (!string.IsNullOrEmpty(route) && OnDrillDown.HasDelegate)
+        {
+            await OnDrillDown.InvokeAsync(route);
+        }
+    }
+
+    private static string Truncate(string val, int maxLen)
+    {
+        if (string.IsNullOrEmpty(val)) return string.Empty;
+        return val.Length <= maxLen ? val : val.Substring(0, maxLen - 1) + "â€¦";
+    }
+}

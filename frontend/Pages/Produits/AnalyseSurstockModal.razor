@@ -1,0 +1,1192 @@
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@inject ProduitService ProduitService
+@inject ISnackbar Snackbar
+
+<!-- FENÊTRE POP-UP MODAL CENTRÉE (RENDUE AU NIVEAU RACINE DE LA PAGE) -->
+<div class="dialog-overlay-root" @onclick="Fermer">
+    <div class="dialog-card-root animate-pop-modal" @onclick:stopPropagation="true">
+
+        <div class="dialog-accent-strip-root"></div>
+
+        <!-- EN-TÊTE MODAL -->
+        <div class="dialog-header-root d-flex align-center justify-space-between pa-4">
+            <div class="d-flex align-center gap-3">
+                <div class="modal-icon-badge-root">
+                    <MudIcon Icon="@Icons.Material.Filled.Psychology" Size="Size.Medium" />
+                </div>
+                <div>
+                    <div class="modal-eyebrow-root">ANALYSE IA &bull; SURSTOCK</div>
+                    <div class="modal-title-root">@Produit.Nom</div>
+                </div>
+            </div>
+            <button class="dialog-close-btn-root" @onclick="Fermer" aria-label="Fermer">
+                <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+            </button>
+        </div>
+
+        <!-- CORPS MODAL -->
+        <div class="dialog-body-root pa-4">
+            @if (isLoading)
+            {
+                <div class="pa-6 text-center">
+                    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-3" Style="border-radius:6px;" />
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                        Analyse en cours...
+                    </MudText>
+                </div>
+            }
+            else if (hasError || analyse == null)
+            {
+                <div class="pa-4 text-center">
+                    <MudText Typo="Typo.body2" Color="Color.Error" Class="mb-3">
+                        Impossible de générer l'analyse IA pour ce produit.
+                    </MudText>
+                    <button class="btn-retry-root" @onclick="ChargerAnalyseAsync">Réessayer</button>
+                </div>
+            }
+            else
+            {
+                @if (analyse.EstModeDegrade)
+                {
+                    <div class="degrade-banner-root mb-3 pa-2 rounded d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small" Class="degrade-icon-root" />
+                        <span class="degrade-text-root">Mode dégradé : affichage des métriques SQL brutes (IA indisponible).</span>
+                    </div>
+                }
+
+                <!-- BLOC DIAGNOSTIC IA -->
+                <div class="diagnostic-card-root mb-4 pa-3">
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <div class="d-flex align-center gap-2">
+                            <span class="diag-title-root">Diagnostic</span>
+                        </div>
+                        <span class="trend-badge-root @(analyse.Metriques.EstTendanceCategorie ? "trend-cat" : "trend-isolated")">
+                            @(analyse.Metriques.EstTendanceCategorie ? "Tendance catégorie" : "Cas isolé")
+                        </span>
+                    </div>
+                    <p class="diag-text-root mb-0">@analyse.Diagnostic</p>
+                </div>
+
+                <!-- GRILLE DES MÉTRIQUES CLÉS -->
+                <div class="metrics-grid-root mb-4">
+                    <div class="metric-box-root">
+                        <div class="metric-box-lbl-root">Stock actuel</div>
+                        <div class="metric-box-val-root">
+                            @analyse.Metriques.StockActuel u.
+                            @if (analyse.Metriques.PourcentageAuDessusDuSeuil > 0)
+                            {
+                                <span class="surplus-tag-root">+@analyse.Metriques.PourcentageAuDessusDuSeuil%</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="metric-box-root">
+                        <div class="metric-box-lbl-root">Date d'ajout</div>
+                        <div class="metric-box-val-root">@analyse.Metriques.DateAjoutFormatee</div>
+                    </div>
+                    <div class="metric-box-root">
+                        <div class="metric-box-lbl-root">Inactivité</div>
+                        <div class="metric-box-val-root">@analyse.Metriques.JoursDepuisDerniereSortie j.</div>
+                    </div>
+                </div>
+
+                <!-- FORMULAIRE DE CONFIRMATION / MODIFICATION INTERMÉDIAIRE -->
+                @if (actionAConfirmer != null)
+                {
+                    <div class="confirm-panel-card mb-4 pa-3 animate-fade-in">
+                        <div class="d-flex align-center justify-space-between mb-3 confirm-panel-head">
+                            <div class="d-flex align-center gap-2">
+                                <MudIcon Icon="@GetConfirmHeaderIcon(actionAConfirmer.TypeAction)" Size="Size.Small" Class="confirm-panel-icon" />
+                                <span class="confirm-panel-title">@(estEnModification ? "Modifier l'action :" : "") @actionAConfirmer.Label</span>
+                            </div>
+                            <button class="btn-cancel-sm" @onclick="AnnulerConfirmation">
+                                <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Small" />
+                                <span>Retour</span>
+                            </button>
+                        </div>
+
+                        <!-- 1. FORMULAIRE PROMOTION CIBLEE -->
+                        @if (actionAConfirmer.TypeAction.ToUpperInvariant() == "PROMOTION_CIBLEE")
+                        {
+                            <div class="confirm-form-grid mb-3">
+                                <div class="form-group-root">
+                                    <label class="form-label-root">Remise (%)</label>
+                                    <input type="number" min="5" max="90" class="form-input-root" @bind="formRemisePourcentage" @bind:event="oninput" />
+                                </div>
+                                <div class="form-group-root">
+                                    <label class="form-label-root">Durée (jours)</label>
+                                    <input type="number" min="1" max="180" class="form-input-root" @bind="formDureeJours" @bind:event="oninput" />
+                                </div>
+                                <div class="form-group-root">
+                                    <label class="form-label-root">Quantité ciblée (u.)</label>
+                                    <input type="number" min="1" max="@(Produit.Stock?.QuantiteActuelle ?? 100)" class="form-input-root" @bind="formQuantiteCible" @bind:event="oninput" />
+                                </div>
+                            </div>
+
+                            <div class="recap-preview-box pa-3 mb-3 rounded">
+                                <div class="recap-row d-flex justify-space-between mb-1">
+                                    <span class="recap-lbl">Prix unitaire actuel</span>
+                                    <span class="recap-val-old">@Produit.PrixUnitaire.ToString("F2") DT</span>
+                                </div>
+                                <div class="recap-row d-flex justify-space-between mb-1">
+                                    <span class="recap-lbl">Prix promotionnel (-@formRemisePourcentage%)</span>
+                                    <span class="recap-val-new">@PrixPromoSolde.ToString("F2") DT</span>
+                                </div>
+                                <div class="recap-row d-flex justify-space-between mb-1">
+                                    <span class="recap-lbl">Période</span>
+                                    <span class="recap-val">Du @DateDebutPromo au @DateFinPromo (@formDureeJours j.)</span>
+                                </div>
+                                <div class="recap-row d-flex justify-space-between">
+                                    <span class="recap-lbl">Stock concerné</span>
+                                    <span class="recap-val">@formQuantiteCible / @(Produit.Stock?.QuantiteActuelle ?? 0) u. dispo.</span>
+                                </div>
+                            </div>
+                        }
+                        @if (actionAConfirmer.TypeAction.ToUpperInvariant() == "RECYCLAGE_ANTICIPE")
+                        {
+                            <div class="confirm-form-grid mb-3">
+                                <div class="form-group-root">
+                                    <label class="form-label-root">Quantité à recycler (u.)</label>
+                                    <input type="number" min="1" max="@(Produit.Stock?.QuantiteActuelle ?? 100)" class="form-input-root" @bind="formQuantiteRecyclage" @bind:event="oninput" />
+                                </div>
+                                <div class="form-group-root">
+                                    <label class="form-label-root">Motif du déstockage</label>
+                                    <select class="form-select-root" @bind="formMotif">
+                                        <option value="Recyclage surstock persistant">Recyclage surstock persistant</option>
+                                        <option value="Déstockage fin de saison">Déstockage fin de saison</option>
+                                        <option value="Défaut de fabrication / Retouche">Défaut de fabrication / Retouche</option>
+                                        <option value="Don anti-gaspillage">Don anti-gaspillage</option>
+                                    </select>
+                                </div>
+                                <div class="form-group-root">
+                                    <label class="form-label-root">Destination / Filière</label>
+                                    <select class="form-select-root" @bind="formDestination">
+                                        <option value="Atelier interne">Atelier interne (réemploi fil)</option>
+                                        <option value="Prestataire externe de recyclage">Prestataire externe de recyclage</option>
+                                        <option value="Filière de réemploi solidaire">Filière de réemploi solidaire</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="warning-banner-recyclage pa-3 mb-3 rounded d-flex align-center gap-2">
+                                <MudIcon Icon="@Icons.Material.Filled.ReportProblem" Size="Size.Small" Class="warning-icon-recyclage" />
+                                <span class="warning-text-recyclage">
+                                    Action irréversible : cette opération réduira le stock réel de <strong>@formQuantiteRecyclage unités</strong> de façon définitive.
+                                </span>
+                            </div>
+
+                            <div class="recap-preview-box pa-3 mb-3 rounded">
+                                <div class="recap-row d-flex justify-space-between mb-1">
+                                    <span class="recap-lbl">Valeur immobilisée libérée</span>
+                                    <span class="recap-val-new">@ValeurRecyclageLiberee.ToString("N0") DT</span>
+                                </div>
+                                <div class="recap-row d-flex justify-space-between">
+                                    <span class="recap-lbl">Nouveau stock après recyclage</span>
+                                    <span class="recap-val"><strong>@NouveauStockApresRecyclage u.</strong> (actuellement @(Produit.Stock?.QuantiteActuelle ?? 0) u.)</span>
+                                </div>
+                            </div>
+                        }
+                        @if (actionAConfirmer.TypeAction.ToUpperInvariant() == "NOTIFICATION_PRODUCTION")
+                        {
+                            <div class="confirm-form-grid mb-3">
+                                <div class="form-group-root">
+                                    <label class="form-label-root">Destinataire</label>
+                                    <select class="form-select-root" @bind="formDestinataire">
+                                        <option value="Chef de Production">Chef de Production</option>
+                                        <option value="Responsable Atelier Coupe">Responsable Atelier Coupe</option>
+                                        <option value="Planificateur de Production">Planificateur de Production</option>
+                                    </select>
+                                </div>
+                                <div class="form-group-root">
+                                    <label class="form-label-root">Niveau de priorité</label>
+                                    <div class="priority-picker-root">
+                                        <label class="priority-opt-root priority-opt--basse @(formPriorite == "BASSE" ? "is-active" : "")">
+                                            <input type="radio" name="priorite" value="BASSE" checked="@(formPriorite == "BASSE")" @onchange="@(() => formPriorite = "BASSE")" />
+                                            <span class="priority-dot-root"></span> Basse
+                                        </label>
+                                        <label class="priority-opt-root priority-opt--moyenne @(formPriorite == "MOYENNE" ? "is-active" : "")">
+                                            <input type="radio" name="priorite" value="MOYENNE" checked="@(formPriorite == "MOYENNE")" @onchange="@(() => formPriorite = "MOYENNE")" />
+                                            <span class="priority-dot-root"></span> Moyenne
+                                        </label>
+                                        <label class="priority-opt-root priority-opt--haute @(formPriorite == "HAUTE" ? "is-active" : "")">
+                                            <input type="radio" name="priorite" value="HAUTE" checked="@(formPriorite == "HAUTE")" @onchange="@(() => formPriorite = "HAUTE")" />
+                                            <span class="priority-dot-root"></span> Haute
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group-root mb-3">
+                                <label class="form-label-root">Message / consigne pour l'atelier</label>
+                                <textarea rows="3" class="form-textarea-root" @bind="formMessage" placeholder="Rédigez la consigne d'ajustement..."></textarea>
+                            </div>
+                        }
+
+                        <!-- BOUTONS DE VALIDATION DU FORMULAIRE -->
+                        <div class="d-flex justify-end gap-2 pt-2 confirm-panel-foot">
+                            <button class="btn-cancel-modal-root" @onclick="AnnulerConfirmation" disabled="@isExecuting">
+                                Annuler
+                            </button>
+                            <button class="btn-submit-confirm-root"
+                                    @onclick="ValiderEtExecuterAction"
+                                    disabled="@isExecuting">
+                                @if (isExecuting)
+                                {
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Style="width:14px;height:14px;color:#fff;" />
+                                    <span>Enregistrement en cours...</span>
+                                }
+                                else
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
+                                    <span>@(estEnModification ? "Enregistrer les modifications" : "Confirmer & exécuter")</span>
+                                }
+                            </button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <!-- CAS 1 : UNE ACTION EST DÉJÀ ACTIVE SUR CE PRODUIT -->
+                    @if (analyse.ActionActive != null)
+                    {
+                        <div class="active-action-card mb-4 pa-3 animate-fade-in">
+                            <div class="d-flex align-center justify-space-between mb-2">
+                                <div class="d-flex align-center gap-2">
+                                    <span class="active-action-title">Action en cours d'application</span>
+                                    <span class="active-action-badge">
+                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Style="font-size:13px;" />
+                                        Active
+                                    </span>
+                                </div>
+                                <span class="active-action-type">@analyse.ActionActive.Label</span>
+                            </div>
+
+                            <p class="active-action-desc mb-3">@analyse.ActionActive.Description</p>
+
+                            <div class="d-flex align-center justify-space-between pt-2 active-action-foot">
+                                <button class="btn-action-cancel" @onclick="AnnulerActionEnCours" disabled="@isExecuting">
+                                    <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" />
+                                    <span>Annuler cette action</span>
+                                </button>
+                                <button class="btn-action-modify" @onclick="() => ModifierActionActive(analyse.ActionActive)" disabled="@isExecuting">
+                                    <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" />
+                                    <span>Modifier l'action</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- ACCORDÉON / BOUTON POUR VOIR D'AUTRES PROPOSITIONS -->
+                        <div class="d-flex align-center justify-space-between mb-2">
+                            <div class="actions-section-title-root mb-0">Autres suggestions IA</div>
+                            <button class="btn-toggle-suggestions" @onclick="() => afficherAutresSuggestions = !afficherAutresSuggestions">
+                                <span>@(afficherAutresSuggestions ? "Masquer les alternatives" : "Voir d'autres propositions")</span>
+                                <MudIcon Icon="@(afficherAutresSuggestions ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" Size="Size.Small" />
+                            </button>
+                        </div>
+                    }
+
+                    <!-- CAS 2 : LISTE DES ACTIONS RECOMMANDÉES (SI PAS D'ACTION ACTIVE OU SI DÉPLIÉ) -->
+                    @if ((analyse.ActionActive == null || afficherAutresSuggestions) && analyse.Actions != null && analyse.Actions.Any())
+                    {
+                        @if (analyse.ActionActive == null)
+                        {
+                            <div class="actions-section-title-root mb-2">Actions recommandées</div>
+                        }
+                        <div class="d-flex flex-column gap-2 mb-3 animate-fade-in">
+                            @foreach (var act in analyse.Actions)
+                            {
+                                bool isSelected = actionAConfirmer?.Id == act.Id;
+                                <div class="action-item-card-root d-flex align-center justify-space-between pa-3 @(isSelected ? "action-item-selected" : "")">
+                                    <div class="action-item-info-root">
+                                        <div class="action-item-title-root">@act.Label</div>
+                                        <div class="action-item-justif-root">
+                                            <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Size="Size.Small" Class="action-item-justif-icon" />
+                                            <span>@act.Justification</span>
+                                        </div>
+                                    </div>
+                                    <button class="btn-exec-action-root"
+                                            @onclick="() => OuvrirFormulaireConfirmation(act)"
+                                            disabled="@isExecuting">
+                                        <span>@(analyse.ActionActive != null ? "Remplacer" : "Exécuter")</span>
+                                        <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" />
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            }
+        </div>
+
+        <!-- PIED MODAL -->
+        <div class="dialog-footer-root pa-3 d-flex justify-end">
+            <button class="btn-close-modal-root" @onclick="Fermer">Fermer</button>
+        </div>
+
+    </div>
+</div>
+
+<style>
+    /* ===== Tokens partages avec la page Produits (identite denim/encre) ===== */
+    .dialog-overlay-root {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --denim: #2B4C7E;
+        --denim-light: #EBF1F8;
+        --rust: #D96B43;
+        --sand: #F7F5F0;
+        --sand-border: #E8E4DC;
+        --border-subtle: #E2E8F0;
+        position: fixed;
+        inset: 0;
+        z-index: 1300;
+        background: rgba(15, 23, 42, 0.45);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        animation: fadeInRoot 0.15s ease both;
+    }
+
+    .dialog-card-root {
+        background: var(--paper);
+        border: 1px solid var(--sand-border);
+        border-radius: 16px;
+        width: 100%;
+        max-width: 580px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 48px rgba(22, 35, 58, 0.22);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .dialog-accent-strip-root {
+        height: 4px;
+        background: linear-gradient(90deg, var(--denim), var(--rust));
+        border-radius: 16px 16px 0 0;
+        flex-shrink: 0;
+    }
+
+    .dialog-header-root {
+        border-bottom: 1px solid var(--border-subtle);
+        background: var(--sand);
+        flex-shrink: 0;
+    }
+
+    .modal-icon-badge-root {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: var(--denim-light);
+        color: var(--denim);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .modal-eyebrow-root {
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--denim);
+    }
+
+    .modal-title-root {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--ink);
+        line-height: 1.2;
+    }
+
+    .dialog-close-btn-root {
+        background: transparent;
+        border: none;
+        color: var(--ink-muted);
+        cursor: pointer;
+        padding: 6px;
+        border-radius: 8px;
+        transition: all 0.15s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .dialog-close-btn-root:hover {
+        background: rgba(0, 0, 0, 0.06);
+        color: var(--ink);
+    }
+
+    .diagnostic-card-root {
+        background: var(--sand);
+        border: 1px solid var(--sand-border);
+        border-radius: 12px;
+    }
+
+    .diag-title-root {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--ink);
+    }
+
+    .trend-badge-root {
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 3px 8px;
+        border-radius: 6px;
+    }
+
+    .trend-cat {
+        background: #FEE2E2;
+        color: #DC2626;
+        border: 1px solid #FECACA;
+    }
+
+    .trend-isolated {
+        background: var(--denim-light);
+        color: var(--denim);
+        border: 1px solid rgba(43, 76, 126, 0.2);
+    }
+
+    .diag-text-root {
+        font-size: 0.85rem;
+        color: var(--ink);
+        line-height: 1.5;
+    }
+
+    .metrics-grid-root {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+    }
+
+    .metric-box-root {
+        background: var(--paper);
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        padding: 10px 12px;
+    }
+
+    .metric-box-lbl-root {
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--ink-muted);
+        font-weight: 600;
+        margin-bottom: 2px;
+    }
+
+    .metric-box-val-root {
+        font-size: 0.98rem;
+        font-weight: 700;
+        color: var(--ink);
+        display: flex;
+        align-items: baseline;
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+
+    .surplus-tag-root {
+        font-size: 0.72rem;
+        color: var(--rust);
+        font-weight: 700;
+    }
+
+    /* ===== ACTION ACTIVE ===== */
+    .active-action-card {
+        background: #F0FDF4;
+        border: 1.5px solid #86EFAC;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(34, 197, 94, 0.08);
+    }
+
+    .active-action-title {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #166534;
+    }
+
+    .active-action-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        background: #DCFCE7;
+        color: #15803D;
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 10px;
+        border: 1px solid #BBF7D0;
+    }
+
+    .active-action-type {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #166534;
+    }
+
+    .active-action-desc {
+        font-size: 0.84rem;
+        color: #14532D;
+        line-height: 1.45;
+    }
+
+    .active-action-foot {
+        border-top: 1px solid #DCFCE7;
+        margin-top: 4px;
+    }
+
+    .btn-action-cancel {
+        background: transparent;
+        border: 1px solid #FCA5A5;
+        color: #DC2626;
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.15s ease;
+    }
+
+    .btn-action-cancel:hover:not(:disabled) {
+        background: #FEE2E2;
+        border-color: #EF4444;
+    }
+
+    .btn-action-modify {
+        background: #15803D;
+        border: 1px solid #166534;
+        color: #FFFFFF;
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        box-shadow: 0 2px 6px rgba(21, 128, 61, 0.25);
+        transition: all 0.15s ease;
+    }
+
+    .btn-action-modify:hover:not(:disabled) {
+        background: #166534;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 10px rgba(21, 128, 61, 0.35);
+    }
+
+    .btn-toggle-suggestions {
+        background: transparent;
+        border: none;
+        color: var(--denim);
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 6px;
+        border-radius: 6px;
+    }
+
+    .btn-toggle-suggestions:hover {
+        background: var(--denim-light);
+    }
+
+    /* ===== CONFIRM PANEL ===== */
+    .confirm-panel-card {
+        background: #FFFFFF;
+        border: 2px solid var(--denim);
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(43, 76, 126, 0.15);
+    }
+
+    .confirm-panel-title {
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: var(--denim);
+    }
+
+    .btn-cancel-sm {
+        background: transparent;
+        border: 1px solid var(--border-subtle);
+        color: var(--ink-muted);
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .confirm-form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+        gap: 10px;
+    }
+
+    .form-group-root {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .form-label-root {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .form-input-root, .form-select-root, .form-textarea-root {
+        background: var(--sand);
+        border: 1px solid var(--sand-border);
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 0.85rem;
+        color: var(--ink);
+        width: 100%;
+        outline: none;
+        transition: border-color 0.15s ease;
+    }
+
+    .form-input-root:focus, .form-select-root:focus, .form-textarea-root:focus {
+        border-color: var(--denim);
+        background: #FFFFFF;
+    }
+
+    .recap-preview-box {
+        background: var(--sand);
+        border: 1px solid var(--sand-border);
+    }
+
+    .recap-lbl {
+        font-size: 0.75rem;
+        color: var(--ink-muted);
+    }
+
+    .recap-val-old {
+        font-size: 0.78rem;
+        text-decoration: line-through;
+        color: var(--ink-muted);
+    }
+
+    .recap-val-new {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--rust);
+    }
+
+    .recap-val {
+        font-size: 0.78rem;
+        color: var(--ink);
+    }
+
+    .warning-banner-recyclage {
+        background: #FEF2F2;
+        border: 1px solid #FCA5A5;
+    }
+
+    .warning-icon-recyclage {
+        color: #DC2626;
+    }
+
+    .warning-text-recyclage {
+        font-size: 0.76rem;
+        color: #991B1B;
+    }
+
+    .priority-picker-root {
+        display: flex;
+        gap: 6px;
+    }
+
+    .priority-opt-root {
+        flex: 1;
+        padding: 5px 8px;
+        border: 1px solid var(--border-subtle);
+        border-radius: 6px;
+        font-size: 0.74rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        background: var(--paper);
+    }
+
+    .priority-opt-root input {
+        display: none;
+    }
+
+    .priority-dot-root {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #CBD5E1;
+    }
+
+    .priority-opt--haute.is-active {
+        background: #FEE2E2;
+        border-color: #EF4444;
+        color: #991B1B;
+    }
+    .priority-opt--haute.is-active .priority-dot-root { background: #DC2626; }
+
+    .priority-opt--moyenne.is-active {
+        background: #FEF3C7;
+        border-color: #F59E0B;
+        color: #92400E;
+    }
+    .priority-opt--moyenne.is-active .priority-dot-root { background: #D97706; }
+
+    .priority-opt--basse.is-active {
+        background: var(--denim-light);
+        border-color: var(--denim);
+        color: var(--denim);
+    }
+    .priority-opt--basse.is-active .priority-dot-root { background: var(--denim); }
+
+    .btn-cancel-modal-root {
+        background: transparent;
+        border: 1px solid var(--border-subtle);
+        color: var(--ink-muted);
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .btn-submit-confirm-root {
+        background: var(--denim);
+        border: none;
+        color: #FFFFFF;
+        padding: 6px 16px;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 2px 8px rgba(43, 76, 126, 0.3);
+    }
+
+    .btn-submit-confirm-root:hover:not(:disabled) {
+        background: #1E3A60;
+        transform: translateY(-1px);
+    }
+
+    .actions-section-title-root {
+        font-size: 0.74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--ink-muted);
+    }
+
+    .action-item-card-root {
+        background: var(--paper);
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        transition: all 0.15s ease;
+    }
+
+    .action-item-card-root:hover {
+        border-color: var(--denim);
+        background: #F8FAFC;
+    }
+
+    .action-item-title-root {
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: var(--ink);
+    }
+
+    .action-item-justif-root {
+        font-size: 0.76rem;
+        color: var(--ink-muted);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-top: 2px;
+    }
+
+    .action-item-justif-icon {
+        color: var(--rust);
+        font-size: 0.8rem !important;
+    }
+
+    .btn-exec-action-root {
+        background: var(--denim-light);
+        border: 1px solid rgba(43, 76, 126, 0.2);
+        color: var(--denim);
+        padding: 5px 12px;
+        border-radius: 8px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.15s ease;
+        flex-shrink: 0;
+    }
+
+    .btn-exec-action-root:hover:not(:disabled) {
+        background: var(--denim);
+        color: #FFFFFF;
+        border-color: var(--denim);
+    }
+
+    .dialog-footer-root {
+        border-top: 1px solid var(--border-subtle);
+        background: var(--sand);
+        flex-shrink: 0;
+    }
+
+    .btn-close-modal-root {
+        background: var(--paper);
+        border: 1px solid var(--sand-border);
+        color: var(--ink);
+        padding: 6px 16px;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .btn-retry-root {
+        background: var(--denim);
+        color: #FFFFFF;
+        border: none;
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    @@keyframes popModalRoot {
+        from { opacity: 0; transform: translateY(10px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @@keyframes fadeInRoot {
+        from { opacity: 0; transform: translateY(4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .animate-pop-modal { animation: popModalRoot 0.18s ease both; }
+    .animate-fade-in { animation: fadeInRoot 0.15s ease both; }
+</style>
+
+@code {
+    [Parameter] public ProduitDto Produit { get; set; } = null!;
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnActionExecuted { get; set; }
+
+    private bool isLoading = false;
+    private bool hasError = false;
+    private bool isExecuting = false;
+    private bool estEnModification = false;
+    private bool afficherAutresSuggestions = false;
+
+    private static readonly Dictionary<int, AnalyseProduitDto> CacheAnalyses = new();
+    private AnalyseProduitDto? analyse;
+
+    // ÉTAPE DE CONFIRMATION INTERMÉDIAIRE
+    private ActionRecommandeeIaDto? actionAConfirmer;
+
+    // FORMULAIRE PROMOTION
+    private int formRemisePourcentage = 20;
+    private int formDureeJours = 14;
+    private int formQuantiteCible = 50;
+
+    // FORMULAIRE RECYCLAGE
+    private int formQuantiteRecyclage = 10;
+    private string formMotif = "Recyclage surstock persistant";
+    private string formDestination = "Atelier interne";
+
+    // FORMULAIRE NOTIFICATION
+    private string formDestinataire = "Chef de Production";
+    private string formPriorite = "HAUTE";
+    private string formMessage = string.Empty;
+
+    // PROPRIÉTÉS CALCULÉES EN DIRECT
+    private decimal PrixPromoSolde => Math.Round(Produit.PrixUnitaire * (1 - (decimal)formRemisePourcentage / 100m), 2);
+    private string DateDebutPromo => DateTime.Today.ToString("dd/MM/yyyy");
+    private string DateFinPromo => DateTime.Today.AddDays(formDureeJours).ToString("dd/MM/yyyy");
+
+    private decimal ValeurRecyclageLiberee => (decimal)formQuantiteRecyclage * (Produit.PrixUnitaire > 0 ? Produit.PrixUnitaire : 100m);
+    private int NouveauStockApresRecyclage => Math.Max(0, (Produit.Stock?.QuantiteActuelle ?? 0) - formQuantiteRecyclage);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Produit != null)
+        {
+            await ChargerAnalyseAsync();
+        }
+    }
+
+    private async Task Fermer()
+    {
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task ChargerAnalyseAsync()
+    {
+        if (Produit == null) return;
+
+        if (CacheAnalyses.TryGetValue(Produit.Id, out var cachedAnalyse))
+        {
+            analyse = cachedAnalyse;
+            return;
+        }
+
+        isLoading = true;
+        hasError = false;
+
+        try
+        {
+            analyse = await ProduitService.ObtenirAnalyseSurstock(Produit.Id);
+            if (analyse != null)
+            {
+                CacheAnalyses[Produit.Id] = analyse;
+            }
+            else
+            {
+                hasError = true;
+            }
+        }
+        catch
+        {
+            hasError = true;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ModifierActionActive(ActionActiveDto act)
+    {
+        estEnModification = true;
+        int stockDispo = Produit.Stock?.QuantiteActuelle ?? 100;
+        string type = act.TypeAction.ToUpperInvariant();
+
+        actionAConfirmer = new ActionRecommandeeIaDto
+        {
+            Id = act.Id.ToString(),
+            TypeAction = act.TypeAction,
+            Label = act.Label,
+            Justification = act.Description
+        };
+
+        if (type == "PROMOTION_CIBLEE")
+        {
+            formRemisePourcentage = act.RemisePourcentage ?? 20;
+            formDureeJours = act.DureeJours ?? 14;
+            formQuantiteCible = act.QuantiteCible ?? Math.Min(stockDispo, 50);
+        }
+        else if (type == "RECYCLAGE_ANTICIPE")
+        {
+            formQuantiteRecyclage = act.QuantiteCible ?? Math.Min(stockDispo, Math.Max(10, 10));
+            formMotif = act.Motif ?? "Recyclage surstock persistant";
+            formDestination = act.Destination ?? "Atelier interne";
+        }
+        else
+        {
+            formDestinataire = act.Destinataire ?? "Chef de Production";
+            formPriorite = act.Priorite ?? (analyse?.Metriques.EstTendanceCategorie == true ? "HAUTE" : "MOYENNE");
+            formMessage = act.Description;
+        }
+    }
+
+    private async Task AnnulerActionEnCours()
+    {
+        if (isExecuting || Produit == null) return;
+
+        isExecuting = true;
+        StateHasChanged();
+
+        try
+        {
+            bool succes = await ProduitService.AnnulerActionSurstock(Produit.Id);
+            if (succes)
+            {
+                Snackbar.Add("Action annulée avec succès. L'article est réinitialisé.", Severity.Success);
+
+                // Mettre à jour l'entité locale
+                Produit.RemisePourcentage = null;
+                Produit.DateFinPromotion = null;
+
+                CacheAnalyses.Remove(Produit.Id);
+                if (analyse != null)
+                {
+                    analyse.ActionActive = null;
+                }
+
+                await OnActionExecuted.InvokeAsync();
+            }
+            else
+            {
+                Snackbar.Add("Erreur lors de l'annulation de l'action.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erreur : {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isExecuting = false;
+        }
+    }
+
+    private void OuvrirFormulaireConfirmation(ActionRecommandeeIaDto act)
+    {
+        estEnModification = false;
+        actionAConfirmer = act;
+        int stockDispo = Produit.Stock?.QuantiteActuelle ?? 100;
+
+        string type = act.TypeAction.ToUpperInvariant();
+        if (type == "PROMOTION_CIBLEE")
+        {
+            formRemisePourcentage = GetParamInt(act, "remisePourcentage", 20);
+            formDureeJours = GetParamInt(act, "dureeJours", 14);
+            formQuantiteCible = Math.Min(stockDispo, GetParamInt(act, "quantiteCible", 50));
+        }
+        else if (type == "RECYCLAGE_ANTICIPE")
+        {
+            formQuantiteRecyclage = Math.Min(stockDispo, Math.Max(10, GetParamInt(act, "quantite", 10)));
+            formMotif = "Recyclage surstock persistant";
+            formDestination = "Atelier interne";
+        }
+        else
+        {
+            formDestinataire = GetParamString(act, "destinataire", "Chef de Production");
+            formPriorite = analyse?.Metriques.EstTendanceCategorie == true ? "HAUTE" : "MOYENNE";
+            formMessage = act.Justification;
+        }
+    }
+
+    private void AnnulerConfirmation()
+    {
+        actionAConfirmer = null;
+        estEnModification = false;
+    }
+
+    private async Task ValiderEtExecuterAction()
+    {
+        if (actionAConfirmer == null || isExecuting || Produit == null) return;
+
+        isExecuting = true;
+        StateHasChanged();
+
+        try
+        {
+            var dictParams = new Dictionary<string, string>();
+            string type = actionAConfirmer.TypeAction.ToUpperInvariant();
+
+            if (type == "PROMOTION_CIBLEE")
+            {
+                dictParams["remisePourcentage"] = formRemisePourcentage.ToString();
+                dictParams["dureeJours"] = formDureeJours.ToString();
+                dictParams["quantiteCible"] = formQuantiteCible.ToString();
+            }
+            else if (type == "RECYCLAGE_ANTICIPE")
+            {
+                dictParams["quantite"] = formQuantiteRecyclage.ToString();
+                dictParams["motif"] = formMotif;
+                dictParams["destination"] = formDestination;
+            }
+            else
+            {
+                dictParams["destinataire"] = formDestinataire;
+                dictParams["priorite"] = formPriorite;
+                dictParams["message"] = formMessage;
+            }
+
+            bool succes = await ProduitService.ExecuterActionSurstock(Produit.Id, actionAConfirmer.TypeAction, actionAConfirmer.Label, dictParams);
+
+            if (succes)
+            {
+                string msgSucces = estEnModification
+                    ? $"Action « {actionAConfirmer.Label} » modifiée avec succès."
+                    : $"Action « {actionAConfirmer.Label} » confirmée et exécutée avec succès.";
+
+                Snackbar.Add(msgSucces, Severity.Success);
+
+                if (type == "PROMOTION_CIBLEE")
+                {
+                    Produit.RemisePourcentage = formRemisePourcentage;
+                    Produit.DateFinPromotion = DateTime.Today.AddDays(formDureeJours);
+                }
+                else if (type == "RECYCLAGE_ANTICIPE" && Produit.Stock != null)
+                {
+                    Produit.Stock.QuantiteActuelle = NouveauStockApresRecyclage;
+                }
+
+                CacheAnalyses.Remove(Produit.Id);
+                analyse = null;
+                actionAConfirmer = null;
+                estEnModification = false;
+
+                await OnActionExecuted.InvokeAsync();
+                await OnClose.InvokeAsync();
+            }
+            else
+            {
+                Snackbar.Add("Erreur lors de l'exécution de l'action.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erreur : {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isExecuting = false;
+        }
+    }
+
+    private int GetParamInt(ActionRecommandeeIaDto act, string key, int defaultVal)
+    {
+        if (act.Params != null && act.Params.TryGetValue(key, out var val) && val != null && int.TryParse(val.ToString(), out int parsed))
+        {
+            return parsed;
+        }
+        return defaultVal;
+    }
+
+    private string GetParamString(ActionRecommandeeIaDto act, string key, string defaultVal)
+    {
+        if (act.Params != null && act.Params.TryGetValue(key, out var val) && val != null && !string.IsNullOrWhiteSpace(val.ToString()))
+        {
+            return val.ToString()!;
+        }
+        return defaultVal;
+    }
+
+    private string GetConfirmHeaderIcon(string typeAction) => typeAction.ToUpperInvariant() switch
+    {
+        "PROMOTION_CIBLEE" => Icons.Material.Filled.LocalOffer,
+        "RECYCLAGE_ANTICIPE" => Icons.Material.Filled.Recycling,
+        _ => Icons.Material.Filled.NotificationsActive
+    };
+}

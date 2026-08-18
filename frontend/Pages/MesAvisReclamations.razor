@@ -1,0 +1,1055 @@
+﻿@page "/mes-avis-reclamations"
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@using WicStock.Web.Pages.Feedback
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "CLIENT,ADMIN")]
+@inject CatalogueService CatalogueService
+@inject FeedbackService FeedbackService
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Mes Avis & Réclamations | WicStock</PageTitle>
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="avis-page">
+
+    <!-- ===== EN-TÊTE ===== -->
+    <div class="page-hero">
+        <div class="hero-icon">
+            <MudIcon Icon="@Icons.Material.Filled.Forum" Size="Size.Medium" />
+        </div>
+        <div class="hero-text">
+            <h1 class="page-title">Mes avis & réclamations</h1>
+            <p class="page-subtitle">Gérez vos retours d'expérience, notes et signalements de problèmes sur vos commandes livrées.</p>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="d-flex justify-center my-12">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        </div>
+    }
+    else
+    {
+        <MudStack Spacing="6">
+
+            <!-- ===== SECTION 1: COMMANDES LIVRÉES ===== -->
+            <div class="section-card">
+                <div class="section-header">
+                    <div class="section-header-left">
+                        <div class="section-icon section-icon--denim">
+                            <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" />
+                        </div>
+                        <div>
+                            <h2 class="section-title">Commandes livrées éligibles</h2>
+                            <p class="section-desc">Vous disposez de 14 jours après réception pour laisser un avis ou signaler un problème.</p>
+                        </div>
+                    </div>
+                    <span class="count-badge">@commandesLivrees.Count commande(s)</span>
+                </div>
+
+                @if (!commandesLivrees.Any())
+                {
+                    <div class="empty-card">
+                        <MudIcon Icon="@Icons.Material.Filled.ShoppingBag" Size="Size.Large" Class="empty-icon" />
+                        <h3 class="empty-title">Aucune commande livrée</h3>
+                        <p class="empty-subtitle">Vos commandes livrées apparaîtront ici, prêtes à être évaluées.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="orders-list">
+                        @foreach (var cmd in commandesLivrees)
+                        {
+                            var avis = mesAvis.FirstOrDefault(a => a.CommandeId == cmd.Id);
+                            bool expire = EstDelaiExceder14Jours(cmd.DateVente);
+
+                            <div class="order-card">
+                                <div class="order-card-main">
+                                    <div class="product-thumb">
+                                        @if (!string.IsNullOrEmpty(cmd.ProduitImageUrl))
+                                        {
+                                            <img src="@GetFullImageUrl(cmd.ProduitImageUrl)" alt="@cmd.ProduitNom" />
+                                        }
+                                        else
+                                        {
+                                            <MudIcon Icon="@Icons.Material.Filled.Layers" Size="Size.Medium" />
+                                        }
+                                    </div>
+                                    <div class="order-card-info">
+                                        <div class="order-card-tags">
+                                            <span class="ref-code">@cmd.ProduitReference</span>
+                                            <span class="status-pill status-pill--done">
+                                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
+                                                Livrée
+                                            </span>
+                                        </div>
+                                        <h3 class="order-name">@cmd.ProduitNom</h3>
+                                        <div class="order-meta-row">
+                                            <span class="meta-chip">
+                                                <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Small" />
+                                                @cmd.QuantiteVendue pièce(s)
+                                            </span>
+                                            <span class="meta-chip">
+                                                <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" />
+                                                @cmd.DateVente.ToString("dd/MM/yyyy")
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="order-card-actions">
+                                    @if (expire)
+                                    {
+                                        <span class="expired-tag">
+                                            <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" />
+                                            <span>Délai de 14j expiré</span>
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn--primary" @onclick="() => OuvrirAvisModal(cmd)">
+                                            <MudIcon Icon="@Icons.Material.Filled.StarRate" Size="Size.Small" />
+                                            <span>@(avis != null ? "Modifier mon avis" : "Laisser un avis")</span>
+                                        </button>
+                                        <button class="btn btn--outline-rust" @onclick="() => OuvrirReclamationModal(cmd)">
+                                            <MudIcon Icon="@Icons.Material.Filled.ReportProblem" Size="Size.Small" />
+                                            <span>Signaler un problème</span>
+                                        </button>
+                                    }
+
+                                    <button class="btn btn--ghost" @onclick="() => NaviguerSuivi(cmd.Id)">
+                                        <MudIcon Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" />
+                                        <span>Suivi</span>
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- ===== SECTION 2: HISTORIQUE DES AVIS ET RÉCLAMATIONS ===== -->
+            <div class="section-card">
+                <div class="section-header-tabbed">
+                    <div class="section-header-left">
+                        <div class="section-icon section-icon--pine">
+                            <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Small" />
+                        </div>
+                        <div>
+                            <h2 class="section-title">Historique de vos démarches</h2>
+                            <p class="section-desc">Retrouvez l'ensemble de vos avis et réclamations soumis.</p>
+                        </div>
+                    </div>
+                    <div class="tab-pills">
+                        <button class='@(activeTab == "TOUS" ? "tab-btn active" : "tab-btn")' @onclick='() => SetTab("TOUS")'>Tous (@(mesAvis.Count + mesReclamations.Count))</button>
+                        <button class='@(activeTab == "AVIS" ? "tab-btn active" : "tab-btn")' @onclick='() => SetTab("AVIS")'>Mes Avis (@mesAvis.Count)</button>
+                        <button class='@(activeTab == "RECLAMATIONS" ? "tab-btn active" : "tab-btn")' @onclick='() => SetTab("RECLAMATIONS")'>Mes Réclamations (@mesReclamations.Count)</button>
+                    </div>
+                </div>
+
+                <!-- LISTE AVIS -->
+                @if ((activeTab == "TOUS" || activeTab == "AVIS") && mesAvis.Any())
+                {
+                    <div class="history-group">
+                        <h4 class="history-group-title">Avis soumis</h4>
+                        <div class="history-list">
+                            @foreach (var a in mesAvis)
+                            {
+                                <div class="history-card">
+                                    <div class="card-header">
+                                        <div class="d-flex align-center gap-2 flex-wrap">
+                                            <span class="type-badge type-badge--avis">Avis</span>
+                                            <span class="ref-code">@a.ProduitReference</span>
+                                            <strong class="history-item-title">@a.ProduitNom</strong>
+                                        </div>
+                                        <div class="d-flex align-center gap-2">
+                                            <span class="history-date">
+                                                <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" />
+                                                @a.DateCreation.ToString("dd/MM/yyyy à HH:mm")
+                                            </span>
+                                            <span class="status-pill @GetAvisStatutClass(a.Statut)">@a.Statut</span>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="stars-row mb-2">
+                                            <div class="stars-icons">
+                                                @for (int i = 1; i <= 5; i++)
+                                                {
+                                                    int starVal = i;
+                                                    <MudIcon Icon="@(starVal <= a.Note ? Icons.Material.Filled.Star : Icons.Material.Filled.StarBorder)" Size="Size.Small" Class="star-gold" />
+                                                }
+                                            </div>
+                                            <span class="note-val">@a.Note<span class="note-val-muted">/5</span></span>
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(a.Commentaire))
+                                        {
+                                            <div class="comment-box">
+                                                <MudIcon Icon="@Icons.Material.Filled.FormatQuote" Size="Size.Small" Class="comment-quote-icon" />
+                                                <p class="comment-text">@a.Commentaire</p>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <!-- LISTE RÉCLAMATIONS -->
+                @if ((activeTab == "TOUS" || activeTab == "RECLAMATIONS") && mesReclamations.Any())
+                {
+                    <div class="history-group mt-4">
+                        <h4 class="history-group-title">Réclamations transmises</h4>
+                        <div class="history-list">
+                            @foreach (var r in mesReclamations)
+                            {
+                                <div class="history-card history-card--reclamation">
+                                    <div class="card-header">
+                                        <div class="d-flex align-center gap-2 flex-wrap">
+                                            <span class="motif-pill">
+                                                <MudIcon Icon="@Icons.Material.Filled.ReportProblem" Size="Size.Small" />
+                                                @r.Motif
+                                            </span>
+                                            <span class="ref-code">@r.ProduitReference</span>
+                                            <strong class="history-item-title">@r.ProduitNom</strong>
+                                        </div>
+                                        <div class="d-flex align-center gap-2">
+                                            <span class="history-date">
+                                                <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" />
+                                                @r.DateCreation.ToString("dd/MM/yyyy à HH:mm")
+                                            </span>
+                                            <span class="status-pill @GetReclamationStatutClass(r.Statut)">
+                                                <MudIcon Icon="@GetReclamationStatutIcon(r.Statut)" Size="Size.Small" />
+                                                @GetReclamationStatutLabel(r.Statut)
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="desc-box">
+                                            <div class="desc-box-header">
+                                                <MudIcon Icon="@Icons.Material.Filled.ChatBubbleOutline" Size="Size.Small" />
+                                                <span class="meta-label">Votre description</span>
+                                            </div>
+                                            <p class="desc-text">@r.Description</p>
+                                        </div>
+
+                                        @if (!string.IsNullOrEmpty(r.PhotosUrls))
+                                        {
+                                            var photos = r.PhotosUrls.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                                            <div class="photos-block mt-3">
+                                                <span class="meta-label">Photos jointes (@photos.Length)</span>
+                                                <div class="photos-grid mt-1">
+                                                    @foreach (var p in photos)
+                                                    {
+                                                        <a href="@GetFullImageUrl(p)" target="_blank" class="photo-item">
+                                                            <img src="@GetFullImageUrl(p)" alt="Photo réclamation" />
+                                                            <span class="photo-item-overlay">
+                                                                <MudIcon Icon="@Icons.Material.Filled.ZoomIn" Size="Size.Small" />
+                                                            </span>
+                                                        </a>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+
+                                        <!-- RÉPONSE ADMIN -->
+                                        @if (!string.IsNullOrEmpty(r.ReponseAdmin))
+                                        {
+                                            <div class="reply-box mt-3">
+                                                <div class="d-flex align-center justify-between mb-1">
+                                                    <strong class="reply-title">
+                                                        <MudIcon Icon="@Icons.Material.Filled.SupportAgent" Size="Size.Small" />
+                                                        Réponse du Service Client
+                                                    </strong>
+                                                    @if (r.DateReponse.HasValue)
+                                                    {
+                                                        <span class="reply-date">@r.DateReponse.Value.ToString("dd/MM/yyyy à HH:mm")</span>
+                                                    }
+                                                </div>
+                                                <p class="reply-text">@r.ReponseAdmin</p>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (!mesAvis.Any() && !mesReclamations.Any())
+                {
+                    <div class="empty-card">
+                        <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Large" Class="empty-icon" />
+                        <h3 class="empty-title">Aucun historique</h3>
+                        <p class="empty-subtitle">Aucun avis ou réclamation enregistré pour le moment.</p>
+                    </div>
+                }
+            </div>
+
+        </MudStack>
+    }
+</div>
+
+<!-- MODALES -->
+@if (selectedCommande != null)
+{
+    <AvisModal @bind-IsOpen="showAvisModal"
+               CommandeId="@selectedCommande.Id"
+               ProduitId="@selectedCommande.ProduitId"
+               ProduitNom="@selectedCommande.ProduitNom"
+               ProduitRef="@selectedCommande.ProduitReference"
+               ProduitImgUrl="@GetFullImageUrl(selectedCommande.ProduitImageUrl)"
+               AvisExistant="@selectedAvis"
+               OnAvisEnregistre="ChargerDonnees" />
+
+    <ReclamationModal @bind-IsOpen="showReclamationModal"
+                      CommandeId="@selectedCommande.Id"
+                      ProduitId="@selectedCommande.ProduitId"
+                      ProduitNom="@selectedCommande.ProduitNom"
+                      ProduitRef="@selectedCommande.ProduitReference"
+                      ProduitImgUrl="@GetFullImageUrl(selectedCommande.ProduitImageUrl)"
+                      OnReclamationEnregistree="ChargerDonnees" />
+}
+
+<style>
+    .avis-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --sand: #F3F6FA;
+        --border: #E1E7EF;
+        --denim: #2B4C7E;
+        --denim-dark: #1E3A63;
+        --denim-soft: #E7EDF6;
+        --rust: #B5563A;
+        --rust-soft: #F9ECE8;
+        --pine: #1E6B4C;
+        --pine-soft: #E4F3EC;
+        --amber: #D97706;
+        --amber-soft: #FEF3C7;
+        --radius-sm: 8px;
+        --radius-md: 10px;
+        --radius-lg: 16px;
+        --font-display: "Sora", "Inter", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        font-family: var(--font-body);
+        color: var(--ink);
+    }
+
+        /* ===== En-tête ===== */
+        .avis-page .page-hero {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+
+        .avis-page .hero-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
+            background: var(--denim-soft);
+            color: var(--denim);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .avis-page .page-title {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.75rem;
+            letter-spacing: -0.02em;
+            color: var(--ink);
+            margin: 0 0 4px 0;
+        }
+
+        .avis-page .page-subtitle {
+            color: var(--ink-muted);
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        /* ===== Cartes de section ===== */
+        .avis-page .section-card {
+            background: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px 28px;
+            box-shadow: 0 2px 10px rgba(22, 35, 58, 0.03);
+        }
+
+        .avis-page .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .avis-page .section-header-tabbed {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 18px;
+        }
+
+        .avis-page .section-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .avis-page .section-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .avis-page .section-icon--denim {
+            background: var(--denim-soft);
+            color: var(--denim);
+        }
+
+        .avis-page .section-icon--pine {
+            background: var(--pine-soft);
+            color: var(--pine);
+        }
+
+        .avis-page .section-title {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.15rem;
+            color: var(--ink);
+            margin: 0;
+        }
+
+        .avis-page .section-desc {
+            font-size: 0.85rem;
+            color: var(--ink-muted);
+            margin: 2px 0 0 0;
+        }
+
+        .avis-page .count-badge {
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            background: var(--sand);
+            color: var(--ink-muted);
+            padding: 5px 13px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        /* ===== Commandes livrées ===== */
+        .avis-page .orders-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .avis-page .order-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            background: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 18px 20px;
+            flex-wrap: wrap;
+            transition: box-shadow 0.15s ease, border-color 0.15s ease;
+        }
+
+            .avis-page .order-card:hover {
+                box-shadow: 0 8px 20px -10px rgba(22, 35, 58, 0.18);
+                border-color: #D3DCE8;
+            }
+
+        .avis-page .order-card-main {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex: 1;
+            min-width: 280px;
+        }
+
+        .avis-page .product-thumb {
+            width: 62px;
+            height: 62px;
+            border-radius: var(--radius-sm);
+            background: var(--sand);
+            border: 1px solid var(--border);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            color: var(--ink-muted);
+        }
+
+            .avis-page .product-thumb img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+
+        .avis-page .order-card-info {
+            flex: 1;
+        }
+
+        .avis-page .order-card-tags {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .avis-page .ref-code {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--denim);
+            background: var(--denim-soft);
+            padding: 3px 9px;
+            border-radius: 5px;
+            font-weight: 600;
+        }
+
+        .avis-page .order-name {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.02rem;
+            color: var(--ink);
+            margin: 6px 0 8px 0;
+        }
+
+        .avis-page .order-meta-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .avis-page .meta-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.8125rem;
+            color: var(--ink-muted);
+            background: var(--sand);
+            border: 1px solid var(--border);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+
+        .avis-page .order-card-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* ===== Boutons ===== */
+        .avis-page .btn {
+            padding: 9px 16px;
+            font-size: 0.85rem;
+            border-radius: var(--radius-sm);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.15s ease;
+            font-family: var(--font-body);
+        }
+
+        .avis-page .btn--primary {
+            background: var(--denim);
+            color: #fff;
+            box-shadow: 0 2px 6px rgba(43, 76, 126, 0.3);
+        }
+
+            .avis-page .btn--primary:hover {
+                background: var(--denim-dark);
+                box-shadow: 0 4px 12px rgba(43, 76, 126, 0.4);
+                transform: translateY(-1px);
+            }
+
+        .avis-page .btn--outline-rust {
+            background: #fff;
+            color: var(--rust);
+            border: 1.5px solid var(--rust);
+        }
+
+            .avis-page .btn--outline-rust:hover {
+                background: var(--rust-soft);
+            }
+
+        .avis-page .btn--ghost {
+            background: transparent;
+            color: var(--ink-muted);
+            border: 1.5px solid var(--border);
+        }
+
+            .avis-page .btn--ghost:hover {
+                background: var(--sand);
+                color: var(--ink);
+            }
+
+        .avis-page .expired-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8125rem;
+            color: var(--amber);
+            background: var(--amber-soft);
+            padding: 7px 13px;
+            border-radius: 999px;
+            font-weight: 600;
+        }
+
+        /* ===== Tabs ===== */
+        .avis-page .tab-pills {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .avis-page .tab-btn {
+            background: var(--sand);
+            border: 1px solid var(--border);
+            color: var(--ink-muted);
+            padding: 7px 16px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-family: var(--font-body);
+        }
+
+            .avis-page .tab-btn:hover {
+                border-color: var(--denim);
+                color: var(--denim);
+            }
+
+            .avis-page .tab-btn.active {
+                background: var(--denim);
+                color: #fff;
+                border-color: var(--denim);
+            }
+
+        /* ===== Historique ===== */
+        .avis-page .history-group-title {
+            font-family: var(--font-display);
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--ink-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 12px;
+        }
+
+        .avis-page .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .avis-page .history-card {
+            background: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px 22px;
+            box-shadow: 0 2px 8px rgba(22, 35, 58, 0.03);
+            transition: box-shadow 0.15s ease;
+        }
+
+            .avis-page .history-card:hover {
+                box-shadow: 0 8px 20px -10px rgba(22, 35, 58, 0.18);
+            }
+
+        .avis-page .history-card--reclamation {
+            border-left: 3px solid var(--rust);
+        }
+
+        .avis-page .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+
+        .avis-page .type-badge {
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 999px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .avis-page .type-badge--avis {
+            background: var(--amber-soft);
+            color: var(--amber);
+        }
+
+        .avis-page .motif-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8125rem;
+            font-weight: 700;
+            color: var(--rust);
+            background: var(--rust-soft);
+            padding: 4px 10px;
+            border-radius: 6px;
+            line-height: 1;
+        }
+
+        .avis-page .history-item-title {
+            font-family: var(--font-display);
+            color: var(--ink);
+            font-size: 0.95rem;
+        }
+
+        .avis-page .history-date {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.8rem;
+            color: var(--ink-muted);
+        }
+
+        .avis-page .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 999px;
+            line-height: 1;
+        }
+
+        .avis-page .status-pill--done {
+            background: var(--pine-soft);
+            color: var(--pine);
+        }
+
+        .avis-page .status-pill--pending {
+            background: var(--amber-soft);
+            color: var(--amber);
+        }
+
+        .avis-page .status-pill--progress {
+            background: var(--denim-soft);
+            color: var(--denim);
+        }
+
+        .avis-page .status-pill--rejected {
+            background: var(--rust-soft);
+            color: var(--rust);
+        }
+
+        /* Étoiles */
+        .avis-page .stars-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .avis-page .stars-icons {
+            display: flex;
+            align-items: center;
+            gap: 1px;
+        }
+
+        .avis-page .star-gold {
+            color: #F59E0B;
+        }
+
+        .avis-page .note-val {
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: var(--ink);
+            font-family: var(--font-display);
+        }
+
+        .avis-page .note-val-muted {
+            font-weight: 500;
+            color: var(--ink-muted);
+        }
+
+        /* Commentaire avis */
+        .avis-page .comment-box {
+            position: relative;
+            background: var(--sand);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 12px 14px 12px 36px;
+            margin-top: 8px;
+        }
+
+        .avis-page .comment-quote-icon {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: var(--denim);
+            opacity: 0.5;
+        }
+
+        .avis-page .comment-text {
+            font-size: 0.9rem;
+            color: var(--ink);
+            margin: 0;
+            line-height: 1.5;
+            font-style: italic;
+        }
+
+        /* Description réclamation */
+        .avis-page .desc-box {
+            background: var(--sand);
+            border: 1px solid var(--border);
+            padding: 14px;
+            border-radius: var(--radius-sm);
+        }
+
+        .avis-page .desc-box-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--ink-muted);
+        }
+
+        .avis-page .meta-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--ink-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .avis-page .desc-text {
+            font-size: 0.9rem;
+            color: var(--ink);
+            margin: 6px 0 0 0;
+            line-height: 1.5;
+        }
+
+        /* Photos */
+        .avis-page .photos-grid {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .avis-page .photo-item {
+            position: relative;
+            display: inline-block;
+        }
+
+            .avis-page .photo-item img {
+                width: 60px;
+                height: 60px;
+                border-radius: 8px;
+                object-fit: cover;
+                border: 1px solid var(--border);
+                transition: transform 0.15s ease;
+            }
+
+            .avis-page .photo-item:hover img {
+                transform: scale(1.05);
+                border-color: var(--denim);
+            }
+
+        .avis-page .photo-item-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            opacity: 0;
+            background: rgba(22, 35, 58, 0.35);
+            border-radius: 8px;
+            transition: opacity 0.15s ease;
+        }
+
+        .avis-page .photo-item:hover .photo-item-overlay {
+            opacity: 1;
+        }
+
+        /* Réponse du service client */
+        .avis-page .reply-box {
+            background: var(--denim-soft);
+            border: 1px solid rgba(43, 76, 126, 0.2);
+            padding: 14px 16px;
+            border-radius: var(--radius-sm);
+        }
+
+        .avis-page .reply-title {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            color: var(--denim);
+            font-family: var(--font-display);
+        }
+
+        .avis-page .reply-date {
+            font-size: 0.75rem;
+            color: var(--ink-muted);
+        }
+
+        .avis-page .reply-text {
+            font-size: 0.9rem;
+            color: var(--ink);
+            margin: 4px 0 0 0;
+            line-height: 1.5;
+        }
+
+        /* ===== États vides ===== */
+        .avis-page .empty-card {
+            text-align: center;
+            background: var(--sand);
+            border: 1px dashed var(--border);
+            border-radius: var(--radius-lg);
+            padding: 44px 24px;
+        }
+
+        .avis-page .empty-icon {
+            font-size: 44px;
+            color: #CBD5E1;
+        }
+
+        .avis-page .empty-title {
+            font-family: var(--font-display);
+            font-weight: 700;
+            color: var(--ink);
+            margin: 12px 0 4px 0;
+            font-size: 1rem;
+        }
+
+        .avis-page .empty-subtitle {
+            color: var(--ink-muted);
+            font-size: 0.88rem;
+            margin: 0;
+        }
+</style>
+
+@code {
+    private List<MaCommandeDto> commandesLivrees = new();
+    private List<AvisDto> mesAvis = new();
+    private List<ReclamationDto> mesReclamations = new();
+    private bool isLoading = true;
+
+    private string activeTab = "TOUS";
+
+    private MaCommandeDto? selectedCommande;
+    private AvisDto? selectedAvis;
+    private bool showAvisModal = false;
+    private bool showReclamationModal = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ChargerDonnees();
+    }
+
+    private async Task ChargerDonnees()
+    {
+        isLoading = true;
+        try
+        {
+            var toutesCommandes = await CatalogueService.ObtenirMesCommandes();
+            commandesLivrees = toutesCommandes
+                .Where(c => string.Equals(c.Statut, "LIVREE", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(c.StatutCommande, "LIVREE", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(c => c.DateVente)
+                .ToList();
+
+            mesAvis = await FeedbackService.ObtenirMesAvis();
+            mesReclamations = await FeedbackService.ObtenirMesReclamations();
+        }
+        catch { }
+        finally { isLoading = false; }
+    }
+
+    private void OuvrirAvisModal(MaCommandeDto cmd)
+    {
+        selectedCommande = cmd;
+        selectedAvis = mesAvis.FirstOrDefault(a => a.CommandeId == cmd.Id);
+        showAvisModal = true;
+    }
+
+    private void OuvrirReclamationModal(MaCommandeDto cmd)
+    {
+        selectedCommande = cmd;
+        showReclamationModal = true;
+    }
+
+    private bool EstDelaiExceder14Jours(DateTime dateVente)
+    {
+        return (DateTime.Now - dateVente).TotalDays > 14;
+    }
+
+    private string GetFullImageUrl(string? url) =>
+        string.IsNullOrEmpty(url) ? "" : $"{Http.BaseAddress}{url.TrimStart('/')}";
+
+    private string GetAvisStatutClass(string statut) => statut?.ToUpperInvariant() switch
+    {
+        "PUBLIE" => "status-pill--done",
+        "REJETE" => "status-pill--rejected",
+        _ => "status-pill--pending"
+    };
+
+    private string GetReclamationStatutClass(string statut) => statut?.ToUpperInvariant() switch
+    {
+        "RESOLUE" => "status-pill--done",
+        "EN_COURS" => "status-pill--progress",
+        "REJETEE" => "status-pill--rejected",
+        _ => "status-pill--pending"
+    };
+
+    private string GetReclamationStatutIcon(string statut) => statut?.ToUpperInvariant() switch
+    {
+        "RESOLUE" => Icons.Material.Filled.CheckCircle,
+        "EN_COURS" => Icons.Material.Filled.HourglassTop,
+        "REJETEE" => Icons.Material.Filled.Cancel,
+        _ => Icons.Material.Filled.MarkEmailUnread
+    };
+
+    private void NaviguerSuivi(int id) => Navigation.NavigateTo($"/mes-commandes/suivi/{id}");
+    private void SetTab(string tab) => activeTab = tab;
+
+    private string GetReclamationStatutLabel(string statut) => statut?.ToUpperInvariant() switch
+    {
+        "ENVOYEE" => "Envoyée",
+        "EN_COURS" => "En cours de traitement",
+        "RESOLUE" => "Résolue",
+        "REJETEE" => "Rejetée",
+        _ => statut ?? string.Empty
+    };
+}
+

@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/backend/">
+    <Project Path="backend/WicStock.Api.csproj" />
+  </Folder>
+  <Folder Name="/frontend/">
+    <Project Path="frontend/WicStock.Web.csproj" />
+  </Folder>
+</Solution>

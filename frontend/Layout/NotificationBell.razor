@@ -1,0 +1,418 @@
+﻿@inject WicStock.Web.Services.NotificationClientService NotificationService
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="notification-bell-wrapper">
+    <button class="bell-button @(_hasNewPulse ? "pulse-anim" : "")" @onclick="TogglePopover" aria-label="Notifications">
+        <MudIcon Icon="@Icons.Material.Filled.Notifications" Size="Size.Medium" Class="bell-icon" />
+        @if (NotificationService.UnreadCount > 0)
+        {
+            <span class="bell-badge">@NotificationService.UnreadCount</span>
+        }
+    </button>
+
+    <MudPopover Open="_isOpen" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="notification-popover">
+        <div class="popover-content">
+            <!-- Popover Header -->
+            <div class="popover-header">
+                <div class="d-flex align-center gap-2">
+                    <span class="header-title">Notifications</span>
+                    @if (NotificationService.UnreadCount > 0)
+                    {
+                        <span class="count-badge">@NotificationService.UnreadCount non lue(s)</span>
+                    }
+                </div>
+                @if (NotificationService.UnreadCount > 0)
+                {
+                    <button class="btn-text-action" @onclick="ToutMarquerCommeLu">
+                        Tout marquer comme lu
+                    </button>
+                }
+            </div>
+
+            <!-- Popover Body / List -->
+            <div class="popover-body">
+                @if (!NotificationService.Notifications.Any())
+                {
+                    <div class="empty-state">
+                        <MudIcon Icon="@Icons.Material.Filled.NotificationsNone" Size="Size.Large" Class="empty-icon" />
+                        <span>Aucune notification pour le moment.</span>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var item in NotificationService.Notifications.Take(15))
+                    {
+                        <div class="notification-item @(!item.Lue ? "unread" : "")" @onclick="() => ClicNotification(item)">
+                            <div class="item-icon-wrapper @GetIconClass(item.Type)">
+                                <MudIcon Icon="@GetIconName(item.Type)" Size="Size.Small" />
+                            </div>
+                            <div class="item-content">
+                                <div class="item-message">@FormaterMessage(item.Message, item.UrlCible)</div>
+                                <div class="item-time">@FormaterTempsEcoule(item.DateCreation)</div>
+                            </div>
+                            @if (!item.Lue)
+                            {
+                                <div class="unread-dot"></div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </MudPopover>
+</div>
+
+<style>
+    .notification-bell-wrapper {
+        position: relative;
+        display: inline-block;
+        overflow: visible;
+    }
+
+    .bell-button {
+        position: relative;
+        background: #ffffff;
+        border: 1px solid #E1E7EF;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: #64748B;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+        transition: all 0.2s ease;
+    }
+
+        .bell-button:hover {
+            background: #F3F6FA;
+            border-color: #2B4C7E;
+            color: #2B4C7E;
+            box-shadow: 0 4px 10px -2px rgba(43, 76, 126, 0.18);
+            transform: translateY(-1px);
+        }
+
+        .bell-button:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+        }
+
+    .bell-icon {
+        font-size: 1.15rem !important;
+    }
+
+    .bell-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        background: #ef4444;
+        color: #ffffff;
+        font-family: var(--font-mono, "JetBrains Mono", monospace);
+        font-size: 0.6875rem;
+        font-weight: 700;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        border-radius: 10px;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 0 0 2px #ffffff;
+    }
+
+    /* Animation pulse lors d'une nouvelle notification */
+    .pulse-anim {
+        animation: bellPulse 1.2s ease-in-out 3;
+    }
+
+    @@keyframes bellPulse {
+        0% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+        }
+
+        50% {
+            transform: scale(1.08);
+            box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+        }
+
+        100% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+        }
+    }
+
+    /* Popover Content */
+    .notification-popover {
+        border-radius: 12px !important;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05) !important;
+        border: 1px solid var(--border, #E1E7EF);
+        z-index: 3000 !important;
+    }
+
+    .popover-content {
+        width: 360px;
+        max-width: 90vw;
+        background: #ffffff;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .popover-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border, #E1E7EF);
+        background: #fafafa;
+    }
+
+    .header-title {
+        font-family: var(--font-display, "Sora", sans-serif);
+        font-weight: 700;
+        font-size: 0.9375rem;
+        color: var(--ink, #16233A);
+    }
+
+    .count-badge {
+        font-family: var(--font-mono, monospace);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        color: var(--denim, #2B4C7E);
+        background: var(--denim-tint, #E7EDF6);
+        padding: 2px 8px;
+        border-radius: 6px;
+    }
+
+    .btn-text-action {
+        background: none;
+        border: none;
+        color: var(--denim, #2B4C7E);
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 4px 6px;
+        border-radius: 4px;
+        transition: background 0.15s ease;
+    }
+
+        .btn-text-action:hover {
+            background: var(--denim-tint, #E7EDF6);
+        }
+
+    .popover-body {
+        max-height: 380px;
+        overflow-y: auto;
+    }
+
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 16px;
+        color: #94a3b8;
+        font-size: 0.875rem;
+        gap: 8px;
+    }
+
+    .empty-icon {
+        color: #cbd5e1;
+    }
+
+    .notification-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 12px 16px;
+        border-bottom: 1px solid #f1f5f9;
+        cursor: pointer;
+        transition: background 0.15s ease;
+        position: relative;
+    }
+
+        .notification-item:hover {
+            background: #f8fafc;
+        }
+
+        .notification-item.unread {
+            background: #f0f7ff;
+        }
+
+            .notification-item.unread:hover {
+                background: #e5f1ff;
+            }
+
+    .item-icon-wrapper {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .icon-rupture {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+
+    .icon-commande {
+        background: #ffedd5;
+        color: #ea580c;
+    }
+
+    .icon-action-ia {
+        background: #e0e7ff;
+        color: #4338ca;
+    }
+
+    .icon-nouveau {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .icon-default {
+        background: #f1f5f9;
+        color: #64748b;
+    }
+
+    .item-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .item-message {
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--ink, #16233A);
+        line-height: 1.35;
+        margin-bottom: 4px;
+        word-break: break-word;
+    }
+
+    .item-time {
+        font-size: 0.6875rem;
+        color: #64748b;
+    }
+
+    .unread-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--denim, #2B4C7E);
+        flex-shrink: 0;
+        margin-top: 6px;
+    }
+</style>
+
+@code {
+    private bool _isOpen = false;
+    private bool _hasNewPulse = false;
+
+    protected override void OnInitialized()
+    {
+        NotificationService.OnNotificationReceived += HandleNotificationReceived;
+        NotificationService.OnUnreadCountChanged += HandleUnreadCountChanged;
+    }
+
+    private async void HandleUnreadCountChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void HandleNotificationReceived(WicStock.Web.Models.Dtos.NotificationDto notification)
+    {
+        _hasNewPulse = true;
+        await InvokeAsync(StateHasChanged);
+
+        await Task.Delay(3600);
+        _hasNewPulse = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void TogglePopover()
+    {
+        _isOpen = !_isOpen;
+    }
+
+    private async Task ClicNotification(WicStock.Web.Models.Dtos.NotificationDto item)
+    {
+        _isOpen = false;
+        if (!item.Lue)
+        {
+            await NotificationService.MarquerCommeLueAsync(item.Id);
+        }
+
+        if (!string.IsNullOrEmpty(item.UrlCible))
+        {
+            Navigation.NavigateTo(item.UrlCible);
+        }
+    }
+
+    private async Task ToutMarquerCommeLu()
+    {
+        await NotificationService.MarquerToutesCommeLuesAsync();
+    }
+
+    private string GetIconClass(string type) => type switch
+    {
+        "RUPTURE_STOCK" => "icon-rupture",
+        "COMMANDE_EN_ATTENTE" => "icon-commande",
+        "ACTION_IA_A_VALIDER" => "icon-action-ia",
+        "NOUVEAU_PRODUIT" => "icon-nouveau",
+        _ => "icon-default"
+    };
+
+    private string GetIconName(string type) => type switch
+    {
+        "RUPTURE_STOCK" => Icons.Material.Filled.Warning,
+        "COMMANDE_EN_ATTENTE" => Icons.Material.Filled.ShoppingCart,
+        "ACTION_IA_A_VALIDER" => Icons.Material.Filled.SmartToy,
+        "NOUVEAU_PRODUIT" => Icons.Material.Filled.NewReleases,
+        _ => Icons.Material.Filled.Notifications
+    };
+
+        private string FormaterMessage(string? message, string? urlCible)
+    {
+        if (string.IsNullOrWhiteSpace(message)) return string.Empty;
+
+        bool estReclamationOuAvis = (urlCible != null && (urlCible.Contains("reclamation", StringComparison.OrdinalIgnoreCase) || urlCible.Contains("avis", StringComparison.OrdinalIgnoreCase)))
+            || message.Contains("réclamation", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("reclamation", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("avis", StringComparison.OrdinalIgnoreCase);
+
+        if (estReclamationOuAvis)
+        {
+            string cleaned = System.Text.RegularExpressions.Regex.Replace(
+                message,
+                @"\s*(sur|pour|de)?\s*(la\s*)?commande\s*#?\d+",
+                "",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            );
+            cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"\s+", " ").Trim();
+            return cleaned;
+        }
+
+        return message;
+    }
+
+    private string FormaterTempsEcoule(DateTime date)
+    {
+        var diff = DateTime.Now - date;
+        if (diff.TotalMinutes < 1) return "À l'instant";
+        if (diff.TotalMinutes < 60) return $"il y a {(int)diff.TotalMinutes} min";
+        if (diff.TotalHours < 24) return $"il y a {(int)diff.TotalHours} h";
+        return $"le {date:dd/MM/yyyy}";
+    }
+
+    public void Dispose()
+    {
+        NotificationService.OnNotificationReceived -= HandleNotificationReceived;
+        NotificationService.OnUnreadCountChanged -= HandleUnreadCountChanged;
+    }
+}

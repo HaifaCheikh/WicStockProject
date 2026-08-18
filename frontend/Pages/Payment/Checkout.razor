@@ -1,0 +1,656 @@
+﻿@page "/payment/checkout/{CommandeId:int}"
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@attribute [Authorize(Roles = "CLIENT")]
+@inject NavigationManager Navigation
+@inject PaymentService PaymentService
+@inject ISnackbar Snackbar
+
+<PageTitle>Paiement & Livraison | WicStock</PageTitle>
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="payment-page">
+    @if (isLoading)
+    {
+        <div class="payment-card payment-card--center">
+            <div class="loading-spinner-wrap">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            </div>
+            <p class="loading-text mt-4">Préparation de votre paiement sécurisé...</p>
+        </div>
+    }
+    else if (errorMessage != null)
+    {
+        <div class="payment-card">
+            <div class="error-block">
+                <div class="error-icon">
+                    <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Size="Size.Large" />
+                </div>
+                <h2 class="error-title">Paiement impossible</h2>
+                <p class="error-text">@errorMessage</p>
+            </div>
+            <div class="d-flex justify-center mt-5">
+                <button class="btn btn--outline" @onclick="RetourCommande">
+                    <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Small" />
+                    <span>Retour à la commande</span>
+                </button>
+            </div>
+        </div>
+    }
+    else if (paymentResponse != null)
+    {
+        <!-- ===== EN-TÊTE ===== -->
+        <div class="payment-hero">
+            <span class="hero-eyebrow">Paiement sécurisé</span>
+            <h1 class="page-title">Finaliser votre commande</h1>
+            <p class="page-subtitle">Renseignez votre adresse de livraison avant de procéder au règlement.</p>
+
+            <div class="amount-badge">
+                <span class="amount-label">Montant total</span>
+                <span class="amount-value">@paymentResponse.Montant.ToString("N2") <span class="amount-currency">@paymentResponse.Currency</span></span>
+            </div>
+        </div>
+
+        <!-- ===== ÉTAPES ===== -->
+        <div class="steps-row">
+            <div class="step-item step-item--done">
+                <div class="step-circle">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
+                </div>
+                <span>Commande validée</span>
+            </div>
+            <div class="step-connector step-connector--done"></div>
+            <div class="step-item step-item--current">
+                <div class="step-circle">
+                    <MudIcon Icon="@Icons.Material.Filled.CreditCard" Size="Size.Small" />
+                </div>
+                <span>Paiement & Adresse</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item">
+                <div class="step-circle">
+                    <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" />
+                </div>
+                <span>Livraison</span>
+            </div>
+        </div>
+
+        <!-- ===== SECTION ADRESSE DE LIVRAISON ===== -->
+        <div class="payment-card mb-4">
+            <div class="section-header-row">
+                <div class="section-icon-wrap">
+                    <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Medium" />
+                </div>
+                <div>
+                    <h3 class="provider-title">Coordonnées de livraison</h3>
+                    <p class="provider-text">
+                        Ces informations seront transmises directement à votre livreur.
+                    </p>
+                </div>
+            </div>
+
+            <div class="address-form-grid mt-4">
+                <div class="form-group">
+                    <label class="form-label">Adresse de livraison (Rue, Bâtiment)</label>
+                    <input type="text" class="form-input" placeholder="Ex: 12 Rue de la République" @bind="adresseLivraison" />
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label">Code postal *</label>
+                        <input type="text" class="form-input" placeholder="Ex: 7015" @bind="codePostal" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Ville / Gouvernorat</label>
+                        <input type="text" class="form-input" placeholder="Ex: Bizerte" @bind="ville" />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Pays</label>
+                    <input type="text" class="form-input" placeholder="Tunisia" @bind="pays" />
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== CARTE INFO PAIEMENT ===== -->
+        <div class="payment-card">
+            <div class="provider-block">
+                <div class="provider-icon">
+                    <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Medium" />
+                </div>
+                <div>
+                    <h3 class="provider-title">Règlement sécurisé via Lemon Squeezy</h3>
+                    <p class="provider-text">
+                        Vous allez être redirigé vers <strong>Lemon Squeezy</strong>
+                        pour régler en toute sécurité. Vos informations bancaires sont chiffrées de bout en bout.
+                    </p>
+                </div>
+            </div>
+
+            <div class="security-tags">
+                <span class="security-tag">
+                    <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Size="Size.Small" />
+                    Paiement chiffré SSL
+                </span>
+                <span class="security-tag">
+                    <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Size="Size.Small" />
+                    Reçu automatique
+                </span>
+                <span class="security-tag">
+                    <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" />
+                    Transmission au livreur
+                </span>
+            </div>
+
+            <div class="payment-actions">
+                <button class="btn btn--primary payment-btn" disabled="@isProcessing" @onclick="ProceedToCheckout">
+                    @if (isProcessing)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Inherit" Class="mr-2" />
+                        <span>Préparation du paiement...</span>
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" />
+                        <span>Payer @paymentResponse.Montant.ToString("N2") @paymentResponse.Currency</span>
+                    }
+                </button>
+
+                <button class="btn btn--outline" @onclick="RetourCommande" disabled="@isProcessing">
+                    <span>Annuler</span>
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .payment-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --sand: #F8FAFC;
+        --border: #E2E8F0;
+        --denim: #2B4C7E;
+        --denim-dark: #14263F;
+        --denim-tint: #E7EDF6;
+        --pine: #1E6B4C;
+        --pine-tint: #E4F3EC;
+        --rust: #B5563A;
+        --rust-tint: #F9ECE8;
+        --radius-sm: 8px;
+        --radius-md: 10px;
+        --radius-lg: 16px;
+        --font-display: "Sora", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        font-family: var(--font-body);
+        color: var(--ink);
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 24px 16px 48px;
+    }
+
+    .payment-page .payment-hero {
+        text-align: center;
+        background: linear-gradient(180deg, var(--denim-tint) 0%, var(--paper) 100%);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 32px 28px;
+        margin-bottom: 24px;
+    }
+
+    .payment-page .hero-eyebrow {
+        display: inline-block;
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: var(--denim);
+        background: rgba(255,255,255,0.7);
+        border: 1px solid rgba(43,76,126,0.15);
+        padding: 4px 12px;
+        border-radius: 999px;
+        margin-bottom: 14px;
+    }
+
+    .payment-page .page-title {
+        font-family: var(--font-display);
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--ink);
+        margin: 0 0 8px;
+    }
+
+    .payment-page .page-subtitle {
+        color: var(--ink-muted);
+        font-size: 0.9375rem;
+        margin: 0 0 20px;
+    }
+
+    .payment-page .amount-badge {
+        display: inline-flex;
+        flex-direction: column;
+        background: var(--paper);
+        border: 2px solid var(--denim);
+        border-radius: var(--radius-md);
+        padding: 12px 24px;
+        box-shadow: 0 4px 12px rgba(43,76,126,0.12);
+    }
+
+    .payment-page .amount-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--ink-muted);
+    }
+
+    .payment-page .amount-value {
+        font-family: var(--font-mono);
+        font-size: 1.75rem;
+        font-weight: 800;
+        color: var(--denim);
+    }
+
+    .payment-page .amount-currency {
+        font-size: 1rem;
+        font-weight: 600;
+    }
+
+    .payment-page .steps-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 24px;
+        padding: 0 8px;
+    }
+
+    .payment-page .step-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+        min-width: 80px;
+    }
+
+    .payment-page .step-circle {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--sand);
+        border: 2px solid var(--border);
+        color: #94A3B8;
+    }
+
+    .payment-page .step-item--done .step-circle {
+        background: var(--pine-tint);
+        border-color: var(--pine);
+        color: var(--pine);
+    }
+
+    .payment-page .step-item--done {
+        color: var(--pine);
+    }
+
+    .payment-page .step-item--current .step-circle {
+        background: var(--denim-tint);
+        border-color: var(--denim);
+        color: var(--denim);
+    }
+
+    .payment-page .step-item--current {
+        color: var(--denim);
+    }
+
+    .payment-page .step-connector {
+        flex: 1;
+        max-width: 48px;
+        height: 2px;
+        background: var(--border);
+        margin-bottom: 20px;
+    }
+
+    .payment-page .step-connector--done {
+        background: var(--pine);
+    }
+
+    .payment-page .payment-card {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 24px;
+        box-shadow: 0 2px 10px rgba(22, 35, 58, 0.03);
+    }
+
+    .payment-page .payment-card--center {
+        text-align: center;
+        padding: 56px 28px;
+    }
+
+    .payment-page .loading-spinner-wrap {
+        display: flex;
+        justify-content: center;
+    }
+
+    .payment-page .loading-text {
+        color: var(--ink-muted);
+        font-size: 0.9375rem;
+    }
+
+    .payment-page .section-header-row,
+    .payment-page .provider-block {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .payment-page .section-icon-wrap,
+    .payment-page .provider-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: var(--denim-tint);
+        color: var(--denim);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .payment-page .provider-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1.0625rem;
+        color: var(--ink);
+        margin: 0 0 6px;
+    }
+
+    .payment-page .provider-text {
+        color: var(--ink-muted);
+        font-size: 0.875rem;
+        line-height: 1.55;
+        margin: 0;
+    }
+
+    /* Formulaire adresse */
+    .address-form-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .form-row-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .form-label {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--ink);
+    }
+
+    .form-input {
+        width: 100%;
+        padding: 10px 14px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--sand);
+        font-family: var(--font-body);
+        font-size: 0.875rem;
+        color: var(--ink);
+        outline: none;
+        transition: all 0.2s ease;
+    }
+
+    .form-input:focus {
+        border-color: var(--denim);
+        background: var(--paper);
+        box-shadow: 0 0 0 3px var(--denim-tint);
+    }
+
+    .payment-page .security-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+        padding-top: 18px;
+        border-top: 1px solid var(--border);
+    }
+
+    .payment-page .security-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--denim);
+        background: var(--denim-tint);
+        padding: 5px 12px;
+        border-radius: 999px;
+    }
+
+    .payment-page .payment-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 24px;
+    }
+
+    .payment-page .payment-btn {
+        width: 100%;
+        justify-content: center;
+        padding: 13px 20px;
+        font-size: 0.9375rem;
+    }
+
+    .payment-page .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: none;
+        border-radius: var(--radius-sm);
+        padding: 11px 22px;
+        width: 100%;
+        font-family: var(--font-body);
+        font-weight: 600;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: background 0.15s ease, transform 0.15s ease;
+    }
+
+    .payment-page .btn--primary {
+        background: var(--denim);
+        color: #fff;
+        box-shadow: 0 6px 16px -6px rgba(43,76,126,0.4);
+    }
+
+    .payment-page .btn--primary:hover:not(:disabled) {
+        background: var(--denim-dark);
+    }
+
+    .payment-page .btn--outline {
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid var(--border);
+    }
+
+    .payment-page .btn--outline:hover:not(:disabled) {
+        border-color: var(--denim);
+        color: var(--denim);
+    }
+
+    .payment-page .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .payment-page .error-block {
+        text-align: center;
+        padding: 12px 0;
+    }
+
+    .payment-page .error-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: var(--rust-tint);
+        color: var(--rust);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 16px;
+    }
+
+    .payment-page .error-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1.125rem;
+        color: var(--ink);
+        margin: 0 0 8px;
+    }
+
+    .payment-page .error-text {
+        color: var(--ink-muted);
+        font-size: 0.9375rem;
+        max-width: 420px;
+        margin: 0 auto;
+    }
+
+    @@media (max-width: 480px) {
+        .payment-page .payment-hero {
+            padding: 24px 20px;
+        }
+
+        .payment-page .step-item {
+            min-width: 64px;
+            font-size: 0.6875rem;
+        }
+
+        .form-row-2 {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+@code {
+    [Parameter]
+    public int CommandeId { get; set; }
+
+    private bool isLoading = true;
+    private bool isProcessing = false;
+    private string? errorMessage;
+    private PaymentResponseDto? paymentResponse;
+
+    private string adresseLivraison = "";
+    private string codePostal = "7015";
+    private string ville = "";
+    private string pays = "Tunisia";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPaymentData();
+    }
+
+    private async Task LoadPaymentData()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var request = new PaymentRequestDto
+            {
+                CommandeId = CommandeId,
+                Currency = "TND",
+                AdresseLivraison = adresseLivraison,
+                CodePostal = codePostal,
+                Ville = ville,
+                Pays = pays
+            };
+
+            paymentResponse = await PaymentService.CreateCheckout(request);
+            if (paymentResponse == null)
+            {
+                errorMessage = "Impossible de créer la session de paiement Lemon Squeezy. Assurez-vous que la commande est éligible au paiement.";
+                return;
+            }
+
+            if (string.IsNullOrEmpty(paymentResponse.CheckoutUrl))
+            {
+                errorMessage = "La session de paiement n'a pas pu être générée correctement. Veuillez réessayer.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Erreur lors de la préparation du paiement : {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ProceedToCheckout()
+    {
+        try
+        {
+            isProcessing = true;
+
+            // Mettre à jour avec l'adresse finale saisie par le client
+            var request = new PaymentRequestDto
+            {
+                CommandeId = CommandeId,
+                Currency = "TND",
+                AdresseLivraison = adresseLivraison,
+                CodePostal = codePostal,
+                Ville = ville,
+                Pays = pays
+            };
+
+            var freshResponse = await PaymentService.CreateCheckout(request);
+            var url = freshResponse?.CheckoutUrl ?? paymentResponse?.CheckoutUrl;
+
+            if (!string.IsNullOrEmpty(url))
+            {
+                Navigation.NavigateTo(url, forceLoad: true);
+            }
+            else
+            {
+                Snackbar.Add("URL de paiement introuvable.", Severity.Error);
+                isProcessing = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erreur : {ex.Message}", Severity.Error);
+            isProcessing = false;
+        }
+    }
+
+    private void RetourCommande()
+    {
+        Navigation.NavigateTo($"/mes-commandes/suivi/{CommandeId}");
+    }
+}

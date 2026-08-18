@@ -1,0 +1,250 @@
+@page "/payment/success/{CommandeId}"
+@attribute [AllowAnonymous]
+@inject NavigationManager Navigation
+@inject HttpClient Http
+
+<PageTitle>Paiement réussi | WicStock</PageTitle>
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="success-page">
+    <div class="success-card">
+        @if (isLoading)
+        {
+            <div class="loading-state">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+                <p class="loading-text">Confirmation du paiement en cours...</p>
+            </div>
+        }
+        else
+        {
+            <div class="success-icon-wrap">
+                <div class="success-circle">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Large" />
+                </div>
+            </div>
+
+            <h1 class="success-title">Paiement réussi !</h1>
+            <p class="success-msg">
+                Votre paiement a été traité avec succès.<br />
+                Votre commande passe maintenant en phase de livraison.
+            </p>
+
+            <div class="countdown-bar">
+                <div class="countdown-fill" style="animation-duration: @($"{countdown}s");"></div>
+            </div>
+            <p class="countdown-text">Redirection dans @secondsLeft secondes...</p>
+
+            <div class="success-actions">
+                <button class="btn btn-primary" @onclick="VoirCommande">
+                    <MudIcon Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" />
+                    Suivre ma commande
+                </button>
+                <button class="btn btn-outline" @onclick="AllerMesCommandes">
+                    <MudIcon Icon="@Icons.Material.Filled.List" Size="Size.Small" />
+                    Toutes mes commandes
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .success-page {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #F0FDF4 0%, #EEF9F4 50%, #E4F3EC 100%);
+        padding: 24px;
+        font-family: 'Inter', sans-serif;
+    }
+
+    .success-card {
+        background: white;
+        border-radius: 24px;
+        padding: 56px 48px;
+        text-align: center;
+        box-shadow: 0 24px 64px rgba(30, 107, 76, 0.12), 0 4px 16px rgba(0,0,0,0.06);
+        max-width: 480px;
+        width: 100%;
+        animation: slideUp 0.4s ease;
+    }
+
+    @@keyframes slideUp {
+        from { opacity: 0; transform: translateY(24px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .success-icon-wrap {
+        margin-bottom: 28px;
+    }
+
+    .success-circle {
+        width: 96px;
+        height: 96px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #1E6B4C, #0D4A2F);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 56px;
+        box-shadow: 0 8px 32px rgba(30, 107, 76, 0.35);
+        animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both;
+    }
+
+    @@keyframes popIn {
+        from { opacity: 0; transform: scale(0.6); }
+        to { opacity: 1; transform: scale(1); }
+    }
+
+    .success-title {
+        font-family: 'Sora', sans-serif;
+        font-size: 1.875rem;
+        font-weight: 800;
+        color: #1E6B4C;
+        margin: 0 0 16px;
+        letter-spacing: -0.02em;
+    }
+
+    .success-msg {
+        font-size: 1rem;
+        color: #64748B;
+        line-height: 1.6;
+        margin-bottom: 32px;
+    }
+
+    .success-msg strong {
+        color: #16233A;
+        font-weight: 600;
+    }
+
+    .countdown-bar {
+        height: 4px;
+        background: #E4F3EC;
+        border-radius: 999px;
+        overflow: hidden;
+        margin-bottom: 8px;
+    }
+
+    .countdown-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #1E6B4C, #38A169);
+        border-radius: 999px;
+        animation: shrink linear forwards;
+    }
+
+    @@keyframes shrink {
+        from { width: 100%; }
+        to { width: 0%; }
+    }
+
+    .countdown-text {
+        font-size: 0.8125rem;
+        color: #94A3B8;
+        margin-bottom: 32px;
+    }
+
+    .success-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 14px 24px;
+        border-radius: 12px;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        transition: all 0.15s ease;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #1E6B4C, #0D4A2F);
+        color: white;
+        box-shadow: 0 4px 12px rgba(30, 107, 76, 0.3);
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(30, 107, 76, 0.4);
+    }
+
+    .btn-outline {
+        background: white;
+        color: #64748B;
+        border: 1px solid #E1E7EF;
+    }
+
+    .btn-outline:hover {
+        border-color: #1E6B4C;
+        color: #1E6B4C;
+        background: #F0FDF4;
+    }
+
+    .loading-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        padding: 32px 0;
+    }
+
+    .loading-text {
+        color: #64748B;
+        font-size: 0.9375rem;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public int CommandeId { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "confirmed")]
+    public string? Confirmed { get; set; }
+
+    private bool isLoading = true;
+    private int countdown = 5;
+    private int secondsLeft = 5;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Le backend a déjà mis à jour le statut via le redirect
+        // On attend juste un instant pour afficher la page
+        await Task.Delay(500);
+        isLoading = false;
+        StateHasChanged();
+
+        // Countdown et redirection automatique
+        _ = StartCountdown();
+    }
+
+    private async Task StartCountdown()
+    {
+        for (int i = countdown; i > 0; i--)
+        {
+            await Task.Delay(1000);
+            secondsLeft = i - 1;
+            await InvokeAsync(StateHasChanged);
+        }
+        await InvokeAsync(() => Navigation.NavigateTo($"/mes-commandes/suivi/{CommandeId}"));
+    }
+
+    private void VoirCommande() =>
+        Navigation.NavigateTo($"/mes-commandes/suivi/{CommandeId}");
+
+    private void AllerMesCommandes() =>
+        Navigation.NavigateTo("/mes-commandes");
+}

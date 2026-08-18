@@ -1,0 +1,1379 @@
+@page "/utilisateurs"
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "ADMIN")]
+@inject UtilisateurService UtilisateurService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Gestion des Utilisateurs | WicStock Admin</PageTitle>
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="admin-page">
+
+    <!-- ===== EN-TÊTE ===== -->
+    <div class="admin-hero">
+        <div class="hero-icon">
+            <MudIcon Icon="@Icons.Material.Filled.Groups" Size="Size.Medium" />
+        </div>
+        <div class="hero-text">
+            <h1 class="page-title">Gestion des utilisateurs</h1>
+            <p class="page-subtitle">Gérez les accès, rôles et comptes des utilisateurs de la plateforme WicStock.</p>
+        </div>
+
+        <div class="hero-actions">
+            <div class="view-toggle">
+                <button class="view-toggle-btn @(isGridView ? "active" : "")" @onclick="() => isGridView = true" aria-label="Vue grille">
+                    <MudIcon Icon="@Icons.Material.Filled.GridView" Size="Size.Small" />
+                </button>
+                <button class="view-toggle-btn @(!isGridView ? "active" : "")" @onclick="() => isGridView = false" aria-label="Vue tableau">
+                    <MudIcon Icon="@Icons.Material.Filled.FormatListBulleted" Size="Size.Small" />
+                </button>
+            </div>
+            <button class="btn btn--primary" @onclick="AllerVersInscription">
+                <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Size="Size.Small" />
+                <span>Nouvel utilisateur</span>
+            </button>
+        </div>
+    </div>
+
+    @if (utilisateurs != null && utilisateurs.Any())
+    {
+        <!-- ===== STATISTIQUES ===== -->
+        <div class="stats-row mb-6">
+            <div class="stat-card">
+                <div class="stat-icon stat-icon--denim">
+                    <MudIcon Icon="@Icons.Material.Filled.Groups" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@utilisateurs.Count</div>
+                    <div class="stat-label">Comptes au total</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon stat-icon--denim">
+                    <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@CountByRole("ADMIN")</div>
+                    <div class="stat-label">Admins</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon stat-icon--amber">
+                    <MudIcon Icon="@Icons.Material.Filled.Warehouse" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@CountByRole("RESPONSABLE_STOCK_PRODUCTION")</div>
+                    <div class="stat-label">Resp. Stock &amp; Production</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon stat-icon--rust">
+                    <MudIcon Icon="@Icons.Material.Filled.Storefront" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@CountByRole("CLIENT")</div>
+                    <div class="stat-label">Clients</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon stat-icon--pine">
+                    <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@CountByRole("LIVREUR")</div>
+                    <div class="stat-label">Livreurs</div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <MudStack Spacing="6">
+
+        <!-- ===== FILTRES ===== -->
+        <div class="filters-card">
+            <label class="filter-label" for="role-filter">
+                <MudIcon Icon="@Icons.Material.Filled.FilterList" Size="Size.Small" />
+                Rôle
+            </label>
+            <select id="role-filter" class="filter-select" @bind="roleFilter">
+                <option value="">Tous les rôles</option>
+                <option value="ADMIN">Admin</option>
+                <option value="RESPONSABLE_STOCK_PRODUCTION">Resp. Stock & Production</option>
+                <option value="CLIENT">Client</option>
+                <option value="LIVREUR">Livreur</option>
+            </select>
+
+            <div class="search-wrap">
+                <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" Class="search-icon" />
+                <input class="search-input" placeholder="Rechercher par nom, prénom, email..." @bind="searchString" @bind:event="oninput" />
+            </div>
+
+            <span class="filter-count">@FilteredUtilisateurs.Count() résultat(s)</span>
+        </div>
+
+        <!-- ===== CORPS ===== -->
+        @if (utilisateurs == null)
+        {
+            <MudGrid Spacing="3">
+                @for (int i = 0; i < 6; i++)
+                {
+                    <MudItem xs="12" sm="6" md="4">
+                        <div class="skeleton-card">
+                            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="72px" />
+                            <div class="pa-4 d-flex flex-column gap-2">
+                                <MudSkeleton Width="60%" Height="20px" />
+                                <MudSkeleton Width="40%" Height="16px" />
+                                <MudSkeleton Width="80%" Height="16px" Class="mt-2" />
+                            </div>
+                        </div>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+        else if (!FilteredUtilisateurs.Any())
+        {
+            <div class="empty-card">
+                <MudIcon Icon="@Icons.Material.Filled.PeopleOutline" Size="Size.Large" Class="empty-icon" />
+                <h3 class="empty-title">Aucun utilisateur trouvé</h3>
+                <p class="empty-subtitle">Modifiez vos filtres ou créez un nouvel utilisateur.</p>
+            </div>
+        }
+        else if (isGridView)
+        {
+            <!-- VUE GRILLE -->
+            <MudGrid Spacing="3">
+                @foreach (var user in FilteredUtilisateurs)
+                {
+                    var roleColor = GetRoleColor(user.Role);
+                    <MudItem xs="12" sm="6" md="4">
+                        <div class="user-card">
+                            <div class="swatch-strip" style="background: @roleColor;"></div>
+                            <div class="user-avatar-zone">
+                                <div class="user-avatar" style="background: @roleColor;">
+                                    @GetInitials(user.Prenom, user.Nom)
+                                </div>
+                                <div class="badge-role" style="background: @roleColor;">
+                                    @GetRoleLabel(user.Role)
+                                </div>
+                            </div>
+                            <div class="user-body">
+                                <div>
+                                    <div class="user-name">@user.Prenom @user.Nom</div>
+                                    <div class="user-id">
+                                        <span class="id-code">UTL-@(user.Id.ToString("D4"))</span>
+                                    </div>
+                                </div>
+                                <div class="contact-block">
+                                    <div class="contact-row">
+                                        <MudIcon Icon="@Icons.Material.Filled.Email" Size="Size.Small" Class="contact-icon" />
+                                        <span class="contact-value">@user.Email</span>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(user.Telephone))
+                                    {
+                                        <div class="contact-row">
+                                            <MudIcon Icon="@Icons.Material.Filled.Phone" Size="Size.Small" Class="contact-icon" />
+                                            <span class="contact-value">@user.Telephone</span>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="user-footer">
+                                    <div class="role-select-wrap">
+                                        <MudSelect T="string"
+                                                   Value="@user.Role"
+                                                   ValueChanged="@(async (newRole) => await ModifierRoleUser(user, newRole))"
+                                                   Label="Rôle"
+                                                   Variant="Variant.Outlined"
+                                                   Margin="Margin.Dense"
+                                                   Style="font-size: 0.85rem; font-weight: 600;">
+                                            <MudSelectItem Value="@("ADMIN")">Admin</MudSelectItem>
+                                            <MudSelectItem Value="@("RESPONSABLE_STOCK_PRODUCTION")">Resp. Stock & Production</MudSelectItem>
+                                            <MudSelectItem Value="@("CLIENT")">Client</MudSelectItem>
+                                            <MudSelectItem Value="@("LIVREUR")">Livreur</MudSelectItem>
+                                        </MudSelect>
+                                    </div>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                   Size="Size.Small"
+                                                   Class="action-btn action-btn--edit"
+                                                   Title="Modifier"
+                                                   OnClick="() => OuvrirEdition(user)" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                   Size="Size.Small"
+                                                   Class="action-btn action-btn--danger"
+                                                   Title="Supprimer"
+                                                   OnClick="() => DemanderSuppression(user)" />
+                                </div>
+                            </div>
+                        </div>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+        else
+        {
+            <!-- VUE TABLEAU -->
+            <div class="table-panel">
+                <MudTable Items="@FilteredUtilisateurs"
+                          Hover="true"
+                          Elevation="0"
+                          Class="users-table">
+                    <HeaderContent>
+                        <MudTh></MudTh>
+                        <MudTh>Référence</MudTh>
+                        <MudTh>Nom &amp; Prénom</MudTh>
+                        <MudTh>Email</MudTh>
+                        <MudTh>Téléphone</MudTh>
+                        <MudTh>Rôle</MudTh>
+                        <MudTh Style="text-align: right;">Actions</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Avatar">
+                            <div class="table-avatar" style="background: @GetRoleColor(context.Role);">
+                                @GetInitials(context.Prenom, context.Nom)
+                            </div>
+                        </MudTd>
+                        <MudTd DataLabel="Référence">
+                            <span class="ref-code">UTL-@(context.Id.ToString("D4"))</span>
+                        </MudTd>
+                        <MudTd DataLabel="Nom" Class="cell-name">@context.Prenom @context.Nom</MudTd>
+                        <MudTd DataLabel="Email">@context.Email</MudTd>
+                        <MudTd DataLabel="Téléphone">@(string.IsNullOrEmpty(context.Telephone) ? "—" : context.Telephone)</MudTd>
+                        <MudTd DataLabel="Rôle">
+                            <span class="table-role-tag" style="background: @GetRoleColor(context.Role);">
+                                @GetRoleLabel(context.Role)
+                            </span>
+                        </MudTd>
+                        <MudTd Style="text-align: right;">
+                            <div class="d-flex justify-end gap-1">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                               Size="Size.Small"
+                                               Class="action-btn action-btn--edit"
+                                               Title="Modifier"
+                                               OnClick="() => OuvrirEdition(context)" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Size="Size.Small"
+                                               Class="action-btn action-btn--danger"
+                                               Title="Supprimer"
+                                               OnClick="() => DemanderSuppression(context)" />
+                            </div>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </div>
+        }
+    </MudStack>
+</div>
+
+<!-- ===== MODAL : MODIFIER UTILISATEUR ===== -->
+@if (userEnEdition != null)
+{
+    <div class="wic-modal-overlay" @onclick="FermerEdition">
+        <div class="wic-modal-card" @onclick:stopPropagation="true">
+            <div class="wic-modal-header">
+                <div class="wic-modal-header-left">
+                    <div class="wic-modal-icon">
+                        <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" />
+                    </div>
+                    <div>
+                        <h3 class="wic-modal-title">Modifier l'utilisateur</h3>
+                        <p class="wic-modal-subtitle">UTL-@(userEnEdition.Id.ToString("D4")) — @userEnEdition.Email</p>
+                    </div>
+                </div>
+                <button class="wic-modal-close" @onclick="FermerEdition" aria-label="Fermer">
+                    <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                </button>
+            </div>
+
+            <div class="wic-modal-body">
+                <div class="edit-row">
+                    <MudTextField @bind-Value="editPrenom"
+                                  Label="Prénom"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  FullWidth="true" />
+                    <MudTextField @bind-Value="editNom"
+                                  Label="Nom"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  FullWidth="true" />
+                </div>
+                <MudTextField @bind-Value="editEmail"
+                              Label="Adresse Email"
+                              Placeholder="exemple@domaine.com"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              FullWidth="true"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Email" />
+                <MudTextField @bind-Value="editTelephone"
+                              Label="Téléphone"
+                              Placeholder="+216 XX XXX XXX"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              FullWidth="true"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Phone" />
+                <div class="dialog-info-block">
+                    <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Style="color: #64748B;" />
+                    <span>Le rôle se modifie directement depuis le menu déroulant sur la carte / tableau.</span>
+                </div>
+            </div>
+
+            <div class="wic-modal-footer">
+                <button class="btn btn--outline" @onclick="FermerEdition" disabled="@enregistrementEnCours">Annuler</button>
+                <button class="btn btn--primary" @onclick="SauvegarderEdition" disabled="@enregistrementEnCours">
+                    @if (enregistrementEnCours)
+                    {
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" Color="Color.Inherit" />
+                        <span>Enregistrement...</span>
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Save" Size="Size.Small" />
+                        <span>Enregistrer</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ===== MODAL : CONFIRMER SUPPRESSION ===== -->
+@if (userASupprimer != null)
+{
+    <div class="wic-modal-overlay" @onclick="FermerSuppression">
+        <div class="wic-confirm-card" @onclick:stopPropagation="true">
+            <div class="wic-confirm-icon">
+                <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Large" />
+            </div>
+            <h3 class="wic-confirm-title">Supprimer cet utilisateur ?</h3>
+            <p class="wic-confirm-text">
+                Cette action est définitive et ne peut pas être annulée. Le compte de
+                <strong>@userASupprimer.Prenom @userASupprimer.Nom</strong> (<strong>@userASupprimer.Email</strong>)
+                sera supprimé.
+            </p>
+            <div class="wic-confirm-role">
+                <span class="table-role-tag" style="background: @GetRoleColor(userASupprimer.Role);">
+                    @GetRoleLabel(userASupprimer.Role)
+                </span>
+            </div>
+            <div class="wic-confirm-actions">
+                <button class="btn btn--outline" @onclick="FermerSuppression">Annuler</button>
+                <button class="btn btn--danger" @onclick="ConfirmerSuppression">
+                    <MudIcon Icon="@Icons.Material.Filled.DeleteForever" Size="Size.Small" />
+                    <span>Oui, supprimer</span>
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .admin-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --sand: #F3F6FA;
+        --border: #E1E7EF;
+        --denim: #2B4C7E;
+        --denim-dark: #1E3A63;
+        --denim-soft: #E7EDF6;
+        --rust: #B5563A;
+        --rust-soft: #F9ECE8;
+        --pine: #1E6B4C;
+        --pine-soft: #E4F3EC;
+        --amber: #D97706;
+        --amber-soft: #FEF3C7;
+        --radius-sm: 8px;
+        --radius-md: 10px;
+        --radius-lg: 16px;
+        --font-display: "Sora", "Inter", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        font-family: var(--font-body);
+        color: var(--ink);
+    }
+
+        /* ===== En-tête ===== */
+        .admin-page .admin-hero {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .admin-page .hero-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
+            background: var(--denim-soft);
+            color: var(--denim);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .admin-page .hero-text {
+            flex: 1;
+            min-width: 220px;
+        }
+
+        .admin-page .page-title {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.75rem;
+            color: var(--ink);
+            margin: 0 0 4px 0;
+            letter-spacing: -0.02em;
+        }
+
+        .admin-page .page-subtitle {
+            color: var(--ink-muted);
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        .admin-page .hero-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        /* ===== Statistiques ===== */
+        .admin-page .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 14px;
+        }
+
+        .admin-page .stat-card {
+            background: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 16px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 8px rgba(22, 35, 58, 0.03);
+        }
+
+        .admin-page .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .admin-page .stat-icon--denim {
+            background: var(--denim-soft);
+            color: var(--denim);
+        }
+
+        .admin-page .stat-icon--amber {
+            background: var(--amber-soft);
+            color: var(--amber);
+        }
+
+        .admin-page .stat-icon--pine {
+            background: var(--pine-soft);
+            color: var(--pine);
+        }
+
+        .admin-page .stat-icon--rust {
+            background: var(--rust-soft);
+            color: var(--rust);
+        }
+
+        .admin-page .stat-value {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--ink);
+            line-height: 1.1;
+        }
+
+        .admin-page .stat-label {
+            font-size: 0.78rem;
+            color: var(--ink-muted);
+            margin-top: 2px;
+        }
+
+        /* ===== View toggle ===== */
+        .admin-page .view-toggle {
+            display: flex;
+            gap: 2px;
+            padding: 3px;
+            background: var(--sand);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+
+        .admin-page .view-toggle-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            color: var(--ink-muted);
+            cursor: pointer;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+
+            .admin-page .view-toggle-btn.active {
+                background: var(--paper);
+                color: var(--denim);
+                box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+            }
+
+            .admin-page .view-toggle-btn:hover:not(.active) {
+                color: var(--ink);
+            }
+
+        /* ===== Boutons ===== */
+        .admin-page .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: none;
+            border-radius: var(--radius-sm);
+            padding: 10px 20px;
+            font-family: var(--font-body);
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+            .admin-page .btn:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+        .admin-page .btn--primary {
+            background: var(--denim);
+            color: #fff;
+            box-shadow: 0 6px 16px -6px rgba(43,76,126,0.4);
+        }
+
+            .admin-page .btn--primary:hover:not(:disabled) {
+                background: var(--denim-dark);
+            }
+
+        .admin-page .btn--ghost {
+            background: transparent;
+            color: var(--ink-muted);
+            border: 1px solid var(--border);
+        }
+
+            .admin-page .btn--ghost:hover {
+                background: var(--sand);
+                color: var(--ink);
+            }
+
+        .admin-page .btn--danger {
+            background: var(--rust);
+            color: #fff;
+            box-shadow: 0 6px 16px -6px rgba(181, 86, 58, 0.35);
+        }
+
+            .admin-page .btn--danger:hover {
+                background: #96412A;
+            }
+
+        /* ===== Filtres ===== */
+        .admin-page .filters-card {
+            background: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .admin-page .filter-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--ink-muted);
+            white-space: nowrap;
+        }
+
+        .admin-page .filter-select {
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 8px 14px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            font-family: var(--font-body);
+            color: var(--ink);
+            background: var(--paper);
+            cursor: pointer;
+            outline: none;
+            min-width: 220px;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+            .admin-page .filter-select:focus {
+                border-color: var(--denim);
+                box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.14);
+            }
+
+        .admin-page .search-wrap {
+            position: relative;
+            flex: 1;
+            min-width: 220px;
+        }
+
+        .admin-page .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--ink-muted);
+            pointer-events: none;
+        }
+
+        .admin-page .search-input {
+            width: 100%;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 8px 14px 8px 36px;
+            font-size: 0.875rem;
+            font-family: var(--font-body);
+            color: var(--ink);
+            outline: none;
+            box-sizing: border-box;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+            .admin-page .search-input:focus {
+                border-color: var(--denim);
+                box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.14);
+            }
+
+        .admin-page .filter-count {
+            margin-left: auto;
+            font-size: 0.8rem;
+            color: var(--ink-muted);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        /* ===== Skeleton ===== */
+        .admin-page .skeleton-card {
+            background: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        /* ===== État vide ===== */
+        .admin-page .empty-card {
+            text-align: center;
+            background: var(--paper);
+            border: 1px dashed var(--border);
+            border-radius: var(--radius-lg);
+            padding: 48px 24px;
+        }
+
+        .admin-page .empty-icon {
+            font-size: 48px;
+            color: #CBD5E1;
+        }
+
+        .admin-page .empty-title {
+            font-family: var(--font-display);
+            font-weight: 700;
+            color: var(--ink);
+            margin: 12px 0 4px 0;
+        }
+
+        .admin-page .empty-subtitle {
+            color: var(--ink-muted);
+            font-size: 0.9rem;
+            margin: 0;
+        }
+
+        /* ===== Carte utilisateur (vue grille) ===== */
+        .admin-page .user-card {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            background: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(22, 35, 58, 0.03);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+
+            .admin-page .user-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 20px -10px rgba(22, 35, 58, 0.22);
+            }
+
+        .admin-page .swatch-strip {
+            height: 4px;
+            width: 100%;
+        }
+
+        .admin-page .user-avatar-zone {
+            position: relative;
+            width: 100%;
+            height: 100px;
+            background: var(--sand);
+            background-image: repeating-linear-gradient(45deg, rgba(43,76,126,0.05) 0px, rgba(43,76,126,0.05) 2px, transparent 2px, transparent 9px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .admin-page .user-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            color: #fff;
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            border: 3px solid var(--paper);
+        }
+
+        .admin-page .badge-role {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 0.6875rem;
+            font-weight: 700;
+            color: #fff;
+            padding: 4px 10px;
+            border-radius: 999px;
+        }
+
+        .admin-page .user-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 16px;
+        }
+
+        .admin-page .user-name {
+            font-family: var(--font-display);
+            font-weight: 700;
+            color: var(--ink);
+            font-size: 1rem;
+            line-height: 1.3;
+        }
+
+        .admin-page .user-id {
+            margin-top: 4px;
+        }
+
+        .admin-page .id-code {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            font-size: 0.6875rem;
+            color: var(--denim);
+            background: var(--denim-soft);
+            padding: 2px 7px;
+            border-radius: 5px;
+            letter-spacing: 0.02em;
+        }
+
+        .admin-page .contact-block {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            background: var(--sand);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+        }
+
+        .admin-page .contact-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .admin-page .contact-icon {
+            color: var(--ink-muted) !important;
+            font-size: 1rem !important;
+            flex-shrink: 0;
+        }
+
+        .admin-page .contact-value {
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--ink);
+            word-break: break-all;
+        }
+
+        .admin-page .user-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .admin-page .role-select-wrap {
+            flex: 1;
+        }
+
+        .admin-page .action-btn {
+            color: var(--ink-muted) !important;
+        }
+
+        .admin-page .action-btn--edit:hover {
+            color: var(--denim) !important;
+            background: var(--denim-soft) !important;
+        }
+
+        .admin-page .action-btn--danger:hover {
+            color: var(--rust) !important;
+            background: var(--rust-soft) !important;
+        }
+
+        /* ===== Tableau ===== */
+        .admin-page .table-panel {
+            background: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(22, 35, 58, 0.03);
+        }
+
+        .admin-page .users-table .mud-table-head th {
+            font-family: var(--font-body);
+            font-weight: 700;
+            color: var(--ink-muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            background: var(--sand);
+        }
+
+        .admin-page .users-table .mud-table-row:hover {
+            background: var(--denim-soft) !important;
+        }
+
+        .admin-page .cell-name {
+            font-family: var(--font-display);
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .admin-page .ref-code {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            font-size: 0.75rem;
+            color: var(--denim);
+            background: var(--denim-soft);
+            padding: 3px 8px;
+            border-radius: 6px;
+            letter-spacing: 0.02em;
+        }
+
+        .admin-page .table-role-tag {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #fff;
+            padding: 4px 11px;
+            border-radius: 999px;
+        }
+
+        .admin-page .table-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            color: #fff;
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+    /* ===== Modal overlay (portée globale, rendu hors de .admin-page) ===== */
+    .wic-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(6px);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        font-family: "Inter", sans-serif;
+        animation: wicFadeIn 0.15s ease;
+    }
+
+    @@keyframes wicFadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    @@keyframes wicSlideUp {
+        from {
+            opacity: 0;
+            transform: translateY(16px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Modal d'édition */
+    .wic-modal-card {
+        background: #ffffff !important;
+        border: 1px solid #E1E7EF;
+        border-radius: 20px;
+        width: 100%;
+        max-width: 540px;
+        box-shadow: 0 24px 60px rgba(22, 35, 58, 0.28), 0 4px 12px rgba(22, 35, 58, 0.1);
+        overflow: hidden;
+        animation: wicSlideUp 0.2s ease;
+    }
+
+    .wic-modal-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 22px 24px;
+        background: linear-gradient(180deg, #E7EDF6 0%, #FFFFFF 100%);
+        border-bottom: 1px solid #E1E7EF;
+    }
+
+    .wic-modal-header-left {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .wic-modal-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: #FFFFFF;
+        border: 1px solid #E1E7EF;
+        color: #2B4C7E;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .wic-modal-title {
+        font-family: "Sora", sans-serif;
+        font-weight: 700;
+        font-size: 1.15rem;
+        margin: 0;
+        color: #16233A;
+    }
+
+    .wic-modal-subtitle {
+        font-size: 0.85rem;
+        margin: 2px 0 0 0;
+        color: #64748B;
+    }
+
+    .wic-modal-close {
+        background: #FFFFFF;
+        border: 1px solid #E1E7EF;
+        cursor: pointer;
+        color: #64748B;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+
+        .wic-modal-close:hover {
+            background: #E7EDF6;
+            color: #2B4C7E;
+            border-color: #2B4C7E;
+        }
+
+    .wic-modal-body {
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .edit-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .dialog-info-block {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #F3F6FA;
+        border: 1px solid #E1E7EF;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 0.8125rem;
+        color: #64748B;
+    }
+
+    .wic-modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        padding: 18px 24px;
+        background: #F3F6FA;
+        border-top: 1px solid #E1E7EF;
+    }
+
+        .wic-modal-footer .btn,
+        .wic-confirm-actions .btn {
+            border: none;
+            padding: 10px 22px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.15s ease;
+            font-family: "Inter", sans-serif;
+        }
+
+            .wic-modal-footer .btn:disabled,
+            .wic-confirm-actions .btn:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+        .wic-modal-footer .btn--primary {
+            background: #2B4C7E !important;
+            color: #fff !important;
+            box-shadow: 0 2px 6px rgba(43, 76, 126, 0.3);
+        }
+
+            .wic-modal-footer .btn--primary:hover:not(:disabled) {
+                background: #1E3A63 !important;
+                box-shadow: 0 4px 12px rgba(43, 76, 126, 0.4);
+                transform: translateY(-1px);
+            }
+
+        .wic-modal-footer .btn--outline,
+        .wic-confirm-actions .btn--outline {
+            background: #fff;
+            border: 1.5px solid #2B4C7E;
+            color: #2B4C7E;
+        }
+
+            .wic-modal-footer .btn--outline:hover:not(:disabled),
+            .wic-confirm-actions .btn--outline:hover:not(:disabled) {
+                background: #E7EDF6;
+            }
+
+    .wic-confirm-actions .btn--danger {
+        background: #B5563A;
+        color: #fff;
+        box-shadow: 0 2px 6px rgba(181, 86, 58, 0.25);
+    }
+
+        .wic-confirm-actions .btn--danger:hover:not(:disabled) {
+            background: #96412A;
+        }
+
+    /* Modal de confirmation de suppression */
+    .wic-confirm-card {
+        background: #fff !important;
+        border-radius: 20px;
+        width: 100%;
+        max-width: 420px;
+        box-shadow: 0 24px 60px rgba(22, 35, 58, 0.28), 0 4px 12px rgba(22, 35, 58, 0.1);
+        padding: 28px 28px 24px;
+        text-align: center;
+        animation: wicSlideUp 0.2s ease;
+    }
+
+    .wic-confirm-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: #F9ECE8;
+        color: #B5563A;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 16px;
+    }
+
+    .wic-confirm-title {
+        font-family: "Sora", sans-serif;
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: #16233A;
+        margin: 0 0 10px;
+    }
+
+    .wic-confirm-text {
+        font-size: 0.9rem;
+        color: #64748B;
+        line-height: 1.5;
+        margin: 0 0 14px;
+    }
+
+    .wic-confirm-role {
+        margin-bottom: 20px;
+    }
+
+    .wic-confirm-actions {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+    }
+
+    /* ===== Accessibilité / responsive ===== */
+    .admin-page button:focus-visible,
+    .admin-page .view-toggle-btn:focus-visible {
+        outline: 2px solid var(--denim);
+        outline-offset: 2px;
+    }
+
+    @@media (max-width: 480px) {
+        .edit-row {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (prefers-reduced-motion: reduce) {
+        .admin-page *, .wic-modal-card, .wic-confirm-card {
+            transition: none !important;
+            animation: none !important;
+        }
+    }
+</style>
+
+@code {
+    private List<UtilisateurDto>? utilisateurs;
+    private string searchString = "";
+    private string roleFilter = "";
+    private bool isGridView = true;
+
+    // ===== Edition =====
+    private UtilisateurDto? userEnEdition;
+    private string editPrenom = "";
+    private string editNom = "";
+    private string editEmail = "";
+    private string editTelephone = "";
+    private bool enregistrementEnCours = false;
+
+    // ===== Suppression =====
+    private UtilisateurDto? userASupprimer;
+
+    private static readonly Dictionary<string, string> RoleColors = new()
+    {
+        { "ADMIN",                        "#2B4C7E" },
+        { "RESPONSABLE_STOCK_PRODUCTION", "#D97706" },
+        { "CLIENT",                       "#B5563A" },
+        { "LIVREUR",                      "#1E6B4C" }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ChargerUtilisateurs();
+    }
+
+    private async Task ChargerUtilisateurs()
+    {
+        try
+        {
+            utilisateurs = await UtilisateurService.ObtenirTous();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login");
+        }
+        catch
+        {
+            utilisateurs = new List<UtilisateurDto>();
+        }
+    }
+
+    private IEnumerable<UtilisateurDto> FilteredUtilisateurs => utilisateurs == null
+        ? Enumerable.Empty<UtilisateurDto>()
+        : utilisateurs.Where(u => FilterFunc(u));
+
+    private bool FilterFunc(UtilisateurDto u)
+    {
+        if (!string.IsNullOrEmpty(roleFilter) && !string.Equals(u.Role, roleFilter, StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (u.Nom?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (u.Prenom?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (u.Email?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (u.Role?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        return false;
+    }
+
+    private int CountByRole(string role) =>
+        utilisateurs?.Count(u => string.Equals(u.Role, role, StringComparison.OrdinalIgnoreCase)) ?? 0;
+
+    private string GetInitials(string prenom, string nom)
+    {
+        var p = string.IsNullOrWhiteSpace(prenom) ? "" : prenom.Trim()[0].ToString().ToUpper();
+        var n = string.IsNullOrWhiteSpace(nom) ? "" : nom.Trim()[0].ToString().ToUpper();
+        return $"{p}{n}";
+    }
+
+    private string GetRoleColor(string role) =>
+        RoleColors.TryGetValue(role ?? "", out var color) ? color : "#64748B";
+
+    private string GetRoleLabel(string role) => role switch
+    {
+        "ADMIN" => "Admin",
+        "RESPONSABLE_STOCK_PRODUCTION" => "Resp. Stock & Production",
+        "CLIENT" => "Client",
+        "LIVREUR" => "Livreur",
+        _ => role
+    };
+
+    // ===== Edition =====
+    private void OuvrirEdition(UtilisateurDto user)
+    {
+        userEnEdition = user;
+        editPrenom = user.Prenom;
+        editNom = user.Nom;
+        editEmail = user.Email;
+        editTelephone = user.Telephone ?? "";
+    }
+
+    private void FermerEdition() => userEnEdition = null;
+
+    private async Task SauvegarderEdition()
+    {
+        if (userEnEdition == null) return;
+        if (string.IsNullOrWhiteSpace(editPrenom) || string.IsNullOrWhiteSpace(editNom))
+        {
+            Snackbar.Add("Le prénom et le nom sont obligatoires.", Severity.Warning);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editEmail) || !editEmail.Contains("@"))
+        {
+            Snackbar.Add("Veuillez saisir une adresse email valide.", Severity.Warning);
+            return;
+        }
+
+        enregistrementEnCours = true;
+
+        var dto = new ModifierUtilisateurDto
+        {
+            Prenom = editPrenom.Trim(),
+            Nom = editNom.Trim(),
+            Email = editEmail.Trim(),
+            Telephone = string.IsNullOrWhiteSpace(editTelephone) ? null : editTelephone.Trim()
+        };
+
+        var (succes, message) = await UtilisateurService.Modifier(userEnEdition.Id, dto);
+        enregistrementEnCours = false;
+
+        if (succes)
+        {
+            userEnEdition.Prenom = dto.Prenom;
+            userEnEdition.Nom = dto.Nom;
+            userEnEdition.Email = dto.Email;
+            userEnEdition.Telephone = dto.Telephone;
+            Snackbar.Add($"Utilisateur {dto.Prenom} {dto.Nom} mis à jour avec succès.", Severity.Success);
+            FermerEdition();
+        }
+        else
+        {
+            Snackbar.Add(message, Severity.Error);
+        }
+    }
+
+    // ===== Suppression =====
+    private void DemanderSuppression(UtilisateurDto user) => userASupprimer = user;
+
+    private void FermerSuppression() => userASupprimer = null;
+
+    private async Task ConfirmerSuppression()
+    {
+        if (userASupprimer == null) return;
+        var id = userASupprimer.Id;
+        FermerSuppression();
+
+        var succes = await UtilisateurService.Supprimer(id);
+        if (succes)
+        {
+            Snackbar.Add("Utilisateur supprimé avec succès.", Severity.Success);
+            await ChargerUtilisateurs();
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors de la suppression de l'utilisateur.", Severity.Error);
+        }
+    }
+
+    private async Task ModifierRoleUser(UtilisateurDto user, string nouveauRole)
+    {
+        if (user.Role == nouveauRole) return;
+        var succes = await UtilisateurService.ModifierRole(user.Id, nouveauRole);
+        if (succes)
+        {
+            user.Role = nouveauRole;
+            Snackbar.Add($"Rôle de {user.Prenom} mis à jour en {GetRoleLabel(nouveauRole)}.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors de la modification du rôle.", Severity.Error);
+        }
+    }
+
+    private void AllerVersInscription() => Navigation.NavigateTo("/register");
+}

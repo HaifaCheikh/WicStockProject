@@ -1,0 +1,28 @@
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)">
+                <NotAuthorized>
+                    <LayoutView Layout="@typeof(Layout.MainLayout)">
+                        <div class="d-flex flex-column align-center justify-center my-12 text-center">
+                            <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Large" Color="Color.Error" />
+                            <MudText Typo="Typo.h5" Class="mt-3" Style="font-weight:700;">Accès non autorisé</MudText>
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">Vous n'avez pas les permissions requises pour accéder à cette page.</MudText>
+                            <a href="/" class="btn btn-primary mt-4" style="background:#2B4C7E; color:#fff; padding:8px 16px; border-radius:8px; text-decoration:none;">Retour à l'accueil</a>
+                        </div>
+                    </LayoutView>
+                </NotAuthorized>
+            </AuthorizeRouteView>
+        </Found>
+        <NotFound>
+            <LayoutView Layout="@typeof(Layout.MainLayout)">
+                <div class="d-flex flex-column align-center justify-center my-12 text-center">
+                    <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" Color="Color.Warning" />
+                    <MudText Typo="Typo.h5" Class="mt-3" Style="font-weight:700;">Page introuvable</MudText>
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">Désolé, la page que vous recherchez n'existe pas.</MudText>
+                    <a href="/" class="btn btn-primary mt-4" style="background:#2B4C7E; color:#fff; padding:8px 16px; border-radius:8px; text-decoration:none;">Retour à l'accueil</a>
+                </div>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

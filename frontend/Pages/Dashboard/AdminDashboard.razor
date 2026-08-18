@@ -1,0 +1,1176 @@
+@page "/admin/dashboard"
+@attribute [Authorize(Roles = "ADMIN")]
+@inject DashboardService DashboardService
+@inject NavigationManager Navigation
+
+<PageTitle>Tableau de bord Admin | WicStock</PageTitle>
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="dashboard-page pa-4 pa-md-6">
+
+    <!-- ===== HEADER ===== -->
+    <div class="dashboard-header mb-6">
+        <div>
+            <span class="dashboard-kicker">Vue d'ensemble</span>
+            <h1 class="dashboard-title">Tableau de bord Administration</h1>
+            <p class="dashboard-subtitle">Activité, stock et ventes en un coup d'œil</p>
+        </div>
+        <div class="header-actions">
+            @if (derniereMiseAJour.HasValue)
+            {
+                <span class="last-updated">
+                    <MudIcon Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" />
+                    Mis à jour à @derniereMiseAJour.Value.ToString("HH:mm")
+                </span>
+            }
+            <button class="btn btn--outline" @onclick="ChargerDonnees" disabled="@isLoading">
+                <MudIcon Icon="@(isLoading ? Icons.Material.Filled.HourglassTop : Icons.Material.Filled.Refresh)" Size="Size.Small" />
+                <span>@(isLoading ? "Actualisation..." : "Actualiser")</span>
+            </button>
+        </div>
+    </div>
+
+    @if (data == null)
+    {
+        <div class="skeleton-wrap">
+            <div class="skeleton-row mb-6">
+                <div class="skeleton skeleton-kpi"></div>
+                <div class="skeleton skeleton-kpi"></div>
+                <div class="skeleton skeleton-kpi"></div>
+                <div class="skeleton skeleton-kpi"></div>
+            </div>
+            <div class="skeleton skeleton-chart"></div>
+        </div>
+    }
+    else
+    {
+        @if (data.ProduitsEnRupture > 0)
+        {
+            <div class="alert-rupture mb-6">
+                <span class="alert-icon"><MudIcon Icon="@Icons.Material.Filled.WarningAmber" Size="Size.Small" /></span>
+                <span class="alert-text"><strong>Attention :</strong> @data.ProduitsEnRupture produit(s) en rupture de stock totale.</span>
+                <a href="/produits?filtre=rupture" class="alert-action">Voir l'inventaire <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" /></a>
+            </div>
+        }
+
+        <!-- ===== KPI CARDS ===== -->
+        <MudGrid Class="mb-6">
+            <MudItem xs="12" sm="6" md="3">
+                <div class="kpi-card kpi-card--denim">
+                    <div class="kpi-top">
+                        <div class="kpi-icon">
+                            <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Small" />
+                        </div>
+                        <span class="kpi-label">Total Produits</span>
+                    </div>
+                    <h2 class="kpi-value">@data.TotalProduits.ToString("N0")</h2>
+                    <span class="kpi-sub">Articles enregistrés</span>
+                </div>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <div class="kpi-card kpi-card--pine">
+                    <div class="kpi-top">
+                        <div class="kpi-icon">
+                            <MudIcon Icon="@Icons.Material.Filled.AttachMoney" Size="Size.Small" />
+                        </div>
+                        <span class="kpi-label">Chiffre d'Affaires</span>
+                    </div>
+                    <h2 class="kpi-value">@data.RevenuTotal.ToString("N2") <small>DT</small></h2>
+                    <div class="kpi-sub-row">
+                        <span class="kpi-sub">@data.TotalProduitsVendus.ToString("N0") articles vendus</span>
+                        @if (tendanceRevenu.HasValue)
+                        {
+                            <span class="trend-badge @(tendanceRevenu.Value >= 0 ? "trend-up" : "trend-down")">
+                                <MudIcon Icon="@(tendanceRevenu.Value >= 0 ? Icons.Material.Filled.ArrowUpward : Icons.Material.Filled.ArrowDownward)" Size="Size.Small" />
+                                @if (Math.Abs(tendanceRevenu.Value) > 1000)
+                                {
+                                    <span>Croissance exceptionnelle</span>
+                                }
+                                else
+                                {
+                                    <span>@Math.Abs(tendanceRevenu.Value).ToString("N0")%</span>
+                                }
+                            </span>
+                        }
+                    </div>
+                </div>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <div class="kpi-card kpi-card--plum">
+                    <div class="kpi-top">
+                        <div class="kpi-icon">
+                            <MudIcon Icon="@Icons.Material.Filled.People" Size="Size.Small" />
+                        </div>
+                        <span class="kpi-label">Utilisateurs</span>
+                    </div>
+                    <h2 class="kpi-value">@data.TotalUtilisateurs.ToString("N0")</h2>
+                    <span class="kpi-sub">Comptes enregistrés</span>
+                </div>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <div class="kpi-card kpi-card--ochre">
+                    <div class="kpi-top">
+                        <div class="kpi-icon">
+                            <MudIcon Icon="@Icons.Material.Filled.ShoppingBag" Size="Size.Small" />
+                        </div>
+                        <span class="kpi-label">Commandes</span>
+                    </div>
+                    <h2 class="kpi-value">@data.TotalCommandes.ToString("N0")</h2>
+                    <span class="kpi-sub">Toutes demandes confondues</span>
+                </div>
+            </MudItem>
+        </MudGrid>
+
+        <!-- ===== GRAPHIQUES & REPARTITIONS ===== -->
+        <MudGrid Class="mb-6">
+            <!-- Graphique Revenus -->
+            <MudItem xs="12" lg="8">
+                <div class="chart-card">
+                    <div class="chart-header d-flex justify-space-between align-center flex-wrap gap-3">
+                        <div>
+                            <h3 class="chart-title">Évolution des Revenus Mensuels</h3>
+                            <span class="chart-subtitle">Suivi mois par mois du chiffre d'affaires généré</span>
+                        </div>
+                        <div class="chart-badge">
+                            <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Size="Size.Small" />
+                            <span>@data.RevenuTotal.ToString("N0") DT cumulés</span>
+                        </div>
+                    </div>
+
+                    <div class="chart-body">
+                        @if (data.EvolutionRevenus != null && data.EvolutionRevenus.Any())
+                        {
+                            var maxRevenu = Math.Max(100m, data.EvolutionRevenus.Max(r => r.Montant));
+
+                            <div class="bar-chart-container">
+                                <div class="bar-chart-grid">
+                                    <div class="grid-line" style="bottom: 100%;"><span>@maxRevenu.ToString("N0") DT</span></div>
+                                    <div class="grid-line" style="bottom: 75%;"><span>@((maxRevenu * 0.75m).ToString("N0")) DT</span></div>
+                                    <div class="grid-line" style="bottom: 50%;"><span>@((maxRevenu * 0.5m).ToString("N0")) DT</span></div>
+                                    <div class="grid-line" style="bottom: 25%;"><span>@((maxRevenu * 0.25m).ToString("N0")) DT</span></div>
+                                    <div class="grid-line grid-line--base" style="bottom: 0%;"><span>0 DT</span></div>
+                                </div>
+
+                                <div class="bar-chart-bars">
+                                    @foreach (var item in data.EvolutionRevenus)
+                                    {
+                                        var heightPct = (double)(item.Montant / maxRevenu * 100m);
+                                        if (heightPct < 3 && item.Montant > 0) heightPct = 3;
+
+                                        <div class="bar-column">
+                                            <div class="bar-wrapper">
+                                                @if (item.Montant > 0)
+                                                {
+                                                    <span class="bar-tooltip">@item.Montant.ToString("N0") DT</span>
+                                                }
+                                                <div class="bar-fill @(item.Montant > 0 ? "active" : "empty")" style="--bar-h: @(heightPct.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))%;"></div>
+                                            </div>
+                                            <span class="bar-label">@item.Mois</span>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="empty-state">
+                                <MudIcon Icon="@Icons.Material.Filled.ShowChart" />
+                                <p>Aucun historique de vente pour l'instant.</p>
+                                <span class="empty-state-hint">Les revenus apparaîtront ici dès les premières commandes validées.</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </MudItem>
+
+            <!-- Répartition des Statuts de Commandes -->
+            <MudItem xs="12" lg="4">
+                <div class="chart-card h-100 d-flex flex-column">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Statut des Commandes</h3>
+                        <span class="chart-subtitle">Répartition globale selon l'état</span>
+                    </div>
+
+                    <div class="chart-body flex-1 d-flex flex-column justify-center">
+                        @if (data.TotalCommandes > 0)
+                        {
+                            var total = (double)data.TotalCommandes;
+                            var accepteesPct = Math.Round((data.StatutCommandes.Acceptees / total) * 100);
+                            var enAttentePct = Math.Round((data.StatutCommandes.EnAttente / total) * 100);
+                            var refuseesPct = Math.Round((data.StatutCommandes.Refusees / total) * 100);
+
+                            <div class="donut-wrapper mb-4">
+                                <svg viewBox="0 0 36 36" class="donut-svg">
+                                    <path class="donut-ring" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+
+                                    @if (data.StatutCommandes.Acceptees > 0)
+                                    {
+                                        <path class="donut-segment segment-green"
+                                              stroke-dasharray="@(accepteesPct.ToString(System.Globalization.CultureInfo.InvariantCulture)), 100"
+                                              stroke-dashoffset="0"
+                                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    }
+                                    @if (data.StatutCommandes.EnAttente > 0)
+                                    {
+                                        <path class="donut-segment segment-ochre"
+                                              stroke-dasharray="@(enAttentePct.ToString(System.Globalization.CultureInfo.InvariantCulture)), 100"
+                                              stroke-dashoffset="@((-accepteesPct).ToString(System.Globalization.CultureInfo.InvariantCulture))"
+                                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    }
+                                    @if (data.StatutCommandes.Refusees > 0)
+                                    {
+                                        <path class="donut-segment segment-rust"
+                                              stroke-dasharray="@(refuseesPct.ToString(System.Globalization.CultureInfo.InvariantCulture)), 100"
+                                              stroke-dashoffset="@((-(accepteesPct + enAttentePct)).ToString(System.Globalization.CultureInfo.InvariantCulture))"
+                                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    }
+                                </svg>
+                                <div class="donut-center">
+                                    <span class="donut-number">@data.TotalCommandes</span>
+                                    <span class="donut-label">Commandes</span>
+                                </div>
+                            </div>
+
+                            <div class="status-list">
+                                <div class="status-item mb-3">
+                                    <div class="d-flex justify-space-between align-center mb-1">
+                                        <span class="status-label"><span class="dot dot-green"></span>Validées / Acceptées</span>
+                                        <span class="status-count">@data.StatutCommandes.Acceptees <small>(@accepteesPct%)</small></span>
+                                    </div>
+                                    <div class="progress-bar-bg">
+                                        <div class="progress-bar-fill fill-green" style="width: @(accepteesPct)%;"></div>
+                                    </div>
+                                </div>
+
+                                <div class="status-item mb-3">
+                                    <div class="d-flex justify-space-between align-center mb-1">
+                                        <span class="status-label"><span class="dot dot-ochre"></span>En attente de validation</span>
+                                        <span class="status-count">@data.StatutCommandes.EnAttente <small>(@enAttentePct%)</small></span>
+                                    </div>
+                                    <div class="progress-bar-bg">
+                                        <div class="progress-bar-fill fill-ochre" style="width: @(enAttentePct)%;"></div>
+                                    </div>
+                                </div>
+
+                                <div class="status-item">
+                                    <div class="d-flex justify-space-between align-center mb-1">
+                                        <span class="status-label"><span class="dot dot-rust"></span>Refusées</span>
+                                        <span class="status-count">@data.StatutCommandes.Refusees <small>(@refuseesPct%)</small></span>
+                                    </div>
+                                    <div class="progress-bar-bg">
+                                        <div class="progress-bar-fill fill-rust" style="width: @(refuseesPct)%;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="empty-state">
+                                <MudIcon Icon="@Icons.Material.Filled.Inbox" />
+                                <p>Aucune commande pour le moment.</p>
+                                <span class="empty-state-hint">La répartition par statut s'affichera dès la première commande reçue.</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </MudItem>
+        </MudGrid>
+
+        <!-- ===== TOP PRODUITS VENDUS ET SURSTOCKS ===== -->
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <div class="table-card h-100 d-flex flex-column">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Top 5 des Ventes</h3>
+                        <span class="chart-subtitle">Références les plus demandées ce trimestre</span>
+                    </div>
+                    <div class="table-responsive flex-1">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Produit</th>
+                                    <th>Quantité vendue</th>
+                                    <th>Total généré</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (data.TopProduitsVendus != null && data.TopProduitsVendus.Any())
+                                {
+                                    @foreach (var prod in data.TopProduitsVendus)
+                                    {
+                                        <tr>
+                                            <td class="cell-strong">@prod.Nom</td>
+                                            <td><span class="badge-statut statut-acceptee">@prod.QuantiteVendue</span></td>
+                                            <td class="cell-amount">@prod.TotalVentes.ToString("N2") <small>DT</small></td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="3">
+                                            <div class="empty-state empty-state--inline">
+                                                <MudIcon Icon="@Icons.Material.Filled.PointOfSale" />
+                                                <p>Pas encore de vente à afficher.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <div class="table-card h-100 d-flex flex-column">
+                    <div class="chart-header d-flex justify-space-between align-center">
+                        <div>
+                            <h3 class="chart-title">Alertes de Surstock</h3>
+                            <span class="chart-subtitle">Top 5 des références à écouler en priorité</span>
+                        </div>
+                    </div>
+                    <div class="table-responsive flex-1">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Référence</th>
+                                    <th>Produit</th>
+                                    <th>Stock actuel</th>
+                                    <th>Excédent</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (data.ProduitsEnSurstock != null && data.ProduitsEnSurstock.Any())
+                                {
+                                    @foreach (var prod in data.ProduitsEnSurstock)
+                                    {
+                                        <tr>
+                                            <td><span class="ref-code">@prod.Reference</span></td>
+                                            <td class="cell-strong">@prod.Nom</td>
+                                            <td>@prod.QuantiteActuelle</td>
+                                            <td><span class="badge-statut statut-ochre">+@prod.PourcentageSurstock</span></td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="4">
+                                            <div class="empty-state empty-state--inline">
+                                                <MudIcon Icon="@Icons.Material.Filled.CheckCircleOutline" />
+                                                <p>Aucun surstock détecté — niveaux de stock sains.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </MudItem>
+        </MudGrid>
+    }
+</div>
+
+<style>
+    .dashboard-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --sand: #F3F6FA;
+        --border: #E1E7EF;
+        --denim: #2B4C7E;
+        --denim-dark: #14263F;
+        --denim-tint: #E7EDF6;
+        --pine: #1E8E3E;
+        --pine-tint: #E6F4EA;
+        --ochre: #B45309;
+        --ochre-tint: #FEF3C7;
+        --plum: #7E22CE;
+        --plum-tint: #F3E8FD;
+        --rust: #DC2626;
+        --rust-tint: #FEE2E2;
+        --font-display: "Sora", "Inter", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+        --shadow-sm: 0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.06);
+        --shadow-md: 0 8px 24px -12px rgba(20,38,63,0.18);
+        font-family: var(--font-body);
+        color: var(--ink);
+    }
+
+    /* ===== Header ===== */
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .dashboard-kicker {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--denim);
+        margin-bottom: 6px;
+    }
+
+    .dashboard-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1.625rem;
+        letter-spacing: -0.01em;
+        color: var(--ink);
+        margin: 0;
+    }
+
+    .dashboard-subtitle {
+        font-size: 0.875rem;
+        color: var(--ink-muted);
+        margin: 4px 0 0 0;
+    }
+
+    .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .last-updated {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+    }
+
+        .last-updated .mud-icon-root {
+            font-size: 1rem;
+        }
+
+    /* ===== Buttons ===== */
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 18px;
+        border-radius: var(--radius-sm);
+        font-family: var(--font-body);
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        transition: all 0.15s ease;
+        text-decoration: none;
+    }
+
+    .btn--outline {
+        border: 1px solid var(--border);
+        background: var(--paper);
+        color: var(--ink);
+    }
+
+        .btn--outline:hover {
+            background: var(--sand);
+            border-color: var(--denim);
+            color: var(--denim);
+        }
+
+        .btn--outline:disabled {
+            opacity: 0.6;
+            cursor: default;
+        }
+
+    /* ===== Alert ===== */
+    .alert-rupture {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 18px;
+        background: var(--rust-tint);
+        border: 1px solid #FCA5A5;
+        border-radius: var(--radius-md);
+        color: #991B1B;
+        font-size: 0.875rem;
+        flex-wrap: wrap;
+    }
+
+    .alert-icon {
+        display: flex;
+        color: var(--rust);
+        flex-shrink: 0;
+    }
+
+    .alert-text {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .alert-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-weight: 700;
+        color: var(--rust);
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+        .alert-action:hover {
+            text-decoration: underline;
+        }
+
+    /* ===== KPI Cards ===== */
+    .kpi-card {
+        position: relative;
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 20px 22px;
+        box-shadow: var(--shadow-sm);
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+        overflow: hidden;
+    }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--accent, var(--denim));
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md);
+        }
+
+    .kpi-card--denim {
+        --accent: var(--denim);
+    }
+
+    .kpi-card--pine {
+        --accent: var(--pine);
+    }
+
+    .kpi-card--plum {
+        --accent: var(--plum);
+    }
+
+    .kpi-card--ochre {
+        --accent: var(--ochre);
+    }
+
+    .kpi-top {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+
+    .kpi-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        background: var(--sand);
+        color: var(--accent, var(--denim));
+    }
+
+    .kpi-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--ink-muted);
+    }
+
+    .kpi-value {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1.85rem;
+        color: var(--ink);
+        margin: 0 0 4px 0;
+        letter-spacing: -0.01em;
+        line-height: 1.1;
+    }
+
+        .kpi-value small {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--ink-muted);
+        }
+
+    .kpi-sub {
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+    }
+
+    .kpi-sub-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .trend-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 999px;
+        white-space: nowrap;
+    }
+
+        .trend-badge .mud-icon-root {
+            font-size: 0.8rem;
+        }
+
+    .trend-up {
+        color: var(--pine);
+        background: var(--pine-tint);
+    }
+
+    .trend-down {
+        color: var(--rust);
+        background: var(--rust-tint);
+    }
+
+    /* ===== Chart / Table Cards ===== */
+    .chart-card, .table-card {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .chart-header {
+        padding: 18px 22px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .chart-title {
+        font-family: var(--font-display);
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--ink);
+        margin: 0;
+    }
+
+    .chart-subtitle {
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+    }
+
+    .chart-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        background: var(--denim-tint);
+        color: var(--denim);
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .chart-body {
+        padding: 24px;
+    }
+
+    /* ===== Empty state ===== */
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 40px 20px;
+        color: var(--ink-muted);
+        text-align: center;
+    }
+
+        .empty-state .mud-icon-root {
+            font-size: 2rem;
+            opacity: 0.3;
+            color: var(--denim);
+        }
+
+        .empty-state p {
+            margin: 0;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+    .empty-state-hint {
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+        max-width: 280px;
+    }
+
+    .empty-state--inline {
+        padding: 24px 12px;
+    }
+
+    /* ===== Bar Chart ===== */
+    .bar-chart-container {
+        position: relative;
+        height: 240px;
+        padding-left: 65px;
+        padding-bottom: 30px;
+    }
+
+    .bar-chart-grid {
+        position: absolute;
+        top: 0;
+        left: 65px;
+        right: 0;
+        bottom: 30px;
+    }
+
+    .grid-line {
+        position: absolute;
+        left: 0;
+        right: 0;
+        border-bottom: 1px dashed var(--border);
+    }
+
+    .grid-line--base {
+        border-bottom-style: solid;
+        border-color: var(--ink-muted);
+        opacity: 0.3;
+    }
+
+    .grid-line span {
+        position: absolute;
+        left: -65px;
+        bottom: -6px;
+        font-size: 0.6875rem;
+        color: var(--ink-muted);
+        font-weight: 500;
+        text-align: right;
+        width: 55px;
+    }
+
+    .bar-chart-bars {
+        position: relative;
+        height: 100%;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-around;
+        gap: 12px;
+        z-index: 2;
+    }
+
+    .bar-column {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: 100%;
+    }
+
+    .bar-wrapper {
+        position: relative;
+        width: 100%;
+        max-width: 40px;
+        height: 100%;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+    }
+
+    .bar-fill {
+        width: 100%;
+        height: var(--bar-h);
+        border-radius: 6px 6px 2px 2px;
+        transform-origin: bottom;
+        animation: growBar 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+        transition: background 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    @@keyframes growBar {
+        from {
+            transform: scaleY(0);
+        }
+
+        to {
+            transform: scaleY(1);
+        }
+    }
+
+    .bar-fill.active {
+        background: linear-gradient(180deg, var(--denim) 0%, var(--denim-dark) 100%);
+    }
+
+    .bar-fill.empty {
+        background: var(--sand);
+        border-radius: 2px;
+    }
+
+    .bar-wrapper:hover .bar-fill.active {
+        box-shadow: 0 0 0 3px var(--denim-tint);
+    }
+
+    .bar-wrapper:hover .bar-tooltip {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .bar-tooltip {
+        position: absolute;
+        top: -28px;
+        background: var(--ink);
+        color: #fff;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        padding: 3px 7px;
+        border-radius: 6px;
+        white-space: nowrap;
+        opacity: 0;
+        transform: translateY(4px);
+        transition: opacity 0.15s ease, transform 0.15s ease;
+        pointer-events: none;
+    }
+
+    .bar-label {
+        margin-top: 10px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+    }
+
+    /* ===== Donut & progress ===== */
+    .donut-wrapper {
+        position: relative;
+        width: 140px;
+        height: 140px;
+        margin: 0 auto;
+    }
+
+    .donut-svg {
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
+        border-radius: 50%;
+    }
+
+    .donut-ring {
+        fill: none;
+        stroke: var(--sand);
+        stroke-width: 3.4;
+    }
+
+    .donut-segment {
+        fill: none;
+        stroke-width: 3.4;
+        stroke-linecap: round;
+        transition: stroke-dasharray 0.5s ease;
+    }
+
+    .segment-green {
+        stroke: var(--pine);
+    }
+
+    .segment-ochre {
+        stroke: var(--ochre);
+    }
+
+    .segment-rust {
+        stroke: var(--rust);
+    }
+
+    .donut-center {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .donut-number {
+        font-family: var(--font-display);
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--ink);
+        line-height: 1;
+    }
+
+    .donut-label {
+        font-size: 0.6875rem;
+        color: var(--ink-muted);
+        font-weight: 500;
+        margin-top: 2px;
+    }
+
+    .status-label {
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--ink);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .status-count {
+        font-size: 0.8125rem;
+        font-weight: 700;
+        color: var(--ink);
+    }
+
+        .status-count small {
+            font-weight: 500;
+            color: var(--ink-muted);
+        }
+
+    .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        flex-shrink: 0;
+    }
+
+    .dot-green {
+        background: var(--pine);
+    }
+
+    .dot-ochre {
+        background: var(--ochre);
+    }
+
+    .dot-rust {
+        background: var(--rust);
+    }
+
+    .progress-bar-bg {
+        width: 100%;
+        height: 6px;
+        background: var(--sand);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.5s ease;
+    }
+
+    .fill-green {
+        background: var(--pine);
+    }
+
+    .fill-ochre {
+        background: var(--ochre);
+    }
+
+    .fill-rust {
+        background: var(--rust);
+    }
+
+    /* ===== Tables ===== */
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+        .data-table th {
+            background: var(--sand);
+            padding: 12px 22px;
+            text-align: left;
+            font-size: 0.6875rem;
+            color: var(--ink-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-weight: 700;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .data-table td {
+            padding: 13px 22px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.875rem;
+            color: var(--ink);
+        }
+
+        .data-table tbody tr {
+            transition: background 0.12s ease;
+        }
+
+            .data-table tbody tr:hover {
+                background: var(--sand);
+            }
+
+            .data-table tbody tr:last-child td {
+                border-bottom: none;
+            }
+
+    .cell-strong {
+        font-weight: 600;
+        color: var(--ink);
+    }
+
+    .cell-amount {
+        font-weight: 700;
+        color: var(--denim);
+        font-family: var(--font-mono);
+        font-size: 0.8125rem;
+    }
+
+    .badge-statut {
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 3px 9px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .statut-acceptee {
+        background: var(--pine-tint);
+        color: var(--pine);
+    }
+
+    .statut-ochre {
+        background: var(--ochre-tint);
+        color: var(--ochre);
+    }
+
+    .ref-code {
+        font-family: var(--font-mono);
+        font-weight: 600;
+        font-size: 0.75rem;
+        color: var(--denim);
+        background: var(--denim-tint);
+        padding: 3px 8px;
+        border-radius: 6px;
+    }
+
+    /* ===== Loading skeletons ===== */
+    .skeleton-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+    }
+
+    .skeleton {
+        background: linear-gradient(90deg, var(--sand) 25%, #EAF0F7 37%, var(--sand) 63%);
+        background-size: 400% 100%;
+        animation: shimmer 1.4s ease infinite;
+        border-radius: var(--radius-lg);
+    }
+
+    .skeleton-kpi {
+        height: 118px;
+    }
+
+    .skeleton-chart {
+        height: 320px;
+    }
+
+    @@keyframes shimmer {
+        0% {
+            background-position: 100% 0;
+        }
+
+        100% {
+            background-position: 0 0;
+        }
+    }
+
+    @@media (max-width: 900px) {
+        .skeleton-row {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @@media (max-width: 600px) {
+        .skeleton-row {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+@code {
+    private AdminDashboardDto? data;
+    private bool isLoading;
+    private DateTime? derniereMiseAJour;
+    private decimal? tendanceRevenu;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ChargerDonnees();
+    }
+
+    private async Task ChargerDonnees()
+    {
+        isLoading = true;
+        try
+        {
+            data = await DashboardService.GetAdminDashboard();
+            derniereMiseAJour = DateTime.Now;
+            tendanceRevenu = CalculerTendanceRevenu(data);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erreur chargement dashboard admin: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Calcule la variation en % du dernier mois par rapport au mois précédent,
+    /// à partir de la série déjà fournie par EvolutionRevenus (aucun appel supplémentaire au backend).
+    /// </summary>
+    private static decimal? CalculerTendanceRevenu(AdminDashboardDto? source)
+    {
+        var serie = source?.EvolutionRevenus;
+        if (serie == null || serie.Count < 2) return null;
+
+        var moisPrecedent = serie[^2].Montant;
+        var moisActuel = serie[^1].Montant;
+
+        if (moisPrecedent == 0) return null;
+
+        var variation = Math.Round(((moisActuel - moisPrecedent) / moisPrecedent) * 100m, 1);
+        
+        // Limiter les valeurs extrêmes pour éviter l'affichage de pourcentages trompeurs
+        if (variation > 999) return 999m;
+        if (variation < -999) return -999m;
+        
+        return variation;
+    }
+}

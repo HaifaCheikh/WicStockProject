@@ -1,0 +1,806 @@
+@page "/profil"
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject ProfilService ProfilService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<PageTitle>Mon Profil | WicStock</PageTitle>
+
+<div class="profil-page">
+
+    <!-- En-tête -->
+    <div class="profil-hero">
+        <div class="hero-text">
+            <span class="hero-eyebrow">Espace personnel</span>
+            <h1 class="page-title">Mon Profil</h1>
+            <p class="page-subtitle">Gérez vos coordonnées personnelles, votre photo de profil et la sécurité de votre compte.</p>
+        </div>
+        @if (profil != null)
+        {
+            <span class="ref-badge">UTL-@(profil.Id.ToString("D4"))</span>
+        }
+    </div>
+
+    @if (chargement)
+    {
+        <div class="loading-container">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            <p class="mt-3 text-muted">Chargement de votre profil...</p>
+        </div>
+    }
+    else if (profil == null)
+    {
+        <div class="empty-state">
+            <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Size="Size.Large" Color="Color.Error" />
+            <p class="mt-3">Impossible de charger les informations de votre profil.</p>
+            <button class="btn btn--primary mt-2" @onclick="ChargerProfil">Réessayer</button>
+        </div>
+    }
+    else
+    {
+        <MudGrid Spacing="4">
+            <!-- Colonne Gauche : Carte d'identité -->
+            <MudItem xs="12" md="4">
+                <div class="profil-card text-center">
+                    <div class="avatar-wrapper">
+                        <div class="avatar-circle">
+                            @if (!string.IsNullOrWhiteSpace(profil.PhotoUrl) && !photoEnErreur)
+                            {
+                                <img src="@ObtenirUrlPhotoCompletes(profil.PhotoUrl)" alt="Photo de profil" class="avatar-img" @onerror="GererErreurPhoto" />
+                            }
+                            else
+                            {
+                                <span class="avatar-initials">@GetInitials(profil.Prenom, profil.Nom)</span>
+                            }
+
+                            @if (envoiPhotoEnCours)
+                            {
+                                <div class="avatar-overlay-loading">
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Style="color:#fff;" />
+                                </div>
+                            }
+                        </div>
+
+                        <InputFile id="photo-file-input" OnChange="ChangerPhoto" accept=".jpg,.jpeg,.png,.webp" style="display:none;" />
+                        <label for="photo-file-input" class="photo-edit-btn" title="Modifier la photo">
+                            <MudIcon Icon="@Icons.Material.Filled.PhotoCamera" Size="Size.Small" />
+                        </label>
+                    </div>
+
+                    <h2 class="user-fullname mt-4">@profil.Prenom @profil.Nom</h2>
+                    <p class="user-email text-muted">@profil.Email</p>
+
+                    <div class="role-pill mt-3">
+                        <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Size="Size.Small" Class="mr-1" />
+                        <span>@GetRoleLabel(profil.Role)</span>
+                    </div>
+
+                    <div class="profil-meta mt-5">
+                        <div class="meta-row">
+                            <span class="meta-label">Référence</span>
+                            <span class="meta-value font-mono">UTL-@(profil.Id.ToString("D4"))</span>
+                        </div>
+                        <div class="meta-row mt-2">
+                            <span class="meta-label">Rôle système</span>
+                            <span class="meta-value">Lecture / Édition propre</span>
+                        </div>
+                    </div>
+                </div>
+            </MudItem>
+
+            <!-- Colonne Droite : Formulaires -->
+            <MudItem xs="12" md="8">
+                <MudStack Spacing="4">
+                    <!-- Coordonnées -->
+                    <div class="profil-card">
+                        <div class="card-header-custom">
+                            <MudIcon Icon="@Icons.Material.Filled.Person" Class="header-icon" />
+                            <div>
+                                <h3 class="card-title">Informations personnelles</h3>
+                                <p class="card-subtitle">Mettez à jour votre nom, prénom, email et téléphone.</p>
+                            </div>
+                        </div>
+
+                        <EditForm Model="editDto" OnValidSubmit="EnregistrerProfil">
+                            <div class="form-body mt-4">
+                                <div class="form-row">
+                                    <MudTextField @bind-Value="editDto.Prenom"
+                                                  Label="Prénom"
+                                                  Variant="Variant.Outlined"
+                                                  Margin="Margin.Dense"
+                                                  Required="true"
+                                                  RequiredError="Le prénom est obligatoire" />
+                                    <MudTextField @bind-Value="editDto.Nom"
+                                                  Label="Nom"
+                                                  Variant="Variant.Outlined"
+                                                  Margin="Margin.Dense"
+                                                  Required="true"
+                                                  RequiredError="Le nom est obligatoire" />
+                                </div>
+
+                                <MudTextField @bind-Value="editDto.Email"
+                                              Label="Adresse Email"
+                                              Placeholder="exemple@wicstock.com"
+                                              Variant="Variant.Outlined"
+                                              Margin="Margin.Dense"
+                                              Required="true"
+                                              Adornment="Adornment.Start"
+                                              AdornmentIcon="@Icons.Material.Filled.Email"
+                                              Class="mt-3" />
+
+                                <MudTextField @bind-Value="editDto.Telephone"
+                                              Label="Numéro de téléphone"
+                                              Placeholder="+216 XX XXX XXX"
+                                              Variant="Variant.Outlined"
+                                              Margin="Margin.Dense"
+                                              Adornment="Adornment.Start"
+                                              AdornmentIcon="@Icons.Material.Filled.Phone"
+                                              Class="mt-3" />
+                            </div>
+
+                            <div class="d-flex justify-end mt-5">
+                                <button type="submit" class="btn btn--primary" disabled="@enregistrerProfilEnCours">
+                                    @if (enregistrerProfilEnCours)
+                                    {
+                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Save" Size="Size.Small" Class="mr-1" />
+                                    }
+                                    <span>Enregistrer les coordonnées</span>
+                                </button>
+                            </div>
+                        </EditForm>
+                    </div>
+
+                    <!-- Sécurité -->
+                    <div class="profil-card">
+                        <div class="card-header-custom">
+                            <MudIcon Icon="@Icons.Material.Filled.Lock" Class="header-icon header-icon--security" />
+                            <div>
+                                <h3 class="card-title">Sécurité & Mot de passe</h3>
+                                <p class="card-subtitle">Modifiez votre mot de passe pour sécuriser votre compte.</p>
+                            </div>
+                        </div>
+
+                        <EditForm Model="pwdDto" OnValidSubmit="ChangerMotDePasse">
+                            <div class="form-body mt-4">
+                                <MudTextField @bind-Value="pwdDto.AncienMotDePasse"
+                                              Label="Ancien mot de passe"
+                                              InputType="@(masquerAncienMotDePasse ? InputType.Password : InputType.Text)"
+                                              Variant="Variant.Outlined"
+                                              Margin="Margin.Dense"
+                                              Adornment="Adornment.End"
+                                              AdornmentIcon="@(masquerAncienMotDePasse ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                                              OnAdornmentClick="() => masquerAncienMotDePasse = !masquerAncienMotDePasse"
+                                              Required="true" />
+
+                                <div class="form-row mt-3" @onfocusin="() => pwdHintsVisibles = true">
+                                    <MudTextField @bind-Value="pwdDto.NouveauMotDePasse"
+                                                  Label="Nouveau mot de passe"
+                                                  InputType="@(masquerNouveauMotDePasse ? InputType.Password : InputType.Text)"
+                                                  Variant="Variant.Outlined"
+                                                  Margin="Margin.Dense"
+                                                  Adornment="Adornment.End"
+                                                  AdornmentIcon="@(masquerNouveauMotDePasse ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                                                  OnAdornmentClick="() => masquerNouveauMotDePasse = !masquerNouveauMotDePasse"
+                                                  Required="true" />
+
+                                    <MudTextField @bind-Value="pwdDto.ConfirmationMotDePasse"
+                                                  Label="Confirmer le nouveau mot de passe"
+                                                  InputType="@(masquerNouveauMotDePasse ? InputType.Password : InputType.Text)"
+                                                  Variant="Variant.Outlined"
+                                                  Margin="Margin.Dense"
+                                                  Required="true" />
+                                </div>
+
+                                <!-- Indicateur de politique de mot de passe : apparaît seulement au focus / à la saisie -->
+                                @if (pwdHintsVisibles)
+                                {
+                                    <div class="pwd-policy-hints mt-3">
+                                        <span class="@PwdHintClass8Chars">
+                                            <MudIcon Icon="@(PwdHas8Chars ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)" Size="Size.Small" />
+                                            8 caractères minimum
+                                        </span>
+                                        <span class="@PwdHintClassDigit">
+                                            <MudIcon Icon="@(PwdHasDigit ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)" Size="Size.Small" />
+                                            Au moins un chiffre (0-9)
+                                        </span>
+                                        <span class="@PwdHintClassSpecial">
+                                            <MudIcon Icon="@(PwdHasSpecial ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)" Size="Size.Small" />
+                                            @SpecialHintText
+                                        </span>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="d-flex justify-end mt-5">
+                                <button type="submit" class="btn btn--outline" disabled="@changerPwdEnCours">
+                                    @if (changerPwdEnCours)
+                                    {
+                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Key" Size="Size.Small" Class="mr-1" />
+                                    }
+                                    <span>Modifier le mot de passe</span>
+                                </button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </MudStack>
+            </MudItem>
+        </MudGrid>
+    }
+</div>
+
+<style>
+    .profil-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --sand: #F3F6FA;
+        --border: #E1E7EF;
+        --denim: #2B4C7E;
+        --denim-dark: #14263F;
+        --denim-tint: #E7EDF6;
+        --font-display: "Sora", "Inter", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        --radius-sm: 8px;
+        --radius-lg: 16px;
+        font-family: var(--font-body);
+        color: var(--ink);
+        max-width: 1160px;
+        margin: 0 auto;
+        padding-bottom: 40px;
+    }
+
+        /* ===== En-tête ===== */
+        .profil-page .profil-hero {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 16px;
+            background: linear-gradient(180deg, var(--denim-tint) 0%, var(--paper) 100%);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 32px 36px;
+            margin-bottom: 28px;
+        }
+
+        .profil-page .hero-eyebrow {
+            display: inline-block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--denim);
+            background: rgba(255,255,255,0.6);
+            border: 1px solid rgba(43,76,126,0.15);
+            padding: 5px 12px;
+            border-radius: 999px;
+            margin-bottom: 14px;
+        }
+
+        .profil-page .page-title {
+            font-family: var(--font-display);
+            font-weight: 800;
+            font-size: 1.75rem;
+            color: var(--ink);
+            letter-spacing: -0.02em;
+            margin: 0;
+        }
+
+        .profil-page .page-subtitle {
+            color: var(--ink-muted);
+            margin: 8px 0 0;
+            max-width: 480px;
+        }
+
+        .profil-page .ref-badge {
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            font-weight: 600;
+            color: var(--denim);
+            background: var(--paper);
+            border: 1px solid var(--border);
+            padding: 8px 14px;
+            border-radius: var(--radius-sm);
+            align-self: flex-start;
+        }
+
+        /* ===== Cartes ===== */
+        .profil-page .profil-card {
+            background: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+        }
+
+        /* Avatar */
+        .profil-page .avatar-wrapper {
+            position: relative;
+            display: inline-block;
+            margin: 0 auto;
+        }
+
+        .profil-page .avatar-circle {
+            width: 104px;
+            height: 104px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            margin: 0 auto;
+            border: 3px solid var(--denim-tint);
+            background: var(--denim);
+            position: relative;
+        }
+
+        .profil-page .avatar-img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .profil-page .avatar-initials {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 2rem;
+            color: #FFFFFF;
+        }
+
+        .profil-page .avatar-overlay-loading {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .profil-page .photo-edit-btn {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--denim);
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: 2px solid var(--paper);
+            transition: background 0.15s ease;
+        }
+
+            .profil-page .photo-edit-btn:hover {
+                background: var(--denim-dark);
+            }
+
+        .profil-page .user-fullname {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: var(--ink);
+            margin: 0;
+        }
+
+        .profil-page .user-email {
+            font-size: 0.875rem;
+            margin: 2px 0 0;
+        }
+
+        .profil-page .role-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--denim);
+            background: var(--denim-tint);
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 5px 14px;
+            border-radius: 999px;
+        }
+
+        .profil-page .profil-meta {
+            background: var(--sand);
+            border-radius: var(--radius-sm);
+            padding: 14px 16px;
+            text-align: left;
+        }
+
+        .profil-page .meta-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8125rem;
+        }
+
+        .profil-page .meta-label {
+            color: var(--ink-muted);
+        }
+
+        .profil-page .meta-value {
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        /* En-tête de carte */
+        .profil-page .card-header-custom {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .profil-page .header-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: var(--denim-tint);
+            color: var(--denim) !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem !important;
+            flex-shrink: 0;
+        }
+
+        .profil-page .header-icon--security {
+            background: var(--sand);
+            color: var(--ink-muted) !important;
+        }
+
+        .profil-page .card-title {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.0625rem;
+            color: var(--ink);
+            margin: 0;
+        }
+
+        .profil-page .card-subtitle {
+            font-size: 0.8125rem;
+            color: var(--ink-muted);
+            margin: 2px 0 0;
+        }
+
+        .profil-page .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        /* Boutons — alignés sur la page d'accueil */
+        .profil-page .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: none;
+            border-radius: var(--radius-sm);
+            padding: 11px 22px;
+            font-family: var(--font-body);
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .profil-page .btn--primary {
+            background: var(--denim);
+            color: #fff;
+            box-shadow: 0 6px 16px -6px rgba(43,76,126,0.4);
+        }
+
+            .profil-page .btn--primary:hover:not(:disabled) {
+                background: var(--denim-dark);
+            }
+
+        .profil-page .btn--outline {
+            background: transparent;
+            color: var(--ink);
+            border: 1px solid var(--border);
+        }
+
+            .profil-page .btn--outline:hover:not(:disabled) {
+                border-color: var(--denim);
+                color: var(--denim);
+            }
+
+        .profil-page .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .profil-page .loading-container {
+            padding: 60px;
+            text-align: center;
+        }
+
+        .profil-page .empty-state {
+            padding: 60px;
+            text-align: center;
+            background: var(--paper);
+            border: 1px dashed var(--border);
+            border-radius: var(--radius-lg);
+        }
+
+        .profil-page .text-muted {
+            color: var(--ink-muted);
+        }
+
+    @@media (max-width: 600px) {
+        .profil-page .profil-hero {
+            padding: 24px;
+        }
+
+        .profil-page .form-row {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* ===== Password policy hints ===== */
+    .profil-page .pwd-policy-hints {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 12px 14px;
+        background: var(--sand);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        animation: pwd-hints-in 0.18s ease-out;
+    }
+
+    @@keyframes pwd-hints-in {
+        from {
+            opacity: 0;
+            transform: translateY(-4px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .profil-page .pwd-hint {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+        transition: color 0.2s ease;
+    }
+
+        .profil-page .pwd-hint.hint--ok {
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        .profil-page .pwd-hint .mud-icon-root {
+            font-size: 1rem !important;
+            width: 1rem;
+            height: 1rem;
+        }
+</style>
+
+@code {
+    private ProfilDto? profil;
+    private ModifierProfilDto editDto = new();
+    private ChangerMotDePasseDto pwdDto = new();
+
+    private bool chargement = true;
+    private bool enregistrerProfilEnCours = false;
+    private bool envoiPhotoEnCours = false;
+    private bool changerPwdEnCours = false;
+
+    private bool masquerAncienMotDePasse = true;
+    private bool masquerNouveauMotDePasse = true;
+    private bool photoEnErreur = false;
+    private bool pwdHintsVisibles = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ChargerProfil();
+    }
+
+    private async Task ChargerProfil()
+    {
+        chargement = true;
+        try
+        {
+            profil = await ProfilService.ObtenirMonProfil();
+            photoEnErreur = false;
+            if (profil != null)
+            {
+                editDto = new ModifierProfilDto
+                {
+                    Nom = profil.Nom,
+                    Prenom = profil.Prenom,
+                    Email = profil.Email,
+                    Telephone = profil.Telephone
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erreur lors du chargement : {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            chargement = false;
+        }
+    }
+
+    private async Task EnregistrerProfil()
+    {
+        if (profil == null) return;
+
+        if (string.IsNullOrWhiteSpace(editDto.Prenom) || string.IsNullOrWhiteSpace(editDto.Nom))
+        {
+            Snackbar.Add("Le prénom et le nom sont obligatoires.", Severity.Warning);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editDto.Email) || !editDto.Email.Contains("@"))
+        {
+            Snackbar.Add("Veuillez saisir une adresse email valide.", Severity.Warning);
+            return;
+        }
+
+        enregistrerProfilEnCours = true;
+        var (succes, message) = await ProfilService.ModifierMonProfil(editDto);
+        enregistrerProfilEnCours = false;
+
+        if (succes)
+        {
+            profil.Prenom = editDto.Prenom.Trim();
+            profil.Nom = editDto.Nom.Trim();
+            profil.Email = editDto.Email.Trim();
+            profil.Telephone = string.IsNullOrWhiteSpace(editDto.Telephone) ? null : editDto.Telephone.Trim();
+            Snackbar.Add(message, Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(message, Severity.Error);
+        }
+    }
+
+    private async Task ChangerPhoto(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+
+        if (file.Size > 2 * 1024 * 1024)
+        {
+            Snackbar.Add("La taille de l'image ne doit pas dépasser 2 Mo.", Severity.Warning);
+            return;
+        }
+
+        envoiPhotoEnCours = true;
+        var (succes, newPhotoUrl, message) = await ProfilService.TeleverserPhoto(file);
+        envoiPhotoEnCours = false;
+
+        if (succes && !string.IsNullOrWhiteSpace(newPhotoUrl))
+        {
+            if (profil != null)
+            {
+                profil.PhotoUrl = newPhotoUrl;
+            }
+            photoEnErreur = false;
+            Snackbar.Add(message, Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(message, Severity.Error);
+        }
+    }
+
+    private void GererErreurPhoto()
+    {
+        // L'URL de la photo est invalide ou inaccessible : on bascule sur les initiales
+        // plutôt que d'afficher une icône d'image cassée.
+        photoEnErreur = true;
+    }
+
+    private async Task ChangerMotDePasse()
+    {
+        if (string.IsNullOrWhiteSpace(pwdDto.AncienMotDePasse))
+        {
+            Snackbar.Add("Veuillez entrer votre ancien mot de passe.", Severity.Warning);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(pwdDto.NouveauMotDePasse) || pwdDto.NouveauMotDePasse.Length < 8)
+        {
+            Snackbar.Add("Le mot de passe doit contenir au moins 8 caractères.", Severity.Warning);
+            return;
+        }
+
+        if (!pwdDto.NouveauMotDePasse.Any(char.IsDigit))
+        {
+            Snackbar.Add("Le mot de passe doit contenir au moins un chiffre.", Severity.Warning);
+            return;
+        }
+
+        var specialChars = "!@#$%^&*()-_=+[]{}|;:',.<>?/`~";
+        if (!pwdDto.NouveauMotDePasse.Any(c => specialChars.Contains(c)))
+        {
+            Snackbar.Add("Le mot de passe doit contenir au moins un caractère spécial (!@#$%^&* etc.).", Severity.Warning);
+            return;
+        }
+
+        if (pwdDto.NouveauMotDePasse != pwdDto.ConfirmationMotDePasse)
+        {
+            Snackbar.Add("Le nouveau mot de passe et sa confirmation ne correspondent pas.", Severity.Warning);
+            return;
+        }
+
+        changerPwdEnCours = true;
+        var (succes, message) = await ProfilService.ChangerMotDePasse(pwdDto);
+        changerPwdEnCours = false;
+
+        if (succes)
+        {
+            pwdDto = new ChangerMotDePasseDto();
+            pwdHintsVisibles = false;
+            Snackbar.Add(message, Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(message, Severity.Error);
+        }
+    }
+
+    private string GetInitials(string prenom, string nom)
+    {
+        var p = string.IsNullOrWhiteSpace(prenom) ? "" : prenom.Trim()[0].ToString().ToUpper();
+        var n = string.IsNullOrWhiteSpace(nom) ? "" : nom.Trim()[0].ToString().ToUpper();
+        return $"{p}{n}";
+    }
+
+    private string GetRoleLabel(string role) => role switch
+    {
+        "ADMIN" => "Administrateur",
+        "RESPONSABLE_STOCK_PRODUCTION" => "Responsable Stock & Production",
+        "CLIENT" => "Client",
+        _ => role
+    };
+
+    private string ObtenirUrlPhotoCompletes(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return "";
+        if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase)) return url;
+        var apiBaseUrl = "https://localhost:7179";
+        return $"{apiBaseUrl}{(url.StartsWith("/") ? "" : "/")}{url}";
+    }
+
+    // ===== Password strength helpers =====
+    private static readonly string SpecialChars = "!@#$%^&*()-_=+[]{}|;:',.<>?/`~";
+    private static readonly string SpecialHintText = "Au moins un caractère spécial (!, @, #, $, %, ^ ...)";
+
+    private bool PwdHas8Chars => (pwdDto.NouveauMotDePasse?.Length ?? 0) >= 8;
+    private bool PwdHasDigit => pwdDto.NouveauMotDePasse?.Any(char.IsDigit) == true;
+    private bool PwdHasSpecial => pwdDto.NouveauMotDePasse?.Any(c => SpecialChars.Contains(c)) == true;
+
+    private string PwdHintClass8Chars => "pwd-hint" + (PwdHas8Chars ? " hint--ok" : "");
+    private string PwdHintClassDigit => "pwd-hint" + (PwdHasDigit ? " hint--ok" : "");
+    private string PwdHintClassSpecial => "pwd-hint" + (PwdHasSpecial ? " hint--ok" : "");
+}

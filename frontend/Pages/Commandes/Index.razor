@@ -1,0 +1,2110 @@
+﻿@page "/commandes"
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
+@inject CatalogueService CatalogueService
+@inject CommandeBadgeService CommandeBadgeService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject AuthService AuthService
+@inject LivraisonService LivraisonService
+
+<PageTitle>Gestion des Commandes | WicStock</PageTitle>
+
+<HeadContent>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="admin-page">
+
+    <!-- ===== EN-TÊTE ===== -->
+    <div class="admin-hero">
+        <div class="hero-text">
+            <div class="d-flex align-center gap-3">
+                <h1 class="page-title">Commandes Clients</h1>
+                @if (commandes != null)
+                {
+                    <span class="count-badge">@FilteredCommandes.Count() résultat(s)</span>
+                }
+            </div>
+            <p class="page-subtitle">Acceptez, refusez et suivez les demandes de commande passées par les enseignes.</p>
+        </div>
+    </div>
+
+    @if (!isLoading && commandes != null && commandes.Any())
+    {
+        <!-- ===== STATISTIQUES CLIQUABLES ===== -->
+        <div class="stats-row mb-6">
+            <div class="stat-card @(statutFilter == "" ? "stat-card--active" : "")" @onclick='() => statutFilter = ""'>
+                <div class="stat-icon stat-icon--denim">
+                    <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@CountTotal</div>
+                    <div class="stat-label">Toutes les commandes</div>
+                </div>
+            </div>
+            <div class="stat-card @(statutFilter == "EN_ATTENTE" ? "stat-card--active" : "")" @onclick='() => statutFilter = "EN_ATTENTE"'>
+                <div class="stat-icon stat-icon--amber">
+                    <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@CountEnAttente</div>
+                    <div class="stat-label">En attente de validation</div>
+                </div>
+                @if (CountEnAttente > 0)
+                {
+                    <span class="pulse-indicator"></span>
+                }
+            </div>
+            <div class="stat-card @(statutFilter == "ACCEPTEE" ? "stat-card--active" : "")" @onclick='() => statutFilter = "ACCEPTEE"'>
+                <div class="stat-icon stat-icon--pine">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@CountAcceptees</div>
+                    <div class="stat-label">Commandes acceptées</div>
+                </div>
+            </div>
+            <div class="stat-card @(statutFilter == "REFUSEE" ? "stat-card--active" : "")" @onclick='() => statutFilter = "REFUSEE"'>
+                <div class="stat-icon stat-icon--rust">
+                    <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" />
+                </div>
+                <div>
+                    <div class="stat-value">@CountRefusees</div>
+                    <div class="stat-label">Commandes refusées</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== FILTRES ===== -->
+        <div class="filters-card mb-6">
+            <label class="filter-label">
+                <MudIcon Icon="@Icons.Material.Filled.FilterList" Size="Size.Small" />
+                Filtrer
+            </label>
+            <select class="filter-select" value="@statutFilter" @onchange="OnStatutFilterChanged">
+                <option value="">Toutes les commandes</option>
+                <option value="EN_ATTENTE">En attente uniquement</option>
+                <option value="ACCEPTEE">Acceptées uniquement</option>
+                <option value="REFUSEE">Refusées uniquement</option>
+            </select>
+
+            <div class="search-wrap">
+                <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" Class="search-icon" />
+                <input class="search-input" placeholder="Rechercher un client, un produit ou une référence…" @bind="searchString" @bind:event="oninput" />
+            </div>
+
+            <div class="view-toggle">
+                <button class="view-toggle-btn @(!isGridView ? "active" : "")" @onclick="() => isGridView = false" title="Vue tableau">
+                    <MudIcon Icon="@Icons.Material.Filled.FormatListBulleted" Size="Size.Small" />
+                </button>
+                <button class="view-toggle-btn @(isGridView ? "active" : "")" @onclick="() => isGridView = true" title="Vue grille">
+                    <MudIcon Icon="@Icons.Material.Filled.GridView" Size="Size.Small" />
+                </button>
+            </div>
+
+            <span class="filter-count">@FilteredCommandes.Count() résultat(s)</span>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="d-flex justify-center my-12">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        </div>
+    }
+    else if (commandes == null || !commandes.Any())
+    {
+        <div class="empty-card">
+            <MudIcon Icon="@Icons.Material.Filled.Inbox" Size="Size.Large" Class="empty-icon" />
+            <h3 class="empty-title">Aucune commande pour le moment</h3>
+            <p class="empty-subtitle">Les commandes passées par vos clients apparaîtront ici.</p>
+        </div>
+    }
+    else if (!FilteredCommandes.Any())
+    {
+        <div class="empty-card">
+            <MudIcon Icon="@Icons.Material.Filled.FilterAltOff" Size="Size.Large" Class="empty-icon" />
+            <h3 class="empty-title">Aucune commande ne correspond à ce filtre</h3>
+            <p class="empty-subtitle">Essayez de modifier vos critères de recherche.</p>
+        </div>
+    }
+    else if (!isGridView)
+    {
+        <!-- ===== VUE TABLEAU ===== -->
+        <div class="table-panel">
+            <table class="orders-table">
+                <thead>
+                    <tr>
+                        <th>Client</th>
+                        <th>Produit</th>
+                        <th>Montant</th>
+                        <th>Dates</th>
+                        <th>Statut</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var context in FilteredCommandes)
+                    {
+                        <tr>
+                            <td>
+                                <div class="d-flex align-center gap-2">
+                                    <div class="client-avatar">@GetInitiale(context.ClientNom)</div>
+                                    <div>
+                                        <div class="client-name">@context.ClientNom</div>
+                                        <div class="client-email">@context.ClientEmail</div>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <td>
+                                <div class="cell-name">@context.ProduitNom</div>
+                                <span class="ref-code">@context.ProduitReference</span>
+                            </td>
+
+                            <td>
+                                <div class="montant-cell" title="@($"{context.QuantiteVendue} × {context.PrixUnitaire:0.00} DT")">
+                                    <span class="montant-total">@context.TotalCommande.ToString("0.00") DT</span>
+                                    <span class="montant-detail">@context.QuantiteVendue u. · @context.PrixUnitaire.ToString("0.00") DT/u.</span>
+                                </div>
+                            </td>
+
+                            <td>
+                                <div class="dates-cell">
+                                    <span class="date-line">@context.DateVente.ToString("dd MMM yyyy")</span>
+                                    @if (context.DateSouhaitee.HasValue)
+                                    {
+                                        <span class="date-souhaitee">
+                                            <MudIcon Icon="@Icons.Material.Filled.Event" Size="Size.Small" />
+                                            @context.DateSouhaitee.Value.ToString("dd/MM/yyyy")
+                                        </span>
+                                    }
+                                </div>
+                            </td>
+
+                            <td>
+                                <span class="badge-statut @GetStatutCssClass(context.Statut ?? context.StatutCommande)">
+                                    @GetStatutLabel(context.Statut ?? context.StatutCommande)
+                                </span>
+                                @if (context.ResponsableId.HasValue || context.LivreurId.HasValue)
+                                {
+                                    <div class="assignation-line">
+                                        @if (context.ResponsableId.HasValue)
+                                        {
+                                            <span class="assignation-tag" title="Responsable assigné">
+                                                <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" />@context.ResponsableNom
+                                            </span>
+                                        }
+                                        @if (context.LivreurId.HasValue)
+                                        {
+                                            <span class="assignation-tag assignation-tag--livreur" title="Livreur assigné">
+                                                <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" />@context.LivreurNom
+                                            </span>
+                                        }
+                                    </div>
+                                }
+                            </td>
+
+                            <td class="text-right">
+                                <div class="d-flex justify-end align-center gap-1 flex-wrap">
+                                    @if (userRole == "ADMIN" && (context.Statut ?? "") == "EN_ATTENTE_CONFIRMATION")
+                                    {
+                                        <button class="icon-btn icon-btn--valider" title="Assigner et accepter" @onclick="() => DemanderAssignation(context)">
+                                            <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Size="Size.Small" />
+                                        </button>
+                                        <button class="icon-btn icon-btn--refuser" title="Refuser" @onclick="() => DemanderRefus(context)">
+                                            <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" />
+                                        </button>
+                                    }
+                                    else if (context.StatutCommande == "EN_ATTENTE" && !context.EstSurCommande)
+                                    {
+                                        <button class="icon-btn icon-btn--valider" title="Accepter" @onclick="() => Accepter(context.Id)">
+                                            <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" />
+                                        </button>
+                                        <button class="icon-btn icon-btn--refuser" title="Refuser" @onclick="() => DemanderRefus(context)">
+                                            <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                                        </button>
+                                    }
+                                    else if (userRole == "RESPONSABLE_STOCK_PRODUCTION" && context.ResponsableId.HasValue && EstAssigneAUtilisateur(context))
+                                    {
+                                        if ((context.Statut ?? "") == "CONFIRMEE")
+                                        {
+                                            <button class="icon-btn icon-btn--valider" title="Prendre en charge" @onclick="() => DemanderEtapeSuivante(context)">
+                                                <MudIcon Icon="@Icons.Material.Filled.TaskAlt" Size="Size.Small" />
+                                            </button>
+                                        }
+                                        else if ((context.Statut ?? "") == "EN_PREPARATION")
+                                        {
+                                            <button class="icon-btn icon-btn--valider" title="Marquer comme prête" @onclick="() => DemanderEtapeSuivante(context)">
+                                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
+                                            </button>
+                                        }
+                                    }
+
+                                    @if (userRole == "ADMIN" && (context.DatePaiement.HasValue || context.Statut == "PAYEE" || context.Statut == "PRETE") && !context.LivreurId.HasValue)
+                                    {
+                                        <button class="icon-btn icon-btn--livreur" title="Assigner un livreur" @onclick="() => OuvrirAssignationLivreur(context)">
+                                            <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" />
+                                        </button>
+                                    }
+
+                                    <button class="icon-btn icon-btn--danger" title="Supprimer" @onclick="() => DemanderSuppression(context)">
+                                        <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" />
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <!-- ===== VUE GRILLE (CARTES) ===== -->
+        <div class="orders-grid">
+            @foreach (var cmd in FilteredCommandes)
+            {
+                <div class="order-card @(cmd.StatutCommande == "EN_ATTENTE" ? "order-card--pending" : "")">
+                    <div class="card-header">
+                        <div class="d-flex align-center gap-2">
+                            <span class="ref-code">@cmd.ProduitReference</span>
+                            <strong class="product-title">@cmd.ProduitNom</strong>
+                        </div>
+                        <div class="d-flex align-center gap-2">
+                            <span class="badge-statut @GetStatutCssClass(cmd.Statut ?? cmd.StatutCommande)">
+                                @GetStatutLabel(cmd.Statut ?? cmd.StatutCommande)
+                            </span>
+                            <button class="delete-btn" title="Supprimer" @onclick="() => DemanderSuppression(cmd)">
+                                <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="meta-footer mb-3">
+                            <div class="client-chip">
+                                <span class="client-avatar">@GetInitiale(cmd.ClientNom)</span>
+                                <span class="client-name">@cmd.ClientNom</span>
+                            </div>
+                            <span class="meta-dot">•</span>
+                            <span class="meta-date">
+                                <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" />
+                                @cmd.DateVente.ToString("dd MMMM yyyy à HH:mm")
+                            </span>
+                        </div>
+
+                        <div class="order-math-grid">
+                            <div class="math-item">
+                                <span class="math-label">Quantité</span>
+                                <span class="math-value">@cmd.QuantiteVendue articles</span>
+                            </div>
+                            <div class="math-item">
+                                <span class="math-label">Prix unitaire</span>
+                                <span class="math-value">@cmd.PrixUnitaire.ToString("0.00") DT</span>
+                            </div>
+                            <div class="math-item math-item--total">
+                                <span class="math-label">Total commande</span>
+                                <span class="math-value-total">@cmd.TotalCommande.ToString("0.00") DT</span>
+                            </div>
+                        </div>
+
+                        @if (cmd.DateSouhaitee.HasValue)
+                        {
+                            <div class="date-souhaitee mt-2">
+                                <MudIcon Icon="@Icons.Material.Filled.Event" Size="Size.Small" />
+                                Date souhaitée : @cmd.DateSouhaitee.Value.ToString("dd/MM/yyyy")
+                            </div>
+                        }
+
+                        @if (cmd.ResponsableId.HasValue || cmd.LivreurId.HasValue)
+                        {
+                            <div class="assignation-line mt-2">
+                                @if (cmd.ResponsableId.HasValue)
+                                {
+                                    <span class="assignation-tag">
+                                        <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" />@cmd.ResponsableNom
+                                    </span>
+                                }
+                                @if (cmd.LivreurId.HasValue)
+                                {
+                                    <span class="assignation-tag assignation-tag--livreur">
+                                        <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" />@cmd.LivreurNom
+                                    </span>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <div class="card-actions">
+                        @if (cmd.EstSurCommande)
+                        {
+                            @if (userRole == "ADMIN" && (cmd.Statut ?? "") == "EN_ATTENTE_CONFIRMATION")
+                            {
+                                <button class="btn btn--toggle btn--publish" @onclick="() => DemanderAssignation(cmd)">
+                                    <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Size="Size.Small" />
+                                    <span>Assigner</span>
+                                </button>
+                                <button class="btn btn--toggle btn--hide" @onclick="() => DemanderRefus(cmd)">
+                                    <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" />
+                                    <span>Refuser</span>
+                                </button>
+                            }
+                            else if (userRole == "RESPONSABLE_STOCK_PRODUCTION" && cmd.ResponsableId.HasValue && EstAssigneAUtilisateur(cmd))
+                            {
+                                if ((cmd.Statut ?? "") == "CONFIRMEE")
+                                {
+                                    <button class="btn btn--toggle btn--publish" @onclick="() => DemanderEtapeSuivante(cmd)">
+                                        <MudIcon Icon="@Icons.Material.Filled.TaskAlt" Size="Size.Small" />
+                                        <span>Prendre en charge</span>
+                                    </button>
+                                }
+                                else if ((cmd.Statut ?? "") == "EN_PREPARATION")
+                                {
+                                    <button class="btn btn--toggle btn--publish" @onclick="() => DemanderEtapeSuivante(cmd)">
+                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
+                                        <span>Marquer prête</span>
+                                    </button>
+                                }
+                            }
+                            else if (userRole == "RESPONSABLE_STOCK_PRODUCTION" && !cmd.ResponsableId.HasValue)
+                            {
+                                <span class="status-summary-text text-muted">En attente d'assignation</span>
+                            }
+                            else if (userRole == "ADMIN" && cmd.ResponsableId.HasValue)
+                            {
+                                <span class="status-summary-text text-muted">Assignée à @cmd.ResponsableNom</span>
+                            }
+                        }
+                        else if (cmd.StatutCommande == "EN_ATTENTE" && !cmd.EstSurCommande)
+                        {
+                            <button class="btn btn--toggle btn--publish" @onclick="() => Accepter(cmd.Id)">
+                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
+                                <span>Accepter</span>
+                            </button>
+                            <button class="btn btn--toggle btn--hide" @onclick="() => DemanderRefus(cmd)">
+                                <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" />
+                                <span>Refuser</span>
+                            </button>
+                        }
+                        else if (cmd.StatutCommande == "ACCEPTEE")
+                        {
+                            <span class="status-summary-text text-success">
+                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Class="mr-1" />
+                                Commande acceptée
+                            </span>
+                        }
+
+                        @if (userRole == "ADMIN" && (cmd.DatePaiement.HasValue || cmd.Statut == "PAYEE" || cmd.Statut == "PRETE") && !cmd.LivreurId.HasValue)
+                        {
+                            <button class="icon-btn icon-btn--livreur ml-auto" title="Assigner un livreur" @onclick="() => OuvrirAssignationLivreur(cmd)">
+                                <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" />
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- ===== MODAL ÉTAPE SUIVANTE ===== -->
+@if (commandeEtapeSuivante != null)
+{
+    <div class="wic-modal-overlay" @onclick="FermerEtapeSuivante">
+        <div class="wic-modal-card" @onclick:stopPropagation="true">
+            <div class="wic-modal-header">
+                <div class="wic-modal-header-left">
+                    <div class="wic-modal-icon">
+                        <MudIcon Icon="@Icons.Material.Filled.TaskAlt" Size="Size.Small" />
+                    </div>
+                    <div>
+                        <h3 class="wic-modal-title">@GetEtapeSuivanteTitre(commandeEtapeSuivante)</h3>
+                        <p class="wic-modal-subtitle">@commandeEtapeSuivante.ProduitNom — @commandeEtapeSuivante.ClientNom</p>
+                    </div>
+                </div>
+                <button class="wic-modal-close" @onclick="FermerEtapeSuivante">
+                    <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                </button>
+            </div>
+
+            <div class="wic-modal-body">
+                @if ((commandeEtapeSuivante.Statut ?? "") == "EN_ATTENTE_CONFIRMATION")
+                {
+                    <p class="wic-body-text mb-3">Confirmer cette commande sur commande et, si besoin, indiquer une date de préparation estimée.</p>
+                    <MudDatePicker @bind-Date="dateEstimeePreparation"
+                                   Label="Date estimée de préparation (optionnelle)"
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense"
+                                   MinDate="DateTime.Today"
+                                   Clearable="true" />
+                }
+                else
+                {
+                    <p class="wic-body-text">Confirmer le passage à l'étape suivante du cycle de production ?</p>
+                }
+            </div>
+
+            <div class="wic-modal-footer">
+                <button class="btn btn--outline" @onclick="FermerEtapeSuivante" disabled="@etapeEnCours">Annuler</button>
+                <button class="btn btn--primary" @onclick="ConfirmerEtapeSuivante" disabled="@etapeEnCours">
+                    @if (etapeEnCours)
+                    {
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" Color="Color.Inherit" />
+                        <span>Enregistrement...</span>
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" />
+                        <span>Confirmer</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ===== MODAL CONFIRMATION REFUS ===== -->
+@if (commandeARefuser != null)
+{
+    <div class="wic-modal-overlay" @onclick="FermerRefus">
+        <div class="wic-confirm-card" @onclick:stopPropagation="true">
+            <div class="wic-confirm-icon">
+                <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Large" />
+            </div>
+            <h3 class="wic-confirm-title">Refuser la commande ?</h3>
+            <div class="wic-recap-box mb-3">
+                <div class="wic-recap-row">
+                    <span class="wic-recap-label">Client</span>
+                    <span class="wic-recap-value">@commandeARefuser.ClientNom</span>
+                </div>
+                <div class="wic-recap-row">
+                    <span class="wic-recap-label">Article</span>
+                    <span class="wic-recap-value">@commandeARefuser.ProduitNom</span>
+                </div>
+                <div class="wic-recap-row">
+                    <span class="wic-recap-label">Quantité</span>
+                    <span class="wic-recap-value">@commandeARefuser.QuantiteVendue articles</span>
+                </div>
+                <div class="wic-recap-row">
+                    <span class="wic-recap-label">Total</span>
+                    <span class="wic-recap-value wic-recap-value--accent">@commandeARefuser.TotalCommande.ToString("0.00") DT</span>
+                </div>
+            </div>
+            <p class="wic-confirm-text">Cette commande sera marquée comme refusée et conservée dans l'historique.</p>
+            <div class="wic-confirm-actions">
+                <button class="btn btn--outline" @onclick="FermerRefus">Conserver</button>
+                <button class="btn btn--danger" @onclick="ConfirmerRefus">
+                    <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" />
+                    <span>Oui, refuser</span>
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ===== MODAL ASSIGNATION RESPONSABLE ===== -->
+@if (commandeAAssigner != null)
+{
+    <div class="wic-modal-overlay" @onclick="FermerAssignation">
+        <div class="wic-modal-card" @onclick:stopPropagation="true">
+            <div class="wic-modal-header">
+                <div class="wic-modal-header-left">
+                    <div class="wic-modal-icon">
+                        <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Size="Size.Small" />
+                    </div>
+                    <div>
+                        <h3 class="wic-modal-title">Assigner la commande</h3>
+                        <p class="wic-modal-subtitle">@commandeAAssigner.ProduitNom — @commandeAAssigner.ClientNom</p>
+                    </div>
+                </div>
+                <button class="wic-modal-close" @onclick="FermerAssignation">
+                    <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                </button>
+            </div>
+
+            <div class="wic-modal-body">
+                <div class="wic-recap-box mb-4">
+                    <div class="wic-recap-row">
+                        <span class="wic-recap-label">Client</span>
+                        <span class="wic-recap-value">@commandeAAssigner.ClientNom</span>
+                    </div>
+                    <div class="wic-recap-row">
+                        <span class="wic-recap-label">Article</span>
+                        <span class="wic-recap-value">@commandeAAssigner.ProduitNom</span>
+                    </div>
+                    <div class="wic-recap-row">
+                        <span class="wic-recap-label">Quantité</span>
+                        <span class="wic-recap-value">@commandeAAssigner.QuantiteVendue articles</span>
+                    </div>
+                    @if (commandeAAssigner.DateSouhaitee.HasValue)
+                    {
+                        <div class="wic-recap-row">
+                            <span class="wic-recap-label">Date souhaitée</span>
+                            <span class="wic-recap-value">@commandeAAssigner.DateSouhaitee.Value.ToString("dd/MM/yyyy")</span>
+                        </div>
+                    }
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label mb-2">Responsable à assigner <span class="req-star">*</span></label>
+                    <MudSelect T="int?" @bind-Value="selectedResponsableId" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @if (responsables != null)
+                        {
+                            @foreach (var resp in responsables)
+                            {
+                                <MudSelectItem Value="@(resp.Id as int?)">@resp.Prenom @resp.Nom (@resp.Email)</MudSelectItem>
+                            }
+                        }
+                    </MudSelect>
+                </div>
+            </div>
+
+            <div class="wic-modal-footer">
+                <button class="btn btn--outline" @onclick="FermerAssignation">Annuler</button>
+                <button class="btn btn--primary" @onclick="ConfirmerAssignation" disabled="@(!selectedResponsableId.HasValue || etapeEnCours)">
+                    @if (etapeEnCours)
+                    {
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" Color="Color.Inherit" />
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" />
+                    }
+                    <span>Assigner et accepter</span>
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ===== MODAL CONFIRMATION SUPPRESSION ===== -->
+@if (commandeASupprimer != null)
+{
+    <div class="wic-modal-overlay" @onclick="FermerSuppression">
+        <div class="wic-confirm-card" @onclick:stopPropagation="true">
+            <div class="wic-confirm-icon wic-confirm-icon--danger">
+                <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Large" />
+            </div>
+            <h3 class="wic-confirm-title">Supprimer cette commande ?</h3>
+            <div class="wic-recap-box mb-3">
+                <div class="wic-recap-row">
+                    <span class="wic-recap-label">Client</span>
+                    <span class="wic-recap-value">@commandeASupprimer.ClientNom</span>
+                </div>
+                <div class="wic-recap-row">
+                    <span class="wic-recap-label">Article</span>
+                    <span class="wic-recap-value">@commandeASupprimer.ProduitNom</span>
+                </div>
+                <div class="wic-recap-row">
+                    <span class="wic-recap-label">Quantité</span>
+                    <span class="wic-recap-value">@commandeASupprimer.QuantiteVendue articles</span>
+                </div>
+                <div class="wic-recap-row">
+                    <span class="wic-recap-label">Total</span>
+                    <span class="wic-recap-value wic-recap-value--accent">@commandeASupprimer.TotalCommande.ToString("0.00") DT</span>
+                </div>
+            </div>
+            <p class="wic-confirm-text">Cette action est définitive et ne peut pas être annulée.</p>
+            <div class="wic-confirm-actions">
+                <button class="btn btn--outline" @onclick="FermerSuppression">Annuler</button>
+                <button class="btn btn--danger" @onclick="ConfirmerSuppression">
+                    <MudIcon Icon="@Icons.Material.Filled.Delete" Size="Size.Small" />
+                    <span>Oui, supprimer</span>
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ===== MODAL ASSIGNATION LIVREUR ===== -->
+@if (commandeAssignerLivreur != null)
+{
+    <div class="wic-modal-overlay" @onclick="FermerAssignationLivreur">
+        <div class="wic-modal-card" @onclick:stopPropagation="true">
+            <div class="wic-modal-header">
+                <div class="wic-modal-header-left">
+                    <div class="wic-modal-icon">
+                        <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" />
+                    </div>
+                    <div>
+                        <h3 class="wic-modal-title">Assigner un livreur</h3>
+                        <p class="wic-modal-subtitle">Commande #@commandeAssignerLivreur.Id — @commandeAssignerLivreur.ProduitNom</p>
+                    </div>
+                </div>
+                <button class="wic-modal-close" @onclick="FermerAssignationLivreur">
+                    <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                </button>
+            </div>
+
+            <div class="wic-modal-body">
+                <div class="wic-recap-box mb-4">
+                    <div class="wic-recap-row">
+                        <span class="wic-recap-label">Client</span>
+                        <span class="wic-recap-value">@commandeAssignerLivreur.ClientNom</span>
+                    </div>
+                    <div class="wic-recap-row">
+                        <span class="wic-recap-label">Article</span>
+                        <span class="wic-recap-value">@commandeAssignerLivreur.ProduitNom (@commandeAssignerLivreur.QuantiteVendue pièce(s))</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label mb-2">Livreur à assigner <span class="req-star">*</span></label>
+                    <MudSelect T="int" @bind-Value="selectedLivreurId" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @if (listeLivreurs != null && listeLivreurs.Any())
+                        {
+                            @foreach (var liv in listeLivreurs)
+                            {
+                                <MudSelectItem Value="@liv.Id">@liv.Nom (@liv.Email)</MudSelectItem>
+                            }
+                        }
+                        else
+                        {
+                            <MudSelectItem Value="0" Disabled="true">Aucun livreur inscrit</MudSelectItem>
+                        }
+                    </MudSelect>
+                </div>
+            </div>
+
+            <div class="wic-modal-footer">
+                <button class="btn btn--outline" @onclick="FermerAssignationLivreur">Annuler</button>
+                <button class="btn btn--primary" @onclick="ConfirmerAssignerLivreur" disabled="@(selectedLivreurId <= 0 || assignationLivreurEnCours)">
+                    @if (assignationLivreurEnCours)
+                    {
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" Color="Color.Inherit" />
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" />
+                    }
+                    <span>Assigner la livraison</span>
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .admin-page {
+        --ink: #16233A;
+        --ink-muted: #64748B;
+        --paper: #FFFFFF;
+        --sand: #F3F6FA;
+        --border: #E1E7EF;
+        --denim: #2B4C7E;
+        --denim-dark: #1E3A63;
+        --denim-soft: #E7EDF6;
+        --rust: #B5563A;
+        --rust-soft: #F9ECE8;
+        --pine: #1E6B4C;
+        --pine-soft: #E4F3EC;
+        --amber: #D97706;
+        --amber-soft: #FEF3C7;
+        --radius-sm: 8px;
+        --radius-md: 10px;
+        --radius-lg: 16px;
+        --font-display: "Sora", "Inter", sans-serif;
+        --font-body: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        font-family: var(--font-body);
+        color: var(--ink);
+    }
+
+        .admin-page .admin-hero {
+            margin-bottom: 20px;
+        }
+
+        .admin-page .page-title {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.75rem;
+            color: var(--ink);
+            margin: 0;
+            letter-spacing: -0.02em;
+        }
+
+        .admin-page .page-subtitle {
+            color: var(--ink-muted);
+            font-size: 0.95rem;
+            margin: 6px 0 0 0;
+        }
+
+        .admin-page .count-badge {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: var(--denim-soft);
+            color: var(--denim);
+            padding: 3px 10px;
+            border-radius: 999px;
+        }
+
+        /* ===== Statistiques cliquables ===== */
+        .admin-page .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 14px;
+        }
+
+        .admin-page .stat-card {
+            position: relative;
+            background: var(--paper);
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 16px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 8px rgba(22, 35, 58, 0.03);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+            .admin-page .stat-card:hover {
+                border-color: var(--denim);
+                transform: translateY(-1px);
+            }
+
+        .admin-page .stat-card--active {
+            border-color: var(--denim);
+            box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.12);
+        }
+
+        .admin-page .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .admin-page .stat-icon--denim {
+            background: var(--denim-soft);
+            color: var(--denim);
+        }
+
+        .admin-page .stat-icon--amber {
+            background: var(--amber-soft);
+            color: var(--amber);
+        }
+
+        .admin-page .stat-icon--pine {
+            background: var(--pine-soft);
+            color: var(--pine);
+        }
+
+        .admin-page .stat-icon--rust {
+            background: var(--rust-soft);
+            color: var(--rust);
+        }
+
+        .admin-page .stat-value {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--ink);
+            line-height: 1.1;
+        }
+
+        .admin-page .stat-label {
+            font-size: 0.78rem;
+            color: var(--ink-muted);
+            margin-top: 2px;
+        }
+
+        .admin-page .pulse-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--amber);
+            animation: pulse-ring 1.8s infinite;
+        }
+
+    @@keyframes pulse-ring {
+        0% {
+            box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.6);
+        }
+
+        70% {
+            box-shadow: 0 0 0 6px rgba(217, 119, 6, 0);
+        }
+
+        100% {
+            box-shadow: 0 0 0 0 rgba(217, 119, 6, 0);
+        }
+    }
+
+    /* ===== Filtres ===== */
+    .admin-page .filters-card {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 14px 16px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .admin-page .filter-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+        white-space: nowrap;
+    }
+
+    .admin-page .filter-select {
+        border: 1.5px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 8px 14px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        font-family: var(--font-body);
+        color: var(--ink);
+        background: var(--paper);
+        cursor: pointer;
+        outline: none;
+        min-width: 190px;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+        .admin-page .filter-select:focus {
+            border-color: var(--denim);
+            box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.14);
+        }
+
+    .admin-page .search-wrap {
+        position: relative;
+        flex: 1;
+        min-width: 240px;
+    }
+
+    .admin-page .search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--ink-muted);
+        pointer-events: none;
+    }
+
+    .admin-page .search-input {
+        width: 100%;
+        border: 1.5px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 8px 14px 8px 36px;
+        font-size: 0.875rem;
+        font-family: var(--font-body);
+        color: var(--ink);
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+        .admin-page .search-input:focus {
+            border-color: var(--denim);
+            box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.14);
+        }
+
+    .admin-page .view-toggle {
+        display: flex;
+        background: var(--sand);
+        padding: 3px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+    }
+
+    .admin-page .view-toggle-btn {
+        border: none;
+        background: transparent;
+        color: var(--ink-muted);
+        padding: 6px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+    }
+
+        .admin-page .view-toggle-btn.active {
+            background: var(--paper);
+            color: var(--denim);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+    .admin-page .filter-count {
+        margin-left: auto;
+        font-size: 0.8rem;
+        color: var(--ink-muted);
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    /* ===== Vue tableau ===== */
+    .admin-page .table-panel {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(22, 35, 58, 0.03);
+    }
+
+    .admin-page .orders-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+        .admin-page .orders-table thead th {
+            text-align: left;
+            font-family: var(--font-body);
+            font-weight: 700;
+            color: var(--ink-muted);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: var(--sand);
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+            .admin-page .orders-table thead th.text-right {
+                text-align: right;
+            }
+
+        .admin-page .orders-table tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: background 0.12s ease;
+        }
+
+            .admin-page .orders-table tbody tr:last-child {
+                border-bottom: none;
+            }
+
+            .admin-page .orders-table tbody tr:hover {
+                background: var(--sand);
+            }
+
+        .admin-page .orders-table tbody td {
+            padding: 12px 16px;
+            vertical-align: middle;
+        }
+
+        .admin-page .orders-table td.text-right {
+            text-align: right;
+        }
+
+    .admin-page .client-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--denim);
+        color: #fff;
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 0.72rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .admin-page .client-name {
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: var(--ink);
+    }
+
+    .admin-page .client-email {
+        font-size: 0.75rem;
+        color: var(--ink-muted);
+    }
+
+    .admin-page .cell-name {
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-size: 0.875rem;
+        margin-bottom: 3px;
+        color: var(--ink);
+    }
+
+    .admin-page .ref-code {
+        display: inline-block;
+        font-family: var(--font-mono);
+        font-weight: 600;
+        font-size: 0.7rem;
+        color: var(--denim);
+        background: var(--denim-soft);
+        padding: 2px 8px;
+        border-radius: 5px;
+    }
+
+    .admin-page .montant-cell {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .admin-page .montant-total {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 0.9375rem;
+        color: var(--denim);
+    }
+
+    .admin-page .montant-detail {
+        font-size: 0.75rem;
+        color: var(--ink-muted);
+    }
+
+    .admin-page .dates-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .admin-page .date-line {
+        font-size: 0.8125rem;
+        color: var(--ink);
+    }
+
+    .admin-page .date-souhaitee {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.75rem;
+        color: var(--ink-muted);
+        width: fit-content;
+    }
+
+    .admin-page .badge-statut {
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 4px 12px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        line-height: 1;
+    }
+
+    .admin-page .badge-statut--accepted {
+        background: var(--pine-soft);
+        color: var(--pine);
+    }
+
+    .admin-page .badge-statut--pending {
+        background: var(--amber-soft);
+        color: var(--amber);
+    }
+
+    .admin-page .badge-statut--rejected {
+        background: var(--rust-soft);
+        color: var(--rust);
+    }
+
+    .admin-page .badge-statut--paid {
+        background: #E0E7FF;
+        color: #4338CA;
+    }
+
+    .admin-page .badge-statut--shipped {
+        background: #E0F2FE;
+        color: #0369A1;
+    }
+
+    .admin-page .badge-statut--delivered {
+        background: var(--pine-soft);
+        color: var(--pine);
+    }
+
+    .admin-page .assignation-line {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 6px;
+    }
+
+    .admin-page .assignation-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 0.6875rem;
+        font-weight: 500;
+        color: var(--ink-muted);
+        background: var(--sand);
+        padding: 2px 8px;
+        border-radius: 999px;
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .admin-page .assignation-tag--livreur {
+        color: var(--pine);
+        background: var(--pine-soft);
+    }
+
+    .admin-page .icon-btn {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        border: 1px solid var(--border);
+        background: var(--paper);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        flex-shrink: 0;
+    }
+
+    .admin-page .icon-btn--valider {
+        color: var(--pine);
+        border-color: #A7F3D0;
+        background: var(--pine-soft);
+    }
+
+        .admin-page .icon-btn--valider:hover {
+            background: var(--pine);
+            color: #fff;
+        }
+
+    .admin-page .icon-btn--refuser {
+        color: var(--rust);
+        border-color: #F3C6B4;
+        background: var(--rust-soft);
+    }
+
+        .admin-page .icon-btn--refuser:hover {
+            background: var(--rust);
+            color: #fff;
+        }
+
+    .admin-page .icon-btn--livreur {
+        color: var(--denim);
+        border-color: #C7D5EA;
+        background: var(--denim-soft);
+    }
+
+        .admin-page .icon-btn--livreur:hover {
+            background: var(--denim);
+            color: #fff;
+        }
+
+    .admin-page .icon-btn--danger {
+        color: var(--ink-muted);
+    }
+
+        .admin-page .icon-btn--danger:hover {
+            background: var(--rust-soft);
+            border-color: var(--rust);
+            color: var(--rust);
+        }
+
+    .admin-page .icon-btn.ml-auto {
+        margin-left: auto;
+    }
+
+    /* ===== Vue grille ===== */
+    .admin-page .orders-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 16px;
+    }
+
+    .admin-page .order-card {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 22px 24px;
+        box-shadow: 0 2px 8px rgba(22, 35, 58, 0.03);
+        transition: box-shadow 0.15s ease, border-color 0.15s ease;
+        display: flex;
+        flex-direction: column;
+    }
+
+        .admin-page .order-card:hover {
+            box-shadow: 0 8px 20px -10px rgba(22, 35, 58, 0.18);
+        }
+
+    .admin-page .order-card--pending {
+        border-left: 3px solid var(--amber);
+    }
+
+    .admin-page .card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
+    }
+
+    .admin-page .product-title {
+        font-family: var(--font-display);
+        font-size: 1.02rem;
+        color: var(--ink);
+    }
+
+    .admin-page .delete-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 1px solid var(--border);
+        background: var(--paper);
+        color: var(--ink-muted);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        flex-shrink: 0;
+    }
+
+        .admin-page .delete-btn:hover {
+            background: var(--rust-soft);
+            border-color: var(--rust);
+            color: var(--rust);
+        }
+
+    .admin-page .card-body {
+        flex: 1;
+    }
+
+    .admin-page .meta-footer {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+        flex-wrap: wrap;
+    }
+
+    .admin-page .client-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .admin-page .meta-dot {
+        color: var(--border);
+    }
+
+    .admin-page .meta-date {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .admin-page .order-math-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .admin-page .math-item {
+        background: var(--sand);
+        padding: 10px 12px;
+        border-radius: var(--radius-sm);
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--border);
+    }
+
+    .admin-page .math-item--total {
+        grid-column: span 2;
+        background: var(--denim-soft);
+        border-color: rgba(43,76,126,0.15);
+    }
+
+    .admin-page .math-label {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--ink-muted);
+    }
+
+    .admin-page .math-value {
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: var(--ink);
+    }
+
+    .admin-page .math-value-total {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1.125rem;
+        color: var(--denim);
+    }
+
+    .admin-page .card-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 16px;
+        padding-top: 14px;
+        border-top: 1px solid var(--border);
+        flex-wrap: wrap;
+    }
+
+    .admin-page .btn--toggle {
+        border: 1.5px solid var(--border);
+        padding: 9px 16px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: var(--font-body);
+        transition: all 0.15s ease;
+    }
+
+    .admin-page .btn--publish {
+        background: var(--pine-soft);
+        color: var(--pine);
+        border-color: #A7F3D0;
+    }
+
+        .admin-page .btn--publish:hover {
+            background: var(--pine);
+            color: #fff;
+        }
+
+    .admin-page .btn--hide {
+        background: var(--rust-soft);
+        color: var(--rust);
+        border-color: #F3C6B4;
+    }
+
+        .admin-page .btn--hide:hover {
+            background: var(--rust);
+            color: #fff;
+        }
+
+    .admin-page .status-summary-text {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+    }
+
+        .admin-page .status-summary-text.text-success {
+            color: var(--pine);
+        }
+
+        .admin-page .status-summary-text.text-muted {
+            color: var(--ink-muted);
+        }
+
+    /* ===== État vide ===== */
+    .admin-page .empty-card {
+        text-align: center;
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 48px 24px;
+    }
+
+    .admin-page .empty-icon {
+        font-size: 48px;
+        color: var(--pine);
+    }
+
+    .admin-page .empty-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: var(--ink);
+        margin-top: 12px;
+    }
+
+    .admin-page .empty-subtitle {
+        color: var(--ink-muted);
+        font-size: 0.9rem;
+    }
+
+    /* ===== Boutons génériques (portée .admin-page) ===== */
+    .admin-page .btn {
+        border: none;
+        cursor: pointer;
+        font-weight: 600;
+        border-radius: var(--radius-sm);
+        padding: 9px 18px;
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-family: var(--font-body);
+        transition: all 0.15s ease;
+    }
+
+        .admin-page .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+    /* ===== Boutons des modales (portée globale) ===== */
+    .wic-modal-footer .btn,
+    .wic-confirm-actions .btn {
+        border: none;
+        padding: 10px 22px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.875rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.15s ease;
+        font-family: "Inter", sans-serif;
+    }
+
+        .wic-modal-footer .btn:disabled,
+        .wic-confirm-actions .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+    .admin-page .btn--primary,
+    .wic-modal-footer .btn--primary {
+        background: #2B4C7E !important;
+        color: #fff !important;
+        box-shadow: 0 2px 6px rgba(43, 76, 126, 0.3);
+    }
+
+        .admin-page .btn--primary:hover:not(:disabled),
+        .wic-modal-footer .btn--primary:hover:not(:disabled) {
+            background: #1E3A63 !important;
+            box-shadow: 0 4px 12px rgba(43, 76, 126, 0.4);
+            transform: translateY(-1px);
+        }
+
+    .admin-page .btn--outline,
+    .wic-modal-footer .btn--outline,
+    .wic-confirm-actions .btn--outline {
+        background: #fff;
+        border: 1.5px solid #2B4C7E;
+        color: #2B4C7E;
+    }
+
+        .admin-page .btn--outline:hover:not(:disabled),
+        .wic-modal-footer .btn--outline:hover:not(:disabled),
+        .wic-confirm-actions .btn--outline:hover:not(:disabled) {
+            background: #E7EDF6;
+        }
+
+    .admin-page .btn--danger,
+    .wic-confirm-actions .btn--danger {
+        background: #B5563A;
+        color: #fff;
+        box-shadow: 0 2px 6px rgba(181, 86, 58, 0.25);
+    }
+
+        .admin-page .btn--danger:hover:not(:disabled),
+        .wic-confirm-actions .btn--danger:hover:not(:disabled) {
+            background: #96412A;
+        }
+
+    /* ===== Modales (portée globale, rendues hors de .admin-page) ===== */
+    .wic-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(6px);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        font-family: "Inter", sans-serif;
+        animation: wicFadeIn 0.15s ease;
+    }
+
+    @@keyframes wicFadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    @@keyframes wicSlideUp {
+        from {
+            opacity: 0;
+            transform: translateY(16px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .wic-modal-card {
+        background: #ffffff !important;
+        border: 1px solid #E1E7EF;
+        border-radius: 20px;
+        width: 100%;
+        max-width: 540px;
+        box-shadow: 0 24px 60px rgba(22, 35, 58, 0.28), 0 4px 12px rgba(22, 35, 58, 0.1);
+        overflow: hidden;
+        animation: wicSlideUp 0.2s ease;
+    }
+
+    .wic-modal-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 22px 24px;
+        background: linear-gradient(180deg, #E7EDF6 0%, #FFFFFF 100%);
+        border-bottom: 1px solid #E1E7EF;
+    }
+
+    .wic-modal-header-left {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .wic-modal-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: #FFFFFF;
+        border: 1px solid #E1E7EF;
+        color: #2B4C7E;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .wic-modal-title {
+        font-family: "Sora", sans-serif;
+        font-weight: 700;
+        font-size: 1.15rem;
+        margin: 0;
+        color: #16233A;
+    }
+
+    .wic-modal-subtitle {
+        font-size: 0.85rem;
+        margin: 2px 0 0 0;
+        color: #64748B;
+    }
+
+    .wic-modal-close {
+        background: #FFFFFF;
+        border: 1px solid #E1E7EF;
+        cursor: pointer;
+        color: #64748B;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+    }
+
+        .wic-modal-close:hover {
+            background: #E7EDF6;
+            color: #2B4C7E;
+            border-color: #2B4C7E;
+        }
+
+    .wic-modal-body {
+        padding: 24px;
+    }
+
+    .wic-body-text {
+        font-size: 0.9rem;
+        color: #16233A;
+        line-height: 1.5;
+        margin: 0;
+    }
+
+    .wic-recap-box {
+        background: #F3F6FA;
+        border: 1px solid #E1E7EF;
+        border-radius: 10px;
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .wic-recap-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .wic-recap-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #64748B;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .wic-recap-value {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #16233A;
+        font-family: "Sora", sans-serif;
+    }
+
+    .wic-recap-value--accent {
+        color: #2B4C7E;
+    }
+
+    .wic-modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        padding: 18px 24px;
+        background: #F3F6FA;
+        border-top: 1px solid #E1E7EF;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .form-label {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #16233A;
+        display: block;
+        font-family: "Inter", sans-serif;
+    }
+
+    .req-star {
+        color: #B5563A;
+    }
+
+    .wic-confirm-card {
+        background: #fff !important;
+        border-radius: 20px;
+        width: 100%;
+        max-width: 440px;
+        box-shadow: 0 24px 60px rgba(22, 35, 58, 0.28), 0 4px 12px rgba(22, 35, 58, 0.1);
+        padding: 28px 28px 24px;
+        text-align: center;
+        animation: wicSlideUp 0.2s ease;
+    }
+
+    .wic-confirm-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: #F9ECE8;
+        color: #B5563A;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 16px;
+    }
+
+    .wic-confirm-icon--danger {
+        background: #FEE2E2;
+        color: #DC2626;
+    }
+
+    .wic-confirm-title {
+        font-family: "Sora", sans-serif;
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: #16233A;
+        margin: 0 0 14px;
+    }
+
+    .wic-confirm-text {
+        font-size: 0.875rem;
+        color: #64748B;
+        line-height: 1.5;
+        margin: 0 0 22px;
+    }
+
+    .wic-confirm-actions {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+    }
+</style>
+
+@code {
+    [SupplyParameterFromQuery(Name = "statut")]
+    public string? StatutQuery { get; set; }
+
+    private List<CommandeManagerDto>? commandes;
+    private List<ResponsableDto>? responsables;
+    private bool isLoading = true;
+    private string searchString = "";
+    private string statutFilter = "";
+    private bool isGridView = false;
+    private string? userRole;
+
+    protected override async Task OnInitializedAsync()
+    {
+        userRole = await AuthService.ObtenirRole();
+        if (!string.IsNullOrWhiteSpace(StatutQuery))
+        {
+            statutFilter = StatutQuery.ToUpperInvariant().Trim();
+        }
+        await ChargerCommandes();
+        if (userRole == "ADMIN")
+        {
+            await ChargerResponsables();
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrWhiteSpace(StatutQuery))
+        {
+            statutFilter = StatutQuery.ToUpperInvariant().Trim();
+        }
+    }
+
+    private async Task ChargerCommandes()
+    {
+        isLoading = true;
+        try
+        {
+            commandes = await CatalogueService.ObtenirToutesLesCommandes();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erreur de chargement des commandes: {ex.Message}", Severity.Error);
+            commandes = new List<CommandeManagerDto>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ChargerResponsables()
+    {
+        try
+        {
+            responsables = await CatalogueService.ObtenirResponsables();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erreur de chargement des responsables: {ex.Message}", Severity.Error);
+            responsables = new List<ResponsableDto>();
+        }
+    }
+
+    private IEnumerable<CommandeManagerDto> FilteredCommandes
+    {
+        get
+        {
+            if (commandes == null) return Enumerable.Empty<CommandeManagerDto>();
+
+            var list = commandes.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(statutFilter))
+            {
+                list = list.Where(c => c.StatutCommande.Equals(statutFilter, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (!string.IsNullOrWhiteSpace(searchString))
+            {
+                var s = searchString.Trim();
+                list = list.Where(c =>
+                    (c.ClientNom?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (c.ClientEmail?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (c.ProduitNom?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (c.ProduitReference?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false)
+                );
+            }
+
+            return list;
+        }
+    }
+
+    private int CountTotal => commandes?.Count ?? 0;
+    private int CountEnAttente => commandes?.Count(c => c.StatutCommande == "EN_ATTENTE") ?? 0;
+    private int CountAcceptees => commandes?.Count(c => c.StatutCommande == "ACCEPTEE") ?? 0;
+    private int CountRefusees => commandes?.Count(c => c.StatutCommande == "REFUSEE") ?? 0;
+
+    private Task OnStatutFilterChanged(ChangeEventArgs e)
+    {
+        statutFilter = e.Value?.ToString() ?? "";
+        return Task.CompletedTask;
+    }
+
+    private async Task Accepter(int id)
+    {
+        var succes = await CatalogueService.AccepterCommande(id);
+        if (succes)
+        {
+            Snackbar.Add("Commande acceptée avec succès ! Le stock a été mis à jour.", Severity.Success);
+            await ChargerCommandes();
+            await CommandeBadgeService.RafraichirAsync();
+        }
+        else
+        {
+            Snackbar.Add("Impossible d'accepter la commande.", Severity.Error);
+        }
+    }
+
+    private CommandeManagerDto? commandeARefuser;
+
+    private void DemanderRefus(CommandeManagerDto cmd) => commandeARefuser = cmd;
+    private void FermerRefus() => commandeARefuser = null;
+
+    private async Task ConfirmerRefus()
+    {
+        if (commandeARefuser == null) return;
+
+        var id = commandeARefuser.Id;
+        FermerRefus();
+
+        var succes = await CatalogueService.RefuserCommande(id);
+        if (succes)
+        {
+            Snackbar.Add("Commande refusée avec succès.", Severity.Info);
+            await ChargerCommandes();
+            await CommandeBadgeService.RafraichirAsync();
+        }
+        else
+        {
+            Snackbar.Add("Impossible de refuser la commande.", Severity.Error);
+        }
+    }
+
+    private CommandeManagerDto? commandeASupprimer;
+
+    private void DemanderSuppression(CommandeManagerDto cmd) => commandeASupprimer = cmd;
+    private void FermerSuppression() => commandeASupprimer = null;
+
+    private async Task ConfirmerSuppression()
+    {
+        if (commandeASupprimer == null) return;
+
+        var id = commandeASupprimer.Id;
+        FermerSuppression();
+
+        var succes = await CatalogueService.SupprimerCommande(id);
+        if (succes)
+        {
+            Snackbar.Add("Commande supprimée avec succès.", Severity.Success);
+            await ChargerCommandes();
+        }
+        else
+        {
+            Snackbar.Add("Impossible de supprimer la commande.", Severity.Error);
+        }
+    }
+
+    private string GetStatutCssClass(string? statut) => statut switch
+    {
+        "ACCEPTEE" or "CONFIRMEE" or "PRETE" => "badge-statut--accepted",
+        "PAYEE" => "badge-statut--paid",
+        "EN_LIVRAISON" => "badge-statut--shipped",
+        "LIVREE" => "badge-statut--delivered",
+        "REFUSEE" => "badge-statut--rejected",
+        _ => "badge-statut--pending"
+    };
+
+    private string GetStatutLabel(string? statut) => statut switch
+    {
+        "ACCEPTEE" => "Acceptée",
+        "REFUSEE" => "Refusée",
+        "EN_ATTENTE_CONFIRMATION" => "En attente de confirmation",
+        "CONFIRMEE" => "Confirmée",
+        "EN_PREPARATION" => "En préparation",
+        "PRETE" => "Prête",
+        "PAYEE" => "Payée",
+        "EN_LIVRAISON" => "En livraison",
+        "LIVREE" => "Livrée",
+        _ => "En attente"
+    };
+
+    private CommandeManagerDto? commandeEtapeSuivante;
+    private CommandeManagerDto? commandeAAssigner;
+    private int? selectedResponsableId;
+    private DateTime? dateEstimeePreparation;
+    private bool etapeEnCours = false;
+
+    private void DemanderEtapeSuivante(CommandeManagerDto cmd)
+    {
+        commandeEtapeSuivante = cmd;
+        dateEstimeePreparation = cmd.DateEstimeePreparation;
+    }
+
+    private void FermerEtapeSuivante()
+    {
+        commandeEtapeSuivante = null;
+        dateEstimeePreparation = null;
+    }
+
+    private void DemanderAssignation(CommandeManagerDto cmd)
+    {
+        commandeAAssigner = cmd;
+        selectedResponsableId = null;
+    }
+
+    private void FermerAssignation()
+    {
+        commandeAAssigner = null;
+        selectedResponsableId = null;
+    }
+
+    private async Task ConfirmerAssignation()
+    {
+        if (commandeAAssigner == null || selectedResponsableId == null) return;
+
+        etapeEnCours = true;
+        var id = commandeAAssigner.Id;
+        var responsableId = selectedResponsableId.Value;
+        FermerAssignation();
+
+        var (succes, message) = await CatalogueService.AssignerCommande(id, responsableId);
+        etapeEnCours = false;
+
+        if (succes)
+        {
+            Snackbar.Add($"Commande assignée avec succès.", Severity.Success);
+            await ChargerCommandes();
+            await CommandeBadgeService.RafraichirAsync();
+        }
+        else
+        {
+            Snackbar.Add($"Erreur lors de l'assignation: {message}", Severity.Error);
+        }
+    }
+
+    private bool EstAssigneAUtilisateur(CommandeManagerDto cmd)
+    {
+        // Pour l'instant, on assume que le responsable connecté est celui assigné
+        // Dans une implémentation complète, il faudrait récupérer l'ID utilisateur courant
+        return cmd.ResponsableId.HasValue;
+    }
+
+    private string GetEtapeSuivanteTitre(CommandeManagerDto cmd) => (cmd.Statut ?? "") switch
+    {
+        "EN_ATTENTE_CONFIRMATION" => "Confirmer la commande",
+        "CONFIRMEE" => "Démarrer la préparation",
+        "EN_PREPARATION" => "Marquer comme prête",
+        _ => "Étape suivante"
+    };
+
+    private async Task ConfirmerEtapeSuivante()
+    {
+        if (commandeEtapeSuivante == null) return;
+
+        etapeEnCours = true;
+        var id = commandeEtapeSuivante.Id;
+        var statut = commandeEtapeSuivante.Statut ?? "";
+        bool succes = false;
+
+        if (statut == "EN_ATTENTE_CONFIRMATION")
+        {
+            succes = await CatalogueService.ConfirmerCommandeSurCommande(id, new ConfirmerCommandeRequestDto
+            {
+                DateEstimeePreparation = dateEstimeePreparation
+            });
+        }
+        else if (statut == "CONFIRMEE")
+        {
+            succes = await CatalogueService.DemarrerPreparation(id);
+        }
+        else if (statut == "EN_PREPARATION")
+        {
+            succes = await CatalogueService.MarquerPrete(id);
+        }
+
+        etapeEnCours = false;
+
+        if (succes)
+        {
+            Snackbar.Add("Étape mise à jour avec succès.", Severity.Success);
+            FermerEtapeSuivante();
+            await ChargerCommandes();
+            await CommandeBadgeService.RafraichirAsync();
+        }
+        else
+        {
+            Snackbar.Add("Impossible de faire avancer cette commande.", Severity.Error);
+        }
+    }
+
+    private string GetInitiale(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "C";
+        var parts = name.Trim().Split(' ');
+        if (parts.Length >= 2)
+            return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+        return name[0].ToString().ToUpper();
+    }
+
+    // ===== Assignation Livreur (Admin) =====
+    private List<LivreurInfoDto> listeLivreurs = new();
+    private CommandeManagerDto? commandeAssignerLivreur;
+    private int selectedLivreurId;
+    private bool assignationLivreurEnCours = false;
+
+    private async Task OuvrirAssignationLivreur(CommandeManagerDto c)
+    {
+        commandeAssignerLivreur = c;
+        listeLivreurs = await LivraisonService.ObtenirLivreurs();
+        selectedLivreurId = listeLivreurs.FirstOrDefault()?.Id ?? 0;
+    }
+
+    private void FermerAssignationLivreur() => commandeAssignerLivreur = null;
+
+    private async Task ConfirmerAssignerLivreur()
+    {
+        if (commandeAssignerLivreur == null || selectedLivreurId <= 0) return;
+        assignationLivreurEnCours = true;
+        var ok = await LivraisonService.AssignerLivreur(commandeAssignerLivreur.Id, selectedLivreurId);
+        assignationLivreurEnCours = false;
+
+        if (ok)
+        {
+            Snackbar.Add("Livreur assigné avec succès !", Severity.Success);
+            FermerAssignationLivreur();
+            await ChargerCommandes();
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors de l'assignation du livreur.", Severity.Error);
+        }
+    }
+}
+
+
