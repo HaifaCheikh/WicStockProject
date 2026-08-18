@@ -30,7 +30,7 @@ The application is architected as a **full-stack monorepo** featuring an **ASP.N
 
 ### 📊 2. Role-Based BI Dashboards
 * **Admin & Manager Dashboards**: High-level KPI visualization, interactive SVG/HTML charts (Category Breakdown, Monthly Sales, Stock Health).
-* **Role-Based Access Control (RBAC)**: Custom views and permission sets for `Admin`, `Manager`, `Client`, and `Livreur` (Delivery).
+* **Role-Based Access Control (RBAC)**: Custom views and permission sets for `Admin`, `Manager`, `Client`, and `Delivery`.
 
 ### 🛍️ 3. Catalog & Order Lifecycle (Standard & Made-to-Order)
 * **Dynamic Product Catalog**: Filtering by category, fabric type, promotion status, and custom stock availability.
