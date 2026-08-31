@@ -7,8 +7,17 @@ namespace WicStock.Web.Models.Dtos
     {
         public int ProduitId { get; set; }
         public int StockActuel { get; set; }
+        public bool EstEnSurstock { get; set; }
+        public int SurplusUnites { get; set; }
         public int SeuilSurstock { get; set; }
         public double PourcentageAuDessusDuSeuil { get; set; }
+        /// <summary>
+        /// Part du surstock dans le stock total, TOUJOURS bornee entre 0 et 100%.
+        /// Formule (backend) : ((StockActuel - SeuilSurstock) / StockActuel) * 100.
+        /// Complementaire a PourcentageAuDessusDuSeuil (ecart brut, non borne, ex: +700%) :
+        /// celle-ci repond a "quelle part de mon stock est du surstock ?" (ex: 87%).
+        /// </summary>
+        public double PourcentagePartSurstock { get; set; }
         public int JoursDepuisDerniereSortie { get; set; }
         public string DateAjoutFormatee { get; set; } = string.Empty;
         public double TauxEcoulement90Jours { get; set; }
@@ -46,6 +55,8 @@ namespace WicStock.Web.Models.Dtos
         public string? Destination { get; set; }
         public string? Destinataire { get; set; }
         public string? Priorite { get; set; }
+        public string? InitieParRole { get; set; } = "ADMIN";
+        public string? NomAuteur { get; set; } // Nom de l'utilisateur qui a pris l'action
     }
 
     public class AnalyseProduitDto

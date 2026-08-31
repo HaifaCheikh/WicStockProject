@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace WicStock.Web.Models.Dtos
 {
     public class AdminDashboardDto
@@ -7,6 +10,7 @@ namespace WicStock.Web.Models.Dtos
         public decimal RevenuTotal { get; set; }
         public int TotalUtilisateurs { get; set; }
         public int TotalCommandes { get; set; }
+        public Dictionary<string, int> RepartitionStatuts { get; set; } = new();
         public int ProduitsEnRupture { get; set; }
 
         public List<MonthlyRevenueDto> EvolutionRevenus { get; set; } = new();
@@ -22,6 +26,7 @@ namespace WicStock.Web.Models.Dtos
         public int TotalProduitsVendus { get; set; }
         public decimal RevenuAujourdhui { get; set; }
         public decimal RevenuSemaine { get; set; }
+        public Dictionary<string, int> RepartitionStatuts { get; set; } = new();
         public int CommandesEnAttenteCount { get; set; }
 
         public List<ProduitStockAlerteDto> ProduitsAlerte { get; set; } = new();
@@ -73,6 +78,18 @@ namespace WicStock.Web.Models.Dtos
         public string Nom { get; set; } = string.Empty;
         public string Reference { get; set; } = string.Empty;
         public int QuantiteActuelle { get; set; }
+        /// <summary>
+        /// Surplus en unités = max(0, QuantiteActuelle - SeuilSurstock).
+        /// Donnée brute et actionnable, à afficher en priorité (ex: "+3500 u. en surplus")
+        /// plutôt que le pourcentage seul.
+        /// </summary>
+        public int SurplusUnites { get; set; }
+        /// <summary>
+        /// Part du surstock dans le stock total, TOUJOURS bornée entre 0 et 100%.
+        /// Formule (backend) : ((QuantiteActuelle - SeuilSurstock) / QuantiteActuelle) * 100.
+        /// Remplace l'ancien calcul non borné ((stock-seuil)/seuil)*100 qui donnait des
+        /// valeurs du type +700% pour de gros stocks.
+        /// </summary>
         public int PourcentageSurstock { get; set; }
     }
 }

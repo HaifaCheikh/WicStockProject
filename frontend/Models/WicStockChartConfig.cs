@@ -1,4 +1,4 @@
-﻿using MudBlazor;
+using MudBlazor;
 using System.Globalization;
 
 namespace WicStock.Web.Models
@@ -25,15 +25,15 @@ namespace WicStock.Web.Models
         /// </summary>
         public static readonly string[] Palette = new[]
         {
-            "#2B4C7E", // Denim principal
-            "#C85A32", // Rust / Terracotta
+            "#2B4C7E", // Denim principal (Bleu denim WicStock)
+            "#F59E0B", // Jaune orangé / Ambre éclatant (Accent WicStock)
             "#1E6B4C", // Pine (vert forêt)
-            "#D97706", // Amber (ambre chaud)
+            "#C85A32", // Rust / Terracotta
             "#475569", // Slate (ardoise)
             "#D4A373", // Sand chaud
             "#0D9488", // Teal
             "#406BA8", // Denim clair
-            "#E07A5F", // Rust clair
+            "#FBBF24", // Jaune ambre
             "#6366F1", // Indigo
             "#0284C7", // Cyan
             "#E11D48"  // Rose
@@ -91,10 +91,10 @@ namespace WicStock.Web.Models
             {
                 return new List<QuickPrompt>
                 {
-                    new() { Label = "Commandes", Question = "Quel est l'état de mes commandes ?", Icon = Icons.Material.Filled.LocalShipping, Category = "Commandes" },
-                    new() { Label = "Sur commande", Question = "Quels sont les produits disponibles sur commande ?", Icon = Icons.Material.Filled.Inventory, Category = "Catalogue" },
-                    new() { Label = "Mieux notés", Question = "Quels sont les produits les mieux notés ?", Icon = Icons.Material.Filled.Star, Category = "Avis" },
-                    new() { Label = "Catalogue", Question = "Quels sont les produits en stock ?", Icon = Icons.Material.Filled.Storefront, Category = "Catalogue" }
+                    new() { Label = "Mes commandes", Question = "Quel est l'état de mes commandes ?", Icon = Icons.Material.Filled.LocalShipping, Category = "Commandes" },
+                    new() { Label = "Sur commande", Question = "Quels sont les articles disponibles sur commande ?", Icon = Icons.Material.Filled.Inventory, Category = "Catalogue" },
+                    new() { Label = "Mieux notés", Question = "Quels sont les articles les mieux notés ?", Icon = Icons.Material.Filled.Star, Category = "Avis" },
+                    new() { Label = "Catalogue", Question = "Quels sont les articles du catalogue ?", Icon = Icons.Material.Filled.Storefront, Category = "Catalogue" }
                 };
             }
 
@@ -169,6 +169,11 @@ namespace WicStock.Web.Models
                 { "RUPTURE", "RUPTURE" },
                 { "EN RUPTURE", "RUPTURE" },
                 { "RUPTURE DE STOCK", "RUPTURE" },
+                { "STOCK_FAIBLE", "STOCK_FAIBLE" },
+                { "STOCK FAIBLE", "STOCK_FAIBLE" },
+                { "FAIBLE", "STOCK_FAIBLE" },
+                { "FAIBLE STOCK", "STOCK_FAIBLE" },
+                { "EN STOCK FAIBLE", "STOCK_FAIBLE" },
                 { "SURSTOCK", "SURSTOCK" },
                 { "EN SURSTOCK", "SURSTOCK" },
                 { "OPTIMAL", "OPTIMAL" },
@@ -180,15 +185,19 @@ namespace WicStock.Web.Models
             };
 
             if (statutsStock.TryGetValue(cleanLabel, out var statutFiltre) ||
-                (cleanTitle.Contains("STOCK") && statutsStock.Keys.Any(k => cleanLabel.Contains(k))))
+                (cleanTitle.Contains("STOCK") && statutsStock.Keys.FirstOrDefault(k => cleanLabel.Contains(k)) is string matchedKey && statutsStock.TryGetValue(matchedKey, out statutFiltre)))
             {
                 var code = statutFiltre ?? "RUPTURE";
                 return isClient ? "/produits" : $"/produits?statut={code}";
             }
 
             // 3. MAPPING CATÉGORIES DE PRODUITS
-            // Si le titre du graphique mentionne "CATÉGORIE" ou "PRODUIT" et que le label n'est pas un nombre ou un statut
-            if (cleanTitle.Contains("CATÉGORIE") || cleanTitle.Contains("CATEGORIE") || cleanTitle.Contains("PRODUIT") || cleanTitle.Contains("REPARTITION"))
+            // CORRIGÉ : ne se déclenche QUE si le titre mentionne explicitement "CATÉGORIE".
+            // "PRODUIT" et "REPARTITION" ont été retirés : ils étaient trop génériques et
+            // capturaient à tort les graphiques de répartition PAR PRODUIT (ex: surstock par
+            // article), envoyant le nom du produit comme si c'était une catégorie
+            // (ex: /produits?categorie=Denim%20Shirt au lieu de ?highlight=Denim%20Shirt).
+            if (cleanTitle.Contains("CATÉGORIE") || cleanTitle.Contains("CATEGORIE"))
             {
                 // Vérifie que ce n'est pas une simple valeur numérique brute
                 if (!double.TryParse(label, NumberStyles.Any, CultureInfo.InvariantCulture, out _))
@@ -198,7 +207,16 @@ namespace WicStock.Web.Models
                 }
             }
 
-            // 4. AUCUN MAPPING (Donnée non navigable, ex: agrégat financier brut)
+            // 4. MAPPING NOMS DE PRODUITS
+            // Tout label non numérique, non statut, non catégorie connu est traité comme un nom de produit
+            if (!double.TryParse(label, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out _)
+                && label.Length > 2 && label.Length < 100)
+            {
+                var encoded = Uri.EscapeDataString(label.Trim());
+                return isClient ? null : $"/produits?highlight={encoded}";
+            }
+
+            // 5. AUCUN MAPPING (Donnée non navigable)
             return null;
         }
     }

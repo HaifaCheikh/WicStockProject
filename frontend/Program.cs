@@ -6,7 +6,10 @@ using WicStock.Web.Services;
 using MudBlazor.Services;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
-builder.Services.AddMudServices();
+builder.Services.AddMudServices(config =>
+{
+    config.PopoverOptions.ThrowOnDuplicateProvider = false;
+});
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 

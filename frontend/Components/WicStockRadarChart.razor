@@ -1,0 +1,122 @@
+@using WicStock.Web.Models
+@using System.Globalization
+
+<div class="wicstock-radar-chart" style="width:@Width; font-family:'Inter',sans-serif;">
+    <svg viewBox="0 0 540 380" width="100%" height="100%" style="display:block; margin:0 auto; max-width:540px;">
+        @GetSvgContent()
+    </svg>
+</div>
+
+@code {
+    [Parameter] public List<string> Labels { get; set; } = new();
+    [Parameter] public List<double> Series { get; set; } = new();
+    [Parameter] public string Width { get; set; } = "100%";
+    [Parameter] public int MaxCategories { get; set; } = 8;
+    [Parameter] public string[]? CustomPalette { get; set; }
+
+    private const double CenterX = 270;
+    private const double CenterY = 190;
+    private const double MaxRadius = 135;
+    private const int Levels = 4;
+
+    private List<string> VisibleLabels => Labels.Take(MaxCategories).ToList();
+    private List<double> VisibleSeries => Series.Take(MaxCategories).ToList();
+    private int VisibleCount => Math.Min(Labels.Count, MaxCategories);
+
+    private string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private string FormatVal(double v)
+    {
+        if (v >= 1_000_000) return (v / 1_000_000.0).ToString("0.#") + "M";
+        if (v >= 1_000) return (v / 1_000.0).ToString("0.#") + "k";
+        if (v % 1 < double.Epsilon) return ((long)v).ToString();
+        return v.ToString("0.#");
+    }
+
+    private static string Truncate(string s, int max) =>
+        s.Length > max ? s[..Math.Max(1, max - 1)] + "\u2026" : s;
+
+    private MarkupString GetSvgContent()
+    {
+        var sb = new System.Text.StringBuilder();
+
+        if (VisibleCount < 3) return new MarkupString(string.Empty);
+
+        double maxVal = VisibleSeries.Count > 0 ? (VisibleSeries.Max() > 0 ? VisibleSeries.Max() * 1.15 : 1) : 1;
+        double angleStep = (2.0 * Math.PI) / VisibleCount;
+        double startAngle = -Math.PI / 2.0;
+
+        string mainColor = (CustomPalette != null && CustomPalette.Length > 0)
+            ? CustomPalette[0]
+            : WicStockChartConfig.Palette[0];
+
+        // 1. Grille polygonale concentrique (Toile)
+        for (int level = 1; level <= Levels; level++)
+        {
+            double r = MaxRadius * (level / (double)Levels);
+            var polyPoints = new List<string>();
+
+            for (int i = 0; i < VisibleCount; i++)
+            {
+                double angle = startAngle + i * angleStep;
+                double px = CenterX + r * Math.Cos(angle);
+                double py = CenterY + r * Math.Sin(angle);
+                polyPoints.Add($"{F(px)},{F(py)}");
+            }
+
+            sb.AppendLine($@"<polygon points=""{string.Join(" ", polyPoints)}"" fill=""none"" stroke=""#e2e8f0"" stroke-width=""1"" stroke-dasharray=""3 3"" />");
+        }
+
+        // 2. Axes radiaux et étiquettes
+        for (int i = 0; i < VisibleCount; i++)
+        {
+            double angle = startAngle + i * angleStep;
+            double endX = CenterX + MaxRadius * Math.Cos(angle);
+            double endY = CenterY + MaxRadius * Math.Sin(angle);
+
+            sb.AppendLine($@"<line x1=""{F(CenterX)}"" y1=""{F(CenterY)}"" x2=""{F(endX)}"" y2=""{F(endY)}"" stroke=""#cbd5e1"" stroke-width=""1.2"" />");
+
+            // Étiquette axe
+            double labelR = MaxRadius + 22;
+            double labelX = CenterX + labelR * Math.Cos(angle);
+            double labelY = CenterY + labelR * Math.Sin(angle);
+
+            string align = Math.Abs(Math.Cos(angle)) < 0.1 ? "middle" : (Math.Cos(angle) > 0 ? "start" : "end");
+            string labelEsc = System.Net.WebUtility.HtmlEncode(Truncate(VisibleLabels[i], 16));
+
+            sb.AppendLine($@"<text x=""{F(labelX)}"" y=""{F(labelY + 4)}"" text-anchor=""{align}"" font-size=""11"" fill=""#334155"" font-family=""Inter,sans-serif"" font-weight=""500"">{labelEsc}</text>");
+        }
+
+        // 3. Polygon de données rempli
+        var dataPoints = new List<(double X, double Y, double Val, string Label)>();
+        var polyDataStrings = new List<string>();
+
+        for (int i = 0; i < VisibleCount; i++)
+        {
+            double angle = startAngle + i * angleStep;
+            double val = VisibleSeries[i];
+            double r = (val / maxVal) * MaxRadius;
+
+            double px = CenterX + r * Math.Cos(angle);
+            double py = CenterY + r * Math.Sin(angle);
+
+            dataPoints.Add((px, py, val, VisibleLabels[i]));
+            polyDataStrings.Add($"{F(px)},{F(py)}");
+        }
+
+        sb.AppendLine($@"<polygon points=""{string.Join(" ", polyDataStrings)}"" fill=""{mainColor}"" opacity=""0.25"" stroke=""{mainColor}"" stroke-width=""2.5"" />");
+
+        // 4. Marqueurs et valeurs
+        foreach (var p in dataPoints)
+        {
+            string valEsc = System.Net.WebUtility.HtmlEncode(FormatVal(p.Val));
+            string titleEsc = System.Net.WebUtility.HtmlEncode($"{p.Label} : {FormatVal(p.Val)}");
+
+            sb.AppendLine($@"<circle cx=""{F(p.X)}"" cy=""{F(p.Y)}"" r=""5"" fill=""#ffffff"" stroke=""{mainColor}"" stroke-width=""2.5""><title>{titleEsc}</title></circle>");
+            sb.AppendLine($@"<circle cx=""{F(p.X)}"" cy=""{F(p.Y)}"" r=""2"" fill=""{mainColor}""><title>{titleEsc}</title></circle>");
+            sb.AppendLine($@"<text x=""{F(p.X)}"" y=""{F(p.Y - 9)}"" text-anchor=""middle"" font-size=""10.5"" fill=""{mainColor}"" font-family=""JetBrains Mono,monospace"" font-weight=""700"">{valEsc}</text>");
+        }
+
+        return new MarkupString(sb.ToString());
+    }
+}

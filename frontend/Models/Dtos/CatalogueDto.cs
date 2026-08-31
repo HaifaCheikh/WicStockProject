@@ -1,4 +1,4 @@
-﻿namespace WicStock.Web.Models.Dtos
+namespace WicStock.Web.Models.Dtos
 {
     public class CatalogueProduitDto
     {
@@ -15,6 +15,10 @@
         public int SeuilAlerte { get; set; } = 10;
         public bool DisponibleSurCommande { get; set; } = false;
         public bool EstStockFaible { get; set; } = false;
+
+        // 🌟 Avis et Note moyenne client
+        public double NoteMoyenne { get; set; } = 0;
+        public int NombreAvis { get; set; } = 0;
 
         // Rupture réelle (stock à 0 et non commandable)
         public bool EstEnRupture => GetQuantiteEffective() <= 0 && !DisponibleSurCommande;

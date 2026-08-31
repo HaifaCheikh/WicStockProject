@@ -1,0 +1,110 @@
+@using WicStock.Web.Models
+@using System.Globalization
+
+<div class="wicstock-scatter-chart" style="width:@Width; font-family:'Inter',sans-serif;">
+    <svg viewBox="0 0 @SvgTotalW @SvgTotalH" width="100%" height="100%" style="display:block; max-width:100%;">
+        @GetSvgContent()
+    </svg>
+    @if (Labels.Count > MaxPoints)
+    {
+        <p style="font-size:11px;color:#94a3b8;margin:6px 0 0 @(LeftPad)px;font-family:Inter,sans-serif;">
+            Top @MaxPoints affichés sur @Labels.Count résultats
+        </p>
+    }
+</div>
+
+@code {
+    [Parameter] public List<string> Labels { get; set; } = new();
+    [Parameter] public List<double> Series { get; set; } = new();
+    [Parameter] public string Width { get; set; } = "100%";
+    [Parameter] public int MaxPoints { get; set; } = 12;
+    [Parameter] public string[]? CustomPalette { get; set; }
+
+    private const double LeftPad = 50;
+    private const double RightPad = 40;
+    private const double TopPad = 35;
+    private const double BottomPad = 45;
+    private const double SvgTotalW = 720;
+    private const double SvgTotalH = 280;
+    private const int GridLinesY = 4;
+    private const int GridLinesX = 5;
+
+    private List<string> VisibleLabels => Labels.Take(MaxPoints).ToList();
+    private List<double> VisibleSeries => Series.Take(MaxPoints).ToList();
+    private int VisibleCount => Math.Min(Labels.Count, MaxPoints);
+
+    private double ChartW => SvgTotalW - LeftPad - RightPad;
+    private double ChartH => SvgTotalH - TopPad - BottomPad;
+
+    private string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private string FormatVal(double v)
+    {
+        if (v >= 1_000_000) return (v / 1_000_000.0).ToString("0.#") + "M";
+        if (v >= 1_000) return (v / 1_000.0).ToString("0.#") + "k";
+        if (v % 1 < double.Epsilon) return ((long)v).ToString();
+        return v.ToString("0.#");
+    }
+
+    private static string Truncate(string s, int max) =>
+        s.Length > max ? s[..Math.Max(1, max - 1)] + "\u2026" : s;
+
+    private MarkupString GetSvgContent()
+    {
+        var sb = new System.Text.StringBuilder();
+
+        if (VisibleCount == 0) return new MarkupString(string.Empty);
+
+        double maxVal = VisibleSeries.Count > 0 ? (VisibleSeries.Max() > 0 ? VisibleSeries.Max() * 1.2 : 1) : 1;
+        double minVal = 0;
+
+        // Grille horizontale Y
+        for (int g = 0; g <= GridLinesY; g++)
+        {
+            double gy = TopPad + ChartH - g * (ChartH / GridLinesY);
+            double gVal = minVal + g * ((maxVal - minVal) / GridLinesY);
+            sb.AppendLine($@"<line x1=""{F(LeftPad)}"" y1=""{F(gy)}"" x2=""{F(SvgTotalW - RightPad)}"" y2=""{F(gy)}"" stroke=""#e2e8f0"" stroke-width=""1"" stroke-dasharray=""3 3"" />");
+            sb.AppendLine($@"<text x=""{F(LeftPad - 8)}"" y=""{F(gy + 4)}"" text-anchor=""end"" font-size=""10.5"" fill=""#64748b"" font-family=""JetBrains Mono,monospace"">{System.Net.WebUtility.HtmlEncode(FormatVal(gVal))}</text>");
+        }
+
+        // Grille verticale X
+        double xStep = VisibleCount > 1 ? ChartW / (VisibleCount - 1) : ChartW / 2;
+
+        for (int i = 0; i < VisibleCount; i++)
+        {
+            double px = VisibleCount > 1 ? LeftPad + i * xStep : LeftPad + ChartW / 2;
+            double val = VisibleSeries[i];
+            double py = TopPad + ChartH - ((val - minVal) / (maxVal - minVal)) * ChartH;
+
+            double bubbleRadius = 8 + Math.Min(val / maxVal, 1.0) * 16;
+
+            string color = (CustomPalette != null && CustomPalette.Length > 0)
+                ? CustomPalette[i % CustomPalette.Length]
+                : WicStockChartConfig.Palette[i % WicStockChartConfig.Palette.Length];
+
+            string labelEsc = System.Net.WebUtility.HtmlEncode(Truncate(VisibleLabels[i], 16));
+            string valEsc = System.Net.WebUtility.HtmlEncode(FormatVal(val));
+            string titleEsc = System.Net.WebUtility.HtmlEncode($"{VisibleLabels[i]} : {FormatVal(val)}");
+
+            // Ligne verticale projetée de l'axe vers la bulle
+            sb.AppendLine($@"<line x1=""{F(px)}"" y1=""{F(TopPad + ChartH)}"" x2=""{F(px)}"" y2=""{F(py)}"" stroke=""{color}"" stroke-width=""1"" stroke-dasharray=""2 2"" opacity=""0.5"" />");
+
+            // Bulle du nuage de points
+            sb.AppendLine($@"<circle cx=""{F(px)}"" cy=""{F(py)}"" r=""{F(bubbleRadius)}"" fill=""{color}"" opacity=""0.75"" stroke=""{color}"" stroke-width=""2""><title>{titleEsc}</title></circle>");
+            sb.AppendLine($@"<circle cx=""{F(px)}"" cy=""{F(py)}"" r=""3"" fill=""#ffffff""><title>{titleEsc}</title></circle>");
+
+            // Valeur au-dessus de la bulle
+            double badgeY = py - bubbleRadius - 6;
+            sb.AppendLine($@"<text x=""{F(px)}"" y=""{F(badgeY)}"" text-anchor=""middle"" font-size=""11"" fill=""{color}"" font-family=""JetBrains Mono,monospace"" font-weight=""700"">{valEsc}</text>");
+
+            // Libellé de l'axe X
+            double labelY = TopPad + ChartH + 18;
+            sb.AppendLine($@"<text x=""{F(px)}"" y=""{F(labelY)}"" text-anchor=""middle"" font-size=""11"" fill=""#334155"" font-family=""Inter,sans-serif"" font-weight=""500"">{labelEsc}</text>");
+        }
+
+        // Ligne de base X
+        sb.AppendLine($@"<line x1=""{F(LeftPad)}"" y1=""{F(TopPad + ChartH)}"" x2=""{F(SvgTotalW - RightPad)}"" y2=""{F(TopPad + ChartH)}"" stroke=""#cbd5e1"" stroke-width=""1.5"" />");
+
+        return new MarkupString(sb.ToString());
+    }
+}

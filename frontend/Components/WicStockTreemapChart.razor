@@ -1,0 +1,112 @@
+@using WicStock.Web.Models
+@using System.Globalization
+
+<div class="wicstock-treemap-chart" style="width:@Width; font-family:'Inter',sans-serif;">
+    <svg viewBox="0 0 @SvgTotalW @SvgTotalH" width="100%" height="100%" style="display:block; max-width:100%; border-radius:8px;">
+        @GetSvgContent()
+    </svg>
+    @if (Labels.Count > MaxTiles)
+    {
+        <p style="font-size:11px;color:#94a3b8;margin:6px 0 0 0;font-family:Inter,sans-serif;">
+            Top @MaxTiles affichés sur @Labels.Count résultats
+        </p>
+    }
+</div>
+
+@code {
+    [Parameter] public List<string> Labels { get; set; } = new();
+    [Parameter] public List<double> Series { get; set; } = new();
+    [Parameter] public string Width { get; set; } = "100%";
+    [Parameter] public int MaxTiles { get; set; } = 10;
+    [Parameter] public string[]? CustomPalette { get; set; }
+
+    private const double SvgTotalW = 720;
+    private const double SvgTotalH = 280;
+
+    private List<string> VisibleLabels => Labels.Take(MaxTiles).ToList();
+    private List<double> VisibleSeries => Series.Take(MaxTiles).ToList();
+    private int VisibleCount => Math.Min(Labels.Count, MaxTiles);
+
+    private string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private string FormatVal(double v)
+    {
+        if (v >= 1_000_000) return (v / 1_000_000.0).ToString("0.#") + "M";
+        if (v >= 1_000) return (v / 1_000.0).ToString("0.#") + "k";
+        if (v % 1 < double.Epsilon) return ((long)v).ToString();
+        return v.ToString("0.#");
+    }
+
+    private static string Truncate(string s, int max) =>
+        s.Length > max ? s[..Math.Max(1, max - 1)] + "\u2026" : s;
+
+    private MarkupString GetSvgContent()
+    {
+        var sb = new System.Text.StringBuilder();
+
+        if (VisibleCount == 0) return new MarkupString(string.Empty);
+
+        double total = VisibleSeries.Sum();
+        if (total <= 0) total = 1;
+
+        // Découpage récursif simple en rectangles horizontaux / verticaux
+        var rects = LayoutTreemap(0, 0, SvgTotalW, SvgTotalH, VisibleSeries, total);
+
+        for (int i = 0; i < rects.Count; i++)
+        {
+            var r = rects[i];
+            string color = (CustomPalette != null && CustomPalette.Length > 0)
+                ? CustomPalette[i % CustomPalette.Length]
+                : WicStockChartConfig.Palette[i % WicStockChartConfig.Palette.Length];
+
+            string labelEsc = System.Net.WebUtility.HtmlEncode(Truncate(VisibleLabels[i], 18));
+            string valEsc = System.Net.WebUtility.HtmlEncode(FormatVal(VisibleSeries[i]));
+            string titleEsc = System.Net.WebUtility.HtmlEncode($"{VisibleLabels[i]} : {FormatVal(VisibleSeries[i])}");
+
+            // Rectangle de pavé
+            sb.AppendLine($@"<rect x=""{F(r.X + 1.5)}"" y=""{F(r.Y + 1.5)}"" width=""{F(Math.Max(r.W - 3, 2))}"" height=""{F(Math.Max(r.H - 3, 2))}"" rx=""6"" fill=""{color}"" opacity=""0.9""><title>{titleEsc}</title></rect>");
+
+            // Libellé et valeur si le pavé a une taille suffisante
+            if (r.W > 50 && r.H > 35)
+            {
+                sb.AppendLine($@"<text x=""{F(r.X + r.W / 2)}"" y=""{F(r.Y + r.H / 2 - 2)}"" text-anchor=""middle"" font-size=""11.5"" fill=""#ffffff"" font-family=""Inter,sans-serif"" font-weight=""600"">{labelEsc}</text>");
+                sb.AppendLine($@"<text x=""{F(r.X + r.W / 2)}"" y=""{F(r.Y + r.H / 2 + 13)}"" text-anchor=""middle"" font-size=""11"" fill=""rgba(255,255,255,0.9)"" font-family=""JetBrains Mono,monospace"" font-weight=""700"">{valEsc}</text>");
+            }
+        }
+
+        return new MarkupString(sb.ToString());
+    }
+
+    private struct TreemapRect
+    {
+        public double X, Y, W, H;
+    }
+
+    private List<TreemapRect> LayoutTreemap(double x, double y, double w, double h, List<double> values, double totalVal)
+    {
+        var result = new List<TreemapRect>();
+        double currentX = x;
+        double currentY = y;
+        double remW = w;
+        double remH = h;
+
+        for (int i = 0; i < values.Count; i++)
+        {
+            double pct = values[i] / totalVal;
+            if (remW >= remH)
+            {
+                double tileW = remW * pct;
+                result.Add(new TreemapRect { X = currentX, Y = currentY, W = tileW, H = remH });
+                currentX += tileW;
+            }
+            else
+            {
+                double tileH = remH * pct;
+                result.Add(new TreemapRect { X = currentX, Y = currentY, W = remW, H = tileH });
+                currentY += tileH;
+            }
+        }
+
+        return result;
+    }
+}

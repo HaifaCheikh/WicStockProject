@@ -107,7 +107,7 @@
                     @foreach (var produit in FilteredProduits)
                     {
                         var swatch = GetCategoryColor(produit.Categorie);
-                        var isHighlighted = produit.Id == produitHighlightId;
+                        var isHighlighted = IsProduitHighlighted(produit);
                         <MudItem xs="12" sm="6" md="3">
                             <div id="produit-@produit.Id" class="product-card @(isHighlighted ? "product-highlight" : "")" @onclick="() => OuvrirDetails(produit)" style="cursor: pointer;">
                                 <div class="swatch-strip" style="background: @swatch;"></div>
@@ -144,7 +144,24 @@
                                 <!-- Corps de la carte -->
                                 <div class="product-body">
                                     <div>
-                                        <div class="product-name">@produit.Nom</div>
+                                        <div class="d-flex justify-space-between align-start gap-2">
+                                            <div class="product-name">@produit.Nom</div>
+                                            @if (produit.NombreAvis > 0)
+                                            {
+                                                <div class="card-rating-tag" title="@produit.NoteMoyenne.ToString("0.0") / 5 (@produit.NombreAvis avis)">
+                                                    <span class="star-icon">★</span>
+                                                    <span class="score">@produit.NoteMoyenne.ToString("0.0")</span>
+                                                    <span class="count">(@produit.NombreAvis)</span>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="card-rating-tag rating-tag-none" title="Aucun avis pour le moment">
+                                                    <span class="star-icon">★</span>
+                                                    <span class="score">--</span>
+                                                </div>
+                                            }
+                                        </div>
                                         @if (!string.IsNullOrEmpty(produit.TypeTissu))
                                         {
                                             <div class="product-detail d-flex align-center gap-1 mt-1">
@@ -1615,6 +1632,86 @@
         justify-content: center;
         pointer-events: none;
     }
+
+    /* Mise en valeur d'un produit depuis une notification ou lien */
+    .product-highlight {
+        border-color: var(--denim) !important;
+        animation: subtle-highlight-pulse 2.5s cubic-bezier(0.4, 0, 0.2, 1) 1 forwards;
+        position: relative;
+        z-index: 1;
+    }
+
+    @@keyframes subtle-highlight-pulse {
+        0% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(43, 76, 126, 0.5), 0 4px 12px rgba(0, 0, 0, 0.08);
+            border-color: var(--denim);
+        }
+        35% {
+            transform: scale(1.025);
+            box-shadow: 0 0 0 6px rgba(43, 76, 126, 0.2), 0 12px 28px rgba(43, 76, 126, 0.18);
+            border-color: var(--denim);
+        }
+        70% {
+            transform: scale(1.01);
+            box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.1), 0 8px 16px rgba(43, 76, 126, 0.12);
+            border-color: var(--denim);
+        }
+        100% {
+            transform: scale(1);
+            box-shadow: var(--shadow-sm);
+            border-color: var(--border);
+        }
+    }
+
+    /* Badge de note / avis client sur les cartes produits */
+    .card-rating-tag {
+        background: #FEF3C7;
+        color: #D97706;
+        border: 1px solid #FCD34D;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        white-space: nowrap;
+        flex-shrink: 0;
+        box-shadow: 0 1px 2px rgba(217, 119, 6, 0.1);
+    }
+
+    .card-rating-tag .star-icon {
+        color: #D97706;
+        font-size: 0.85rem;
+    }
+
+    .card-rating-tag .score {
+        color: #B45309;
+        font-weight: 800;
+    }
+
+    .card-rating-tag .count {
+        font-weight: 600;
+        color: #92400E;
+        font-size: 0.70rem;
+    }
+
+    .card-rating-tag.rating-tag-none {
+        background: #F8FAFC;
+        color: #94A3B8;
+        border: 1px solid #E2E8F0;
+        box-shadow: none;
+    }
+
+    .card-rating-tag.rating-tag-none .star-icon {
+        color: #CBD5E1;
+    }
+
+    .card-rating-tag.rating-tag-none .score {
+        color: #94A3B8;
+        font-weight: 600;
+    }
 </style>
 
 @code {
@@ -1624,10 +1721,29 @@
     private string categoryFilter = "";
     private bool showCommandes = false;
 
-    // Produit à mettre en évidence (depuis une notification)
+    // Produit à mettre en évidence (depuis une notification ou lien)
     [SupplyParameterFromQuery(Name = "produit")]
     private int? ProduitIdQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "categorie")]
+    private string? CategorieQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "highlight")]
+    private string? HighlightQuery { get; set; }
+
     private int? produitHighlightId;
+    private string? produitHighlightRef;
+
+    private bool IsProduitHighlighted(CatalogueProduitDto p)
+    {
+        if (produitHighlightId.HasValue && p.Id == produitHighlightId.Value) return true;
+        if (!string.IsNullOrWhiteSpace(produitHighlightRef))
+        {
+            return string.Equals(p.Reference, produitHighlightRef, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(p.Nom, produitHighlightRef, StringComparison.OrdinalIgnoreCase);
+        }
+        return false;
+    }
 
     // Dialog commande
     private CatalogueProduitDto? produitSelectionne;
@@ -1658,20 +1774,43 @@
         try { userRole = await AuthService.ObtenirRole(); }
         catch { userRole = null; }
 
+        AppliquerHighlightEtCategorie();
+
+        // Calcule l'état initial (catalogue ou commandes) à partir de l'URL courante
+        MettreAJourVueDepuisUri();
+
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        AppliquerHighlightEtCategorie();
+    }
+
+    private void AppliquerHighlightEtCategorie()
+    {
         if (ProduitIdQuery.HasValue)
         {
             produitHighlightId = ProduitIdQuery.Value;
         }
 
-        // Calcule l'état initial (catalogue ou commandes) à partir de l'URL courante
-        MettreAJourVueDepuisUri();
+        if (!string.IsNullOrWhiteSpace(HighlightQuery))
+        {
+            produitHighlightRef = HighlightQuery.Trim();
+        }
 
-        // IMPORTANT : /catalogue et /mes-commandes pointent vers le MÊME composant.
-        // Blazor réutilise donc la même instance et ne rappelle PAS OnInitializedAsync
-        // quand on navigue de l'une à l'autre. On s'abonne à LocationChanged pour
-        // détecter ces changements d'URL et recalculer showCommandes à chaque fois
-        // (que la navigation vienne du bouton interne ou d'un lien du navmenu).
-        Navigation.LocationChanged += OnLocationChanged;
+        if (!string.IsNullOrWhiteSpace(CategorieQuery))
+        {
+            categoryFilter = CategorieQuery;
+        }
+        else if ((produitHighlightId.HasValue || !string.IsNullOrWhiteSpace(produitHighlightRef)) && produits != null)
+        {
+            var target = produits.FirstOrDefault(p => IsProduitHighlighted(p));
+            if (target != null && !string.IsNullOrWhiteSpace(target.Categorie))
+            {
+                categoryFilter = target.Categorie;
+            }
+        }
     }
 
     private void MettreAJourVueDepuisUri()
@@ -1695,15 +1834,42 @@
     {
         if (firstRender && produitHighlightId.HasValue)
         {
-            await Task.Delay(300); // Laisser le DOM se stabiliser
-            await JS.InvokeVoidAsync("scrollToElement", $"produit-{produitHighlightId.Value}");
+            await Task.Delay(400); // Laisser le DOM se stabiliser avec le filtre de catégorie appliqué
+            await JS.InvokeVoidAsync("eval",
+                $"(function(){{ var el = document.getElementById('produit-{produitHighlightId.Value}'); if(el){{ el.scrollIntoView({{behavior:'smooth', block:'center'}}); }} }})()");
         }
     }
 
     private async Task ChargerCatalogue()
     {
-        try { produits = await CatalogueService.ObtenirCatalogue(); }
-        catch { produits = new List<CatalogueProduitDto>(); }
+        try
+        {
+            produits = await CatalogueService.ObtenirCatalogue();
+            if (produits != null && produits.Any())
+            {
+                _ = Task.Run(async () =>
+                {
+                    foreach (var prod in produits)
+                    {
+                        try
+                        {
+                            var avisList = await FeedbackService.ObtenirAvisPublicsProduit(prod.Id);
+                            if (avisList != null && avisList.Any())
+                            {
+                                prod.NombreAvis = avisList.Count;
+                                prod.NoteMoyenne = avisList.Average(a => a.Note);
+                            }
+                        }
+                        catch { }
+                    }
+                    await InvokeAsync(StateHasChanged);
+                });
+            }
+        }
+        catch
+        {
+            produits = new List<CatalogueProduitDto>();
+        }
     }
 
     private async Task ChargerMesCommandes()

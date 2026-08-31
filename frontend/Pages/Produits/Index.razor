@@ -1,4 +1,4 @@
-﻿@page "/produits"
+@page "/produits"
 @using System.Text.RegularExpressions
 @using WicStock.Web.Models.Dtos
 @using WicStock.Web.Services
@@ -8,6 +8,7 @@
 @inject NavigationManager Navigation
 @inject HttpClient Http
 @inject ISnackbar Snackbar
+@inject AuthService AuthService
 
 <PageTitle>Catalogue Produits | WicStock Admin</PageTitle>
 
@@ -57,6 +58,11 @@
                 <span class="stat-tab-label">Rupture</span>
                 <span class="stat-tab-count">@produits.Count(p => !p.EstArchive && IsStatutIA(p, "RUPTURE"))</span>
             </button>
+            <button type="button" class="stat-tab stat-tab--topaz @(statutIaFilter == "STOCK_FAIBLE" ? "stat-tab--active" : "")" @onclick='() => SelectStatutIA("STOCK_FAIBLE")'>
+                <span class="stat-dot"></span>
+                <span class="stat-tab-label">Stock faible</span>
+                <span class="stat-tab-count">@produits.Count(p => !p.EstArchive && IsStatutIA(p, "STOCK_FAIBLE"))</span>
+            </button>
             <button type="button" class="stat-tab stat-tab--amber @(statutIaFilter == "SURSTOCK" ? "stat-tab--active" : "")" @onclick='() => SelectStatutIA("SURSTOCK")'>
                 <span class="stat-dot"></span>
                 <span class="stat-tab-label">Surstock</span>
@@ -74,7 +80,6 @@
             </button>
         </div>
 
-
         <!-- FILTRES -->
         <div class="filters-card mb-6">
             <div class="filters-row">
@@ -89,14 +94,6 @@
                     {
                         <option value="@cat">@cat</option>
                     }
-                </select>
-
-                <select class="filter-select" @bind="statutIaFilter">
-                    <option value="">Tous les états</option>
-                    <option value="RUPTURE">Rupture</option>
-                    <option value="SURSTOCK">Surstock</option>
-                    <option value="OPTIMAL">Stock normal</option>
-                    <option value="SUR_COMMANDE">Sur commande</option>
                 </select>
 
                 <select class="filter-select" @bind="sortBy">
@@ -163,7 +160,7 @@
         <div class="produits-grid">
             @foreach (var prod in FilteredProduits)
             {
-                <div class="produit-card @(prod.EstArchive ? "produit-card--archive" : "")">
+                <div class="produit-card @(prod.EstArchive ? "produit-card--archive" : "") @(IsHighlighted(prod) ? "produit-card--highlighted" : "")">
                     <div class="product-image">
                         @if (!string.IsNullOrEmpty(prod.ImageUrl))
                         {
@@ -270,7 +267,7 @@
     else
     {
         <div class="table-panel">
-            <MudTable Items="@FilteredProduits" Hover="true" Elevation="0" Class="products-table">
+            <MudTable Items="@FilteredProduits" Hover="true" Elevation="0" Class="products-table" RowClassFunc="@((p, i) => IsHighlighted(p) ? "row--highlighted" : "")">
                 <HeaderContent>
                     <MudTh Style="width: 64px;">Image</MudTh>
                     <MudTh>Référence</MudTh>
@@ -407,7 +404,8 @@
 {
     <AnalyseSurstockModal Produit="produitPourAnalyse"
                           OnClose="() => produitPourAnalyse = null"
-                          OnActionExecuted="ChargerDonnees" />
+                          OnActionExecuted="ChargerDonnees"
+                          CurrentUserRole="@userRole" />
 }
 
 <!-- ===== VISIONNEUSE D'IMAGE PLEIN ÉCRAN (LIGHTBOX) ===== -->
@@ -530,8 +528,8 @@
             }
 
     /* La modale de confirmation est rendue hors de .admin-page dans le DOM :
-               les variables CSS de .admin-page ne sont pas héritées ici, donc on
-               fige les couleurs en valeurs fixes plutôt que d'utiliser var(...). */
+                   les variables CSS de .admin-page ne sont pas héritées ici, donc on
+                   fige les couleurs en valeurs fixes plutôt que d'utiliser var(...). */
     .wic-confirm-actions .btn--primary {
         background: #2B4C7E;
         color: #fff;
@@ -687,6 +685,14 @@
         background: var(--denim);
     }
 
+
+    .admin-page .stat-tab--topaz .stat-dot {
+        background: #D97706;
+    }
+
+    .admin-page .stat-tab--topaz.stat-tab--active::after {
+        background: #D97706;
+    }
     /* ===== Filtres ===== */
     .admin-page .filters-card {
         background: var(--paper);
@@ -935,6 +941,12 @@
         border: 1px solid #FCA5A5;
     }
 
+    .admin-page .ia-badge--stock_faible {
+        background: #FEF3C7;
+        color: #92400E;
+        border: 1px solid #F59E0B;
+    }
+
     .admin-page .ia-badge--sur_commande {
         background: var(--denim-soft);
         color: var(--denim);
@@ -957,6 +969,44 @@
         background: var(--gray-soft);
         color: var(--ink-muted);
         border: 1px solid var(--border);
+    }
+
+    .admin-page .produit-card--highlighted {
+        border-color: var(--denim) !important;
+        animation: subtle-highlight-pulse 2.5s cubic-bezier(0.4, 0, 0.2, 1) 1 forwards;
+    }
+
+    .admin-page tr.row--highlighted > td {
+        animation: subtle-row-highlight 2.5s cubic-bezier(0.4, 0, 0.2, 1) 1 forwards;
+    }
+
+    @@keyframes subtle-highlight-pulse {
+        0% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(43, 76, 126, 0.5), 0 4px 12px rgba(0, 0, 0, 0.08);
+            border-color: var(--denim);
+        }
+        35% {
+            transform: scale(1.025);
+            box-shadow: 0 0 0 6px rgba(43, 76, 126, 0.2), 0 12px 28px rgba(43, 76, 126, 0.18);
+            border-color: var(--denim);
+        }
+        70% {
+            transform: scale(1.01);
+            box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.1), 0 8px 16px rgba(43, 76, 126, 0.12);
+            border-color: var(--denim);
+        }
+        100% {
+            transform: scale(1);
+            box-shadow: var(--shadow-sm);
+            border-color: var(--border);
+        }
+    }
+
+    @@keyframes subtle-row-highlight {
+        0% { background-color: rgba(43, 76, 126, 0.2) !important; }
+        50% { background-color: rgba(43, 76, 126, 0.1) !important; }
+        100% { background-color: transparent !important; }
     }
 
     .admin-page .card-body {
@@ -1358,14 +1408,19 @@
     [SupplyParameterFromQuery(Name = "categorie")]
     public string? CategorieQuery { get; set; }
 
+    [SupplyParameterFromQuery(Name = "highlight")]
+    public string? HighlightQuery { get; set; }
+
     private List<ProduitDto>? produits;
     private List<CommandeManagerDto>? commandesClients;
     private string searchString = "";
     private string categoryFilter = "";
     private string statutIaFilter = ""; // "", "RUPTURE", "SURSTOCK", "OPTIMAL", "SUR_COMMANDE"
     private string sortBy = "STATUT_IA"; // "STATUT_IA", "NOM", "STOCK_ASC", "STOCK_DESC"
+    private string highlightRef = "";
     private bool isGridView = true;
     private bool afficherArchives = false;
+    private string? userRole;
 
     protected override async Task OnInitializedAsync()
     {
@@ -1387,6 +1442,7 @@
             statutIaFilter = clean switch
             {
                 "RUPTURE" or "EN RUPTURE" => "RUPTURE",
+                "STOCK_FAIBLE" or "STOCK FAIBLE" or "FAIBLE" or "FAIBLE STOCK" or "EN STOCK FAIBLE" => "STOCK_FAIBLE",
                 "SURSTOCK" or "EN SURSTOCK" => "SURSTOCK",
                 "OPTIMAL" or "NORMAL" or "STOCK NORMAL" => "OPTIMAL",
                 "SUR_COMMANDE" or "SUR COMMANDE" => "SUR_COMMANDE",
@@ -1398,6 +1454,18 @@
         {
             categoryFilter = CategorieQuery.Trim();
         }
+
+        if (!string.IsNullOrWhiteSpace(HighlightQuery))
+        {
+            highlightRef = HighlightQuery.Trim();
+        }
+    }
+
+    private bool IsHighlighted(ProduitDto p)
+    {
+        if (string.IsNullOrWhiteSpace(highlightRef)) return false;
+        return string.Equals(p.Reference, highlightRef, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(p.Nom, highlightRef, StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task ChargerDonnees()
@@ -1405,6 +1473,19 @@
         try
         {
             produits = await ProduitService.ObtenirTous();
+
+            // Load current user role for role-based UI (e.g. notification action)
+            try { userRole = await AuthService.ObtenirRole(); } catch { userRole = null; }
+
+            // Si un produit est ciblé sans filtre de statut explicite, basculer sur son onglet de statut
+            if (!string.IsNullOrWhiteSpace(highlightRef) && string.IsNullOrWhiteSpace(StatutQuery) && string.IsNullOrWhiteSpace(FiltreQuery))
+            {
+                var target = produits?.FirstOrDefault(p => IsHighlighted(p));
+                if (target != null)
+                {
+                    statutIaFilter = target.StatutIAType;
+                }
+            }
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
@@ -1655,4 +1736,3 @@
         ? 0
         : commandesClients.Count(c => c.StatutCommande == "EN_ATTENTE");
 }
-

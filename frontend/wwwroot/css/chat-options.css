@@ -1,0 +1,115 @@
+/* ── Quick Reply Options Buttons ─────────────────────────────────── */
+.chat-options-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    margin-bottom: 8px;
+}
+
+.chat-options-container.disabled,
+.chat-options-container.chat-options-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.chat-option-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    border: 1.5px solid #2B4C7E;
+    border-radius: 20px;
+    background: transparent;
+    color: #2B4C7E;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease, transform 0.1s ease, box-shadow 0.18s ease;
+    white-space: nowrap;
+}
+
+.chat-option-btn:hover:not(:disabled) {
+    background: #2B4C7E;
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(43, 76, 126, 0.25);
+    transform: translateY(-1px);
+}
+
+.chat-option-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.chat-option-btn:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+.chat-option-btn.selected,
+.chat-option-btn.chat-option-selected {
+    background: #2B4C7E !important;
+    color: #ffffff !important;
+    border-color: #2B4C7E !important;
+    box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.2) !important;
+    cursor: default !important;
+}
+
+/* ── Champ texte libre inline ─────────────────────────────────── */
+.free-text-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    animation: slideDown 0.2s ease;
+}
+
+.free-text-input {
+    flex: 1;
+    padding: 7px 14px;
+    border: 1.5px solid #2B4C7E;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    outline: none;
+    transition: box-shadow 0.18s ease;
+}
+
+.free-text-input:focus {
+    box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.2);
+}
+
+.free-text-send-btn {
+    padding: 7px 14px;
+    border: none;
+    border-radius: 20px;
+    background: #2B4C7E;
+    color: #ffffff;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.18s ease, transform 0.1s ease;
+}
+
+.free-text-send-btn:hover:not(:disabled) {
+    background: #1E3A8A;
+    transform: translateY(-1px);
+}
+
+.free-text-send-btn:disabled {
+    background: #94a3b8;
+    cursor: default;
+}
+
+/* ── Animation graphique final ─────────────────────────────────── */
+.chart-reveal,
+.chart-fade-in {
+    animation: chartReveal 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes chartReveal {
+    from { opacity: 0; transform: scale(0.93); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}

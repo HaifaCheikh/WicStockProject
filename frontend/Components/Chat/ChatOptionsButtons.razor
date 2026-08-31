@@ -1,0 +1,662 @@
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Models
+@using System.Text.RegularExpressions
+
+<div class="chat-options-container @(Disabled ? "chat-options-disabled" : "")">
+
+    @if (FormeOptions.Any())
+    {
+        <div class="chat-options-group">
+            <div class="chat-options-group-title">
+                <MudIcon Icon="@Icons.Material.Filled.Category" Size="Size.Small" Style="font-size: 0.85rem;" />
+                <span>Forme du graphique</span>
+            </div>
+            <div class="chart-seg-wrap" style="--wc-delay:0ms;">
+                @foreach (var option in FormeOptionsPrincipales)
+                {
+                    var propre = NettoyerLibelle(option.Label);
+                    var estSelectionne = IsSelected(option.Value);
+                    var estEcarte = _selectedValue is not null && !estSelectionne;
+
+                    <button class="chart-seg-btn @(estSelectionne ? "chart-seg-selected" : "") @(estEcarte ? "chart-seg-dismissed" : "")"
+                            @onclick="() => OnOptionClick(option)"
+                            disabled="@Disabled">
+                        <MudIcon Icon="@IconePourChart(propre)" Size="Size.Small" Style="font-size: 1rem;" />
+                        <span>@RenommerLibelle(propre)</span>
+                    </button>
+                }
+
+                @if (FormeOptionLibre is not null)
+                {
+                    var optLibre = FormeOptionLibre;
+                    var estOuvert = _freeTextOpenFor == optLibre.Value;
+                    var estSelectionneLibre = IsSelected(optLibre.Value);
+                    var estEcarteLibre = _selectedValue is not null && !estSelectionneLibre;
+
+                    @if (estOuvert)
+                    {
+                        <div class="chart-seg-freetext-active">
+                            <input type="text"
+                                   class="chart-seg-freetext-input"
+                                   placeholder="Votre choix (ex: boxplot)…"
+                                   @bind="_freeTextValue"
+                                   @bind:event="oninput"
+                                   @onkeydown="HandleFreeTextKeyDown"
+                                   @ref="_freeTextRef"
+                                   disabled="@Disabled" />
+                            <button class="chart-seg-freetext-send"
+                                    @onclick="SubmitFreeText"
+                                    disabled="@(Disabled || string.IsNullOrWhiteSpace(_freeTextValue))"
+                                    title="Envoyer">
+                                <MudIcon Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" Style="font-size: 0.85rem;" />
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <button class="chart-seg-btn @(estEcarteLibre ? "chart-seg-dismissed" : "")"
+                                @onclick="() => OnOptionClick(optLibre)"
+                                disabled="@Disabled">
+                            <MudIcon Icon="@Icons.Material.Filled.MoreHoriz" Size="Size.Small" Style="font-size: 1rem;" />
+                            <span>Autres</span>
+                        </button>
+                    }
+                }
+            </div>
+        </div>
+    }
+
+    @if (CouleurOptions.Any())
+    {
+        <div class="chat-options-group">
+            <div class="chat-options-group-title">
+                <MudIcon Icon="@Icons.Material.Filled.Palette" Size="Size.Small" Style="font-size: 0.85rem;" />
+                <span>Palette de couleurs</span>
+            </div>
+            <div class="palette-swatch-wrap" style="--wc-delay:0ms;">
+                @foreach (var option in CouleurOptionsPrincipales)
+                {
+                    var propre = NettoyerLibelle(option.Label);
+                    var libelleAffiche = RenommerLibelle(propre);
+                    var estSelectionne = IsSelected(option.Value);
+                    var estEcarte = _selectedValue is not null && !estSelectionne;
+                    var couleurs = CouleursApercu(option.Value ?? propre);
+                    var degrade = DegradeApercu(couleurs);
+
+                    <button class="palette-swatch-btn @(estEcarte ? "palette-swatch-dismissed" : "")"
+                            @onclick="() => OnOptionClick(option)"
+                            disabled="@Disabled"
+                            aria-label="@libelleAffiche"
+                            title="@libelleAffiche">
+                        <span class="palette-swatch-circle @(estSelectionne ? "palette-swatch-circle-selected" : "")"
+                              style="background:@degrade;"></span>
+                        <span class="palette-swatch-label">@libelleAffiche</span>
+                    </button>
+                }
+
+                @if (CouleurOptionLibre is not null)
+                {
+                    var optLibre = CouleurOptionLibre;
+                    var estSelectionneLibre = IsSelected(optLibre.Value);
+                    var estEcarteLibre = _selectedValue is not null && !estSelectionneLibre;
+
+                    <div class="palette-swatch-sep"></div>
+
+                    <div class="palette-custom-wrap @(estEcarteLibre ? "palette-swatch-dismissed" : "")">
+                        <label class="palette-custom-btn" title="Choisir une couleur personnalisée">
+                            <input type="color"
+                                   class="palette-custom-input"
+                                   value="#2B4C7E"
+                                   disabled="@Disabled"
+                                   @onchange="(e) => SoumettreCouleurPersonnalisee(e, optLibre)" />
+                        </label>
+                        <span class="palette-swatch-label">Personnalisée</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    @if (GeneriqueOptions.Any())
+    {
+        <div class="chat-options-group">
+            <div class="chat-generic-options-wrap">
+                @for (int i = 0; i < GeneriqueOptions.Count; i++)
+                {
+                    var option = GeneriqueOptions[i];
+                    var delay = (i * 35).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    var estSelectionne = IsSelected(option.Value);
+                    var estEcarte = _selectedValue is not null && !estSelectionne;
+                    var labelAffiche = RenommerLibelle(NettoyerLibelle(option.Label));
+
+                    <button class="chat-option-btn @(estSelectionne ? "chat-option-selected" : "") @(estEcarte ? "chat-option-dismissed" : "")"
+                            style="--wc-delay:@(delay)ms;"
+                            @onclick="() => OnOptionClick(option)"
+                            disabled="@Disabled">
+                        <span class="chat-option-label">@labelAffiche</span>
+                        @if (estSelectionne)
+                        {
+                            <span class="chat-option-check">&#10003;</span>
+                        }
+                    </button>
+                }
+            </div>
+        </div>
+    }
+
+</div>
+
+<style>
+    .chat-options-container {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 10px;
+        font-family: var(--font-body, 'Inter', sans-serif);
+    }
+
+    .chat-options-group {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        width: 100%;
+    }
+
+    .chat-options-group-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--ink-muted, #64748B);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .chat-generic-options-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .chat-options-disabled {
+        opacity: 0.55;
+        pointer-events: none;
+    }
+
+    @@keyframes chatOptionIn {
+        from {
+            opacity: 0;
+            transform: translateY(3px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* ---------- Boutons génériques ---------- */
+    .chat-option-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border, #E2E8F0);
+        background: var(--sand-tint, #F1F5F9);
+        color: var(--ink, #16233A);
+        font-family: var(--font-body, 'Inter', sans-serif);
+        font-size: 0.8rem;
+        font-weight: 500;
+        line-height: 1.2;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+        animation: chatOptionIn 0.22s ease both;
+        animation-delay: var(--wc-delay, 0ms);
+    }
+
+        .chat-option-btn:hover:not(:disabled) {
+            background: var(--denim-tint, #EAF0F8);
+            border-color: var(--denim, #2B4C7E);
+            color: var(--denim-dark, #1E3A63);
+        }
+
+        .chat-option-btn:disabled {
+            cursor: not-allowed;
+        }
+
+    .chat-option-label {
+        letter-spacing: 0.005em;
+    }
+
+    .chat-option-selected {
+        background: var(--denim-tint, #EAF0F8);
+        border-color: var(--denim, #2B4C7E);
+        color: var(--denim-dark, #1E3A63);
+        font-weight: 600;
+    }
+
+        .chat-option-selected:disabled {
+            opacity: 1;
+        }
+
+    .chat-option-check {
+        color: var(--denim, #2B4C7E);
+        font-weight: 700;
+        font-size: 0.78rem;
+    }
+
+    .chat-option-dismissed {
+        opacity: 0.4;
+    }
+
+    /* ---------- Type de graphique : segmented control ---------- */
+    .chart-seg-wrap {
+        display: inline-flex;
+        border: 1px solid var(--border, #E2E8F0);
+        border-radius: 8px;
+        overflow: hidden;
+        animation: chatOptionIn 0.22s ease both;
+        animation-delay: var(--wc-delay, 0ms);
+        align-self: flex-start;
+    }
+
+    .chart-seg-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        min-width: 52px;
+        padding: 6px 10px;
+        background: var(--paper, #FFFFFF);
+        color: var(--ink, #16233A);
+        border: none;
+        border-right: 1px solid var(--border, #E2E8F0);
+        font-family: var(--font-body, 'Inter', sans-serif);
+        font-size: 0.65rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.14s ease, color 0.14s ease;
+    }
+
+        .chart-seg-btn:last-child {
+            border-right: none;
+        }
+
+        .chart-seg-btn:hover:not(:disabled) {
+            background: var(--denim-tint, #EAF0F8);
+            color: var(--denim-dark, #1E3A63);
+        }
+
+        .chart-seg-btn:disabled {
+            cursor: not-allowed;
+        }
+
+    .chart-seg-selected {
+        background: var(--denim, #2B4C7E);
+        color: #FFFFFF;
+    }
+
+        .chart-seg-selected:disabled {
+            opacity: 1;
+        }
+
+    .chart-seg-dismissed {
+        opacity: 0.4;
+    }
+
+    /* ---------- Segment "Autres" : zone de saisie inline ---------- */
+    .chart-seg-freetext-active {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-width: 140px;
+        padding: 4px 4px 4px 10px;
+        background: var(--paper, #FFFFFF);
+    }
+
+    .chart-seg-freetext-input {
+        flex: 1;
+        min-width: 90px;
+        border: none;
+        outline: none;
+        background: transparent;
+        font-family: var(--font-body, 'Inter', sans-serif);
+        font-size: 0.68rem;
+        color: var(--ink, #16233A);
+        padding: 4px 0;
+    }
+
+        .chart-seg-freetext-input::placeholder {
+            color: var(--ink-muted, #64748B);
+            opacity: 0.75;
+        }
+
+    .chart-seg-freetext-send {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        min-width: 20px;
+        border-radius: 5px;
+        border: none;
+        background: var(--denim, #2B4C7E);
+        color: #FFFFFF;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: background 0.14s ease;
+    }
+
+        .chart-seg-freetext-send:hover:not(:disabled) {
+            background: var(--denim-dark, #1E3A63);
+        }
+
+        .chart-seg-freetext-send:disabled {
+            background: var(--border, #E2E8F0);
+            color: var(--ink-muted, #64748B);
+            cursor: not-allowed;
+        }
+
+    /* ---------- Palette de couleurs : pastilles ---------- */
+    .palette-swatch-wrap {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        animation: chatOptionIn 0.22s ease both;
+        animation-delay: var(--wc-delay, 0ms);
+    }
+
+    .palette-swatch-btn,
+    .palette-custom-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+    }
+
+        .palette-swatch-btn:disabled {
+            cursor: not-allowed;
+        }
+
+    .palette-swatch-dismissed {
+        opacity: 0.4;
+    }
+
+    .palette-swatch-circle {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: block;
+        box-shadow: 0 0 0 1px var(--border, #E2E8F0);
+        transition: box-shadow 0.14s ease;
+    }
+
+    .palette-swatch-btn:hover:not(:disabled) .palette-swatch-circle {
+        box-shadow: 0 0 0 2px var(--denim, #2B4C7E);
+    }
+
+    .palette-swatch-circle-selected {
+        box-shadow: 0 0 0 2px var(--denim, #2B4C7E) !important;
+    }
+
+    .palette-swatch-label {
+        font-size: 0.65rem;
+        color: var(--ink-muted, #64748B);
+        font-family: var(--font-body, 'Inter', sans-serif);
+        white-space: nowrap;
+    }
+
+    .palette-swatch-sep {
+        width: 1px;
+        height: 22px;
+        background: var(--border, #E2E8F0);
+    }
+
+    .palette-custom-btn {
+        width: 24px;
+        height: 24px;
+        display: block;
+    }
+
+    .palette-custom-input {
+        -webkit-appearance: none;
+        appearance: none;
+        border: 1px dashed var(--ink-muted, #64748B);
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        padding: 0;
+        background: transparent;
+        cursor: pointer;
+    }
+
+        .palette-custom-input::-webkit-color-swatch-wrapper {
+            padding: 1px;
+            border-radius: 50%;
+        }
+
+        .palette-custom-input::-webkit-color-swatch {
+            border: none;
+            border-radius: 50%;
+        }
+</style>
+
+@code {
+    [Parameter] public List<QuickOptionDto>? Options { get; set; }
+    [Parameter] public string? PendingState { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public EventCallback<string> OnOptionSelected { get; set; }
+
+    private string? _selectedValue = null;
+    private string? _freeTextOpenFor = null;
+    private string _freeTextValue = string.Empty;
+    private ElementReference _freeTextRef;
+
+    // ===================== FILTRAGE / GROUPES SEPARES =====================
+
+    private static readonly HashSet<string> MotsClesTypeGraphique =
+        new(StringComparer.OrdinalIgnoreCase) { "barres", "donut", "ligne", "boxplot", "box plot", "waterfall", "cascade", "jauge", "gauge", "radar", "treemap", "entonnoir", "funnel", "nuage", "scatter", "autres", "autre" };
+
+    private static readonly HashSet<string> MotsClesPalette =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "wicstock (denim + ambre)", "eco vert", "éco vert", "mode sombre", "sunset",
+            "palette principale", "palette nature", "palette sombre", "palette chaude",
+            "palette wicstock", "personnaliser", "personnalisée"
+        };
+
+    private bool IsFormeOption(QuickOptionDto opt)
+    {
+        if (opt == null || IsTexteSimpleOption(opt)) return false;
+        var clean = NettoyerLibelle(opt.Label);
+        var val = opt.Value?.ToLowerInvariant() ?? "";
+        return MotsClesTypeGraphique.Contains(clean) || MotsClesTypeGraphique.Contains(val) || val.Contains("barre") || val.Contains("donut") || val.Contains("ligne") || val.Contains("boxplot") || val.Contains("waterfall") || val.Contains("jauge") || val.Contains("gauge") || val.Contains("radar") || val.Contains("treemap") || val.Contains("entonnoir") || val.Contains("funnel") || val.Contains("scatter") || val.Contains("nuage");
+    }
+
+    private bool IsCouleurOption(QuickOptionDto opt)
+    {
+        if (opt == null || IsTexteSimpleOption(opt)) return false;
+        var clean = NettoyerLibelle(opt.Label);
+        var val = opt.Value?.ToLowerInvariant() ?? "";
+        return MotsClesPalette.Contains(clean) || MotsClesPalette.Contains(val) || val.Contains("palette") || val.Contains("couleur") || val.StartsWith("#") || val == "personnaliser";
+    }
+
+    private bool IsTexteSimpleOption(QuickOptionDto opt)
+    {
+        if (opt == null) return false;
+        var label = opt.Label?.ToLowerInvariant() ?? "";
+        var val = opt.Value?.ToLowerInvariant() ?? "";
+        return label.Contains("texte simple") || val.Contains("texte simple") || label == "texte" || val == "texte";
+    }
+
+    private List<QuickOptionDto> FormeOptions =>
+        Options?.Where(IsFormeOption).ToList() ?? new();
+
+    private List<QuickOptionDto> FormeOptionsPrincipales =>
+        FormeOptions.Where(o => !o.IsFreeText).ToList();
+
+    private QuickOptionDto? FormeOptionLibre =>
+        FormeOptions.FirstOrDefault(o => o.IsFreeText);
+
+    private List<QuickOptionDto> CouleurOptions =>
+        Options?.Where(IsCouleurOption).ToList() ?? new();
+
+    private List<QuickOptionDto> CouleurOptionsPrincipales =>
+        CouleurOptions.Where(o => !o.IsFreeText).ToList();
+
+    private QuickOptionDto? CouleurOptionLibre =>
+        CouleurOptions.FirstOrDefault(o => o.IsFreeText);
+
+    private List<QuickOptionDto> GeneriqueOptions =>
+        Options?.Where(o => !IsFormeOption(o) && !IsCouleurOption(o) && !IsTexteSimpleOption(o)).ToList() ?? new();
+
+    // ===================== NETTOYAGE / RENOMMAGE DES LIBELLÉS =====================
+
+    private static readonly Regex RegexEmoji = new(
+        @"[\uD83C-\uDBFF][\uDC00-\uDFFF]|[\u2600-\u27BF\u2B00-\u2BFF\u2190-\u21FF\uFE0F]",
+        RegexOptions.Compiled);
+
+    private static string NettoyerLibelle(string? texte)
+    {
+        if (string.IsNullOrWhiteSpace(texte)) return string.Empty;
+        var sansEmoji = RegexEmoji.Replace(texte, string.Empty);
+        return Regex.Replace(sansEmoji, @"\s{2,}", " ").Trim();
+    }
+
+    private static readonly Dictionary<string, string> RenommageLabels =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Graphique"] = "Voir en graphique",
+            ["WicStock (Denim + Ambre)"] = "Palette principale",
+            ["Eco Vert"] = "Palette nature",
+            ["Mode sombre"] = "Palette sombre",
+            ["Sunset"] = "Palette chaude",
+        };
+
+    private static string RenommerLibelle(string libellePropre)
+    {
+        if (string.IsNullOrWhiteSpace(libellePropre)) return libellePropre;
+        return RenommageLabels.TryGetValue(libellePropre, out var renomme) ? renomme : libellePropre;
+    }
+
+    // ===================== TYPE DE GRAPHIQUE : ICONES =====================
+
+    private string IconePourChart(string libellePropre) => libellePropre.ToLowerInvariant() switch
+    {
+        "barres" => Icons.Material.Filled.BarChart,
+        "donut" => Icons.Material.Filled.DonutLarge,
+        "ligne" => Icons.Material.Filled.ShowChart,
+        "aire" => Icons.Material.Filled.Timeline,
+        "boxplot" => Icons.Material.Filled.CandlestickChart,
+        "waterfall" or "cascade" => Icons.Material.Filled.WaterfallChart,
+        "jauge" or "gauge" => Icons.Material.Filled.Speed,
+        "radar" => Icons.Material.Filled.Radar,
+        "treemap" => Icons.Material.Filled.GridView,
+        "entonnoir" or "funnel" => Icons.Material.Filled.FilterAlt,
+        "nuage" or "scatter" => Icons.Material.Filled.BubbleChart,
+        _ => Icons.Material.Filled.Insights
+    };
+
+    // ===================== PALETTE : APERÇU DE COULEURS =====================
+
+    private static string[] CouleursApercu(string cle)
+    {
+        var palette = WicStockChartConfig.Palette;
+        if (palette.Length == 0) return new[] { "#2B4C7E" };
+        if (string.IsNullOrWhiteSpace(cle)) return palette.Take(4).ToArray();
+
+        var hash = Math.Abs(cle.ToLowerInvariant().GetHashCode());
+        var depart = hash % palette.Length;
+        return Enumerable.Range(0, 4)
+            .Select(i => palette[(depart + i * 3) % palette.Length])
+            .ToArray();
+    }
+
+    private static string DegradeApercu(string[] couleurs)
+    {
+        if (couleurs.Length == 0) return "#2B4C7E";
+        if (couleurs.Length == 1) return couleurs[0];
+
+        var pas = 360.0 / couleurs.Length;
+        var segments = couleurs.Select((c, i) =>
+            $"{c} {(int)(i * pas)}deg {(int)((i + 1) * pas)}deg");
+        return "conic-gradient(" + string.Join(",", segments) + ")";
+    }
+
+    // ===================== SELECTION / EVENEMENTS =====================
+
+    private bool IsSelected(string? value) => value != null && _selectedValue == value;
+
+    private async Task OnOptionClick(QuickOptionDto option)
+    {
+        if (Disabled) return;
+
+        if (option.IsFreeText)
+        {
+            _freeTextOpenFor = option.Value;
+            _freeTextValue = string.Empty;
+            StateHasChanged();
+            await Task.Delay(50);
+            try { await _freeTextRef.FocusAsync(); } catch { }
+        }
+        else
+        {
+            _selectedValue = option.Value;
+            StateHasChanged();
+            await OnOptionSelected.InvokeAsync(option.Value);
+        }
+    }
+
+    private async Task SubmitFreeText()
+    {
+        if (string.IsNullOrWhiteSpace(_freeTextValue) || Disabled) return;
+        var text = _freeTextValue.Trim();
+        _selectedValue = _freeTextOpenFor;
+        _freeTextOpenFor = null;
+        StateHasChanged();
+        await OnOptionSelected.InvokeAsync(text);
+    }
+
+    private async Task HandleFreeTextKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SubmitFreeText();
+        if (e.Key == "Escape")
+        {
+            _freeTextOpenFor = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SoumettreCouleurPersonnalisee(Microsoft.AspNetCore.Components.ChangeEventArgs e, QuickOptionDto option)
+    {
+        var hex = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(hex) || Disabled) return;
+
+        // CORRECTIF : on conserve le format natif en minuscules renvoyé par
+        // <input type="color"> (ex: #2b4c7e). Le service IA backend qui
+        // détecte les couleurs hexadécimales attend très probablement ce
+        // format (regex du type #[0-9a-f]{6}), et l'envoi en MAJUSCULES
+        // précédent faisait échouer silencieusement la reconnaissance côté
+        // backend : celui-ci renvoyait alors sa question initiale
+        // ("Quelle palette de couleurs...?") comme si aucune couleur
+        // n'avait été choisie.
+        hex = hex.Trim().ToLowerInvariant();
+
+        _selectedValue = option.Value;
+        StateHasChanged();
+
+        // On envoie le hex dans une phrase plutôt que seul : certains moteurs de
+        // reconnaissance de couleur attendent une formulation en langage naturel
+        // et rejettent un code isolé, même bien formé.
+        await OnOptionSelected.InvokeAsync($"Utiliser la couleur {hex}");
+    }
+}

@@ -1,0 +1,158 @@
+@using WicStock.Web.Models
+@using System.Globalization
+
+<div class="wicstock-line-chart" style="width:@Width; font-family:'Inter',sans-serif;">
+    <svg viewBox="0 0 @SvgTotalW @F(SvgTotalH)" width="100%" xmlns="http://www.w3.org/2000/svg"
+         style="display:block; overflow:visible; max-width:100%;">
+        @GetSvgContent()
+    </svg>
+    @if (Labels.Count > MaxPoints)
+    {
+        <p style="font-size:11px;color:#94a3b8;margin:6px 0 0 @(LeftPad)px;font-family:Inter,sans-serif;">
+            Top @MaxPoints affich&#233;s sur @Labels.Count r&#233;sultats
+        </p>
+    }
+</div>
+
+@code {
+    [Parameter] public List<string> Labels { get; set; } = new();
+    [Parameter] public List<double> Series { get; set; } = new();
+    [Parameter] public string Width { get; set; } = "100%";
+    [Parameter] public int MaxPoints { get; set; } = 12;
+    [Parameter] public string[]? CustomPalette { get; set; }
+
+    private const double LeftPad = 45;
+    private const double RightPad = 35;
+    private const double TopPad = 35;
+    private const double BottomPad = 45;
+    private const double SvgTotalW = 720;
+    private const double SvgTotalH = 280;
+    private const int GridLinesY = 4;
+
+    private List<string> VisibleLabels => Labels.Take(MaxPoints).ToList();
+    private List<double> VisibleSeries => Series.Take(MaxPoints).ToList();
+    private int VisibleCount => Math.Min(Labels.Count, MaxPoints);
+
+    private double ChartW => SvgTotalW - LeftPad - RightPad;
+    private double ChartH => SvgTotalH - TopPad - BottomPad;
+
+    private string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private string FormatVal(double v)
+    {
+        if (v >= 1_000_000) return (v / 1_000_000.0).ToString("0.#") + "M";
+        if (v >= 1_000) return (v / 1_000.0).ToString("0.#") + "k";
+        if (v % 1 < double.Epsilon) return ((long)v).ToString();
+        return v.ToString("0.#");
+    }
+
+    private static string Truncate(string s, int max) =>
+        s.Length > max ? s[..Math.Max(1, max - 1)] + "\u2026" : s;
+
+    private MarkupString GetSvgContent()
+    {
+        var sb = new System.Text.StringBuilder();
+
+        if (VisibleCount == 0) return new MarkupString(string.Empty);
+
+        double maxRaw = VisibleSeries.Count > 0 ? VisibleSeries.Max() : 1;
+        double minRaw = VisibleSeries.Count > 0 ? VisibleSeries.Min() : 0;
+
+        // Auto-échelle intelligente de l'axe Y pour donner du relief et de la hauteur aux données
+        double yMin = minRaw < 0 ? minRaw * 1.1 : 0;
+        double yMax = maxRaw > 0 ? maxRaw * 1.3 : 1;
+        if (Math.Abs(yMax - yMin) < 0.0001) yMax = yMin + 1;
+
+        // Couleur principale de la ligne depuis CustomPalette ou la palette globale WicStock
+        string mainColor = (CustomPalette != null && CustomPalette.Length > 0)
+            ? CustomPalette[0]
+            : WicStockChartConfig.Palette[0];
+
+        // Id unique du dégradé sous la courbe
+        string gradId = "line-grad-" + Math.Abs(mainColor.GetHashCode());
+
+        sb.AppendLine($@"<defs>
+            <linearGradient id=""{gradId}"" x1=""0"" y1=""0"" x2=""0"" y2=""1"">
+                <stop offset=""0%"" stop-color=""{mainColor}"" stop-opacity=""0.25"" />
+                <stop offset=""100%"" stop-color=""{mainColor}"" stop-opacity=""0.0"" />
+            </linearGradient>
+        </defs>");
+
+        // Grille horizontale Y et repères Y
+        for (int g = 0; g <= GridLinesY; g++)
+        {
+            double gy = TopPad + ChartH - g * (ChartH / GridLinesY);
+            double gVal = yMin + g * ((yMax - yMin) / GridLinesY);
+            sb.AppendLine($@"<line x1=""{F(LeftPad)}"" y1=""{F(gy)}"" x2=""{F(SvgTotalW - RightPad)}"" y2=""{F(gy)}"" stroke=""#e2e8f0"" stroke-width=""1"" stroke-dasharray=""4 4"" />");
+            sb.AppendLine($@"<text x=""{F(LeftPad - 8)}"" y=""{F(gy + 4)}"" text-anchor=""end"" font-size=""10.5"" fill=""#64748b"" font-family=""JetBrains Mono,monospace"" font-weight=""500"">{System.Net.WebUtility.HtmlEncode(FormatVal(gVal))}</text>");
+        }
+
+        // Coordonnées (x, y) de chaque point de données
+        var points = new List<(double X, double Y, double Val, string Label, string PointColor)>();
+        double xStep = VisibleCount > 1 ? ChartW / (VisibleCount - 1) : ChartW / 2;
+
+        for (int i = 0; i < VisibleCount; i++)
+        {
+            double px = VisibleCount > 1 ? LeftPad + i * xStep : LeftPad + ChartW / 2;
+            double val = VisibleSeries[i];
+            double py = TopPad + ChartH - ((val - yMin) / (yMax - yMin)) * ChartH;
+
+            string pColor = (CustomPalette != null && CustomPalette.Length > 1)
+                ? CustomPalette[i % CustomPalette.Length]
+                : mainColor;
+
+            points.Add((px, py, val, VisibleLabels[i], pColor));
+        }
+
+        // Polygone de remplissage en dégradé sous la courbe
+        if (points.Count > 0)
+        {
+            var areaPoints = new System.Text.StringBuilder();
+            areaPoints.Append($"{F(points[0].X)},{F(TopPad + ChartH)} ");
+            foreach (var p in points)
+            {
+                areaPoints.Append($"{F(p.X)},{F(p.Y)} ");
+            }
+            areaPoints.Append($"{F(points[^1].X)},{F(TopPad + ChartH)}");
+
+            sb.AppendLine($@"<polygon points=""{areaPoints}"" fill=""url(#{gradId})"" />");
+        }
+
+        // Trait principal de la courbe
+        if (points.Count > 1)
+        {
+            var linePoints = string.Join(" ", points.Select(p => $"{F(p.X)},{F(p.Y)}"));
+            sb.AppendLine($@"<polyline points=""{linePoints}"" fill=""none"" stroke=""{mainColor}"" stroke-width=""3"" stroke-linecap=""round"" stroke-linejoin=""round"" />");
+        }
+        else if (points.Count == 1)
+        {
+            var p = points[0];
+            sb.AppendLine($@"<line x1=""{F(LeftPad)}"" y1=""{F(p.Y)}"" x2=""{F(SvgTotalW - RightPad)}"" y2=""{F(p.Y)}"" stroke=""{mainColor}"" stroke-width=""3"" stroke-dasharray=""4 4"" />");
+        }
+
+        // Les points de données et leurs étiquettes de valeurs explicites (Information complète)
+        foreach (var p in points)
+        {
+            string labelEsc = System.Net.WebUtility.HtmlEncode(Truncate(p.Label, 16));
+            string valEsc = System.Net.WebUtility.HtmlEncode(FormatVal(p.Val));
+            string titleEsc = System.Net.WebUtility.HtmlEncode($"{p.Label} : {FormatVal(p.Val)}");
+
+            // Point de données
+            sb.AppendLine($@"<circle cx=""{F(p.X)}"" cy=""{F(p.Y)}"" r=""5.5"" fill=""#ffffff"" stroke=""{p.PointColor}"" stroke-width=""2.8""><title>{titleEsc}</title></circle>");
+            sb.AppendLine($@"<circle cx=""{F(p.X)}"" cy=""{F(p.Y)}"" r=""2.2"" fill=""{p.PointColor}""><title>{titleEsc}</title></circle>");
+
+            // Valeur numérique affichée au-dessus du point (Information complète indispensable)
+            double badgeY = p.Y - 11;
+            sb.AppendLine($@"<text x=""{F(p.X)}"" y=""{F(badgeY)}"" text-anchor=""middle"" font-size=""11"" fill=""{p.PointColor}"" font-family=""JetBrains Mono,monospace"" font-weight=""700"">{valEsc}</text>");
+
+            // Libellé de l'axe X
+            double labelY = TopPad + ChartH + 18;
+            sb.AppendLine($@"<text x=""{F(p.X)}"" y=""{F(labelY)}"" text-anchor=""middle"" font-size=""11"" fill=""#334155"" font-family=""Inter,sans-serif"" font-weight=""500"">{labelEsc}</text>");
+        }
+
+        // Ligne de base horizontale
+        sb.AppendLine($@"<line x1=""{F(LeftPad)}"" y1=""{F(TopPad + ChartH)}"" x2=""{F(SvgTotalW - RightPad)}"" y2=""{F(TopPad + ChartH)}"" stroke=""#cbd5e1"" stroke-width=""1.5"" />");
+
+        return new MarkupString(sb.ToString());
+    }
+}

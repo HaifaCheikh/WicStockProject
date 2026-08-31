@@ -85,6 +85,8 @@ namespace WicStock.Web.Services
             }
         }
 
+        private const string SHARED_NOTIFS_KEY = "wicstock_shared_global_notifications";
+
         public async Task ChargerNotificationsInitialesAsync()
         {
             try
@@ -92,12 +94,37 @@ namespace WicStock.Web.Services
                 var token = await _localStorage.GetItemAsync("authToken");
                 if (string.IsNullOrEmpty(token)) return;
 
-                var resultats = await _http.GetFromJsonAsync<List<NotificationDto>>("api/notification");
-                if (resultats != null)
+                List<NotificationDto> remoteNotifs = new();
+                try
                 {
-                    Notifications = resultats;
-                    OnUnreadCountChanged?.Invoke();
+                    var resultats = await _http.GetFromJsonAsync<List<NotificationDto>>("api/notification");
+                    if (resultats != null) remoteNotifs = resultats;
                 }
+                catch { }
+
+                List<NotificationDto> localNotifs = new();
+                try
+                {
+                    var json = await _localStorage.GetItemAsync(SHARED_NOTIFS_KEY);
+                    if (!string.IsNullOrEmpty(json))
+                    {
+                        var parsed = System.Text.Json.JsonSerializer.Deserialize<List<NotificationDto>>(json);
+                        if (parsed != null) localNotifs = parsed;
+                    }
+                }
+                catch { }
+
+                var combined = remoteNotifs.ToList();
+                foreach (var ln in localNotifs)
+                {
+                    if (!combined.Any(n => n.Id == ln.Id || (n.Message == ln.Message && n.UrlCible == ln.UrlCible)))
+                    {
+                        combined.Insert(0, ln);
+                    }
+                }
+
+                Notifications = combined;
+                OnUnreadCountChanged?.Invoke();
             }
             catch (Exception ex)
             {
@@ -171,6 +198,39 @@ namespace WicStock.Web.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"[NotificationClientService] Erreur tout marquer comme lu : {ex.Message}");
+            }
+        }
+
+        public async Task AjouterNotificationAsync(NotificationDto notif)
+        {
+            if (notif == null) return;
+            if (notif.Id == 0) notif.Id = Random.Shared.Next(1000, 999999);
+
+            if (!Notifications.Any(n => n.Id == notif.Id))
+            {
+                Notifications.Insert(0, notif);
+                OnNotificationReceived?.Invoke(notif);
+                OnUnreadCountChanged?.Invoke();
+            }
+
+            try
+            {
+                var json = await _localStorage.GetItemAsync(SHARED_NOTIFS_KEY);
+                List<NotificationDto> localNotifs = new();
+                if (!string.IsNullOrEmpty(json))
+                {
+                    var parsed = System.Text.Json.JsonSerializer.Deserialize<List<NotificationDto>>(json);
+                    if (parsed != null) localNotifs = parsed;
+                }
+                if (!localNotifs.Any(n => n.Id == notif.Id))
+                {
+                    localNotifs.Insert(0, notif);
+                    await _localStorage.SetItemAsync(SHARED_NOTIFS_KEY, System.Text.Json.JsonSerializer.Serialize(localNotifs));
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[NotificationClientService] Erreur sauvegarde localNotifs : {ex.Message}");
             }
         }
 

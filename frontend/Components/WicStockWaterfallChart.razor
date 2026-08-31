@@ -1,0 +1,128 @@
+@using WicStock.Web.Models
+@using System.Globalization
+
+<div class="wicstock-waterfall-chart" style="width:@Width; font-family:'Inter',sans-serif;">
+    <svg viewBox="0 0 @SvgTotalW @F(SvgH)" width="100%" xmlns="http://www.w3.org/2000/svg"
+         style="display:block; overflow:visible; max-width:100%;">
+        @GetSvgContent()
+    </svg>
+    @if (Labels.Count > MaxItems)
+    {
+        <p style="font-size:11px;color:#94a3b8;margin:6px 0 0 @(LeftPad)px;font-family:Inter,sans-serif;">
+            Top @MaxItems affichés sur @Labels.Count résultats
+        </p>
+    }
+</div>
+
+@code {
+    [Parameter] public List<string> Labels { get; set; } = new();
+    [Parameter] public List<double> Series { get; set; } = new();
+    [Parameter] public string Width { get; set; } = "100%";
+    [Parameter] public int MaxItems { get; set; } = 8;
+    [Parameter] public string[]? CustomPalette { get; set; }
+
+    private const double LeftPad = 140;
+    private const double RightPad = 35;
+    private const double TopPad = 30;
+    private const double BarH = 26;
+    private const double BarGap = 12;
+    private const int GridLines = 4;
+    private const double SvgTotalW = 720;
+
+    private List<string> VisibleLabels => Labels.Take(MaxItems).ToList();
+    private List<double> VisibleSeries => Series.Take(MaxItems).ToList();
+    private int VisibleCount => Math.Min(Labels.Count, MaxItems);
+
+    private double ChartW => SvgTotalW - LeftPad - RightPad;
+    private double ChartH => Math.Max(1, VisibleCount * (BarH + BarGap) - BarGap);
+    private double SvgH => TopPad + ChartH + 16;
+
+    private string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private string FormatVal(double v)
+    {
+        if (Math.Abs(v) >= 1_000_000) return (v / 1_000_000.0).ToString("0.#") + "M";
+        if (Math.Abs(v) >= 1_000) return (v / 1_000.0).ToString("0.#") + "k";
+        if (v % 1 < double.Epsilon) return ((long)v).ToString();
+        return v.ToString("0.#");
+    }
+
+    private static string Truncate(string s, int max) =>
+        s.Length > max ? s[..Math.Max(1, max - 1)] + "\u2026" : s;
+
+    private MarkupString GetSvgContent()
+    {
+        var sb = new System.Text.StringBuilder();
+
+        if (VisibleCount == 0) return new MarkupString(string.Empty);
+
+        // Calcul des totaux cumulés pour le Waterfall
+        double cumulative = 0;
+        var starts = new List<double>();
+        var ends = new List<double>();
+
+        for (int i = 0; i < VisibleCount; i++)
+        {
+            starts.Add(cumulative);
+            cumulative += VisibleSeries[i];
+            ends.Add(cumulative);
+        }
+
+        double maxVal = Math.Max(1, Math.Max(starts.Max(), ends.Max()) * 1.15);
+
+        // Grille verticale
+        for (int g = 0; g <= GridLines; g++)
+        {
+            double gx = LeftPad + g * (ChartW / GridLines);
+            double gVal = maxVal * g / GridLines;
+            sb.AppendLine($@"<line x1=""{F(gx)}"" y1=""{F(TopPad)}"" x2=""{F(gx)}"" y2=""{F(TopPad + ChartH)}"" stroke=""#e2e8f0"" stroke-width=""1"" stroke-dasharray=""3 3"" />");
+            sb.AppendLine($@"<text x=""{F(gx)}"" y=""{F(TopPad - 8)}"" text-anchor=""middle"" font-size=""10.5"" fill=""#64748b"" font-family=""JetBrains Mono,monospace"">{System.Net.WebUtility.HtmlEncode(FormatVal(gVal))}</text>");
+        }
+
+        // Rangées Waterfall
+        for (int i = 0; i < VisibleCount; i++)
+        {
+            double rowY = TopPad + i * (BarH + BarGap);
+            double sVal = starts[i];
+            double eVal = ends[i];
+            double delta = VisibleSeries[i];
+
+            double startX = LeftPad + (sVal / maxVal) * ChartW;
+            double endX = LeftPad + (eVal / maxVal) * ChartW;
+            double barW = Math.Max(Math.Abs(endX - startX), 4);
+            double barX = Math.Min(startX, endX);
+
+            string color = (CustomPalette != null && CustomPalette.Length > 0)
+                ? CustomPalette[i % CustomPalette.Length]
+                : (delta >= 0 ? "#10B981" : "#EF4444");
+
+            string labelEsc = System.Net.WebUtility.HtmlEncode(Truncate(VisibleLabels[i], 20));
+            string valEsc = System.Net.WebUtility.HtmlEncode((delta >= 0 ? "+" : "") + FormatVal(delta));
+            string titleEsc = System.Net.WebUtility.HtmlEncode($"{VisibleLabels[i]} : {FormatVal(delta)} (Cumul: {FormatVal(eVal)})");
+
+            // Rail de fond
+            sb.AppendLine($@"<rect x=""{F(LeftPad)}"" y=""{F(rowY)}"" width=""{F(ChartW)}"" height=""{F(BarH)}"" rx=""4"" fill=""#f8fafc"" />");
+
+            // Ligne de liaison horizontale avec l'étape précédente
+            if (i > 0)
+            {
+                double prevEndY = rowY - BarGap / 2;
+                sb.AppendLine($@"<line x1=""{F(startX)}"" y1=""{F(prevEndY - BarH/2)}"" x2=""{F(startX)}"" y2=""{F(rowY + BarH/2)}"" stroke=""#cbd5e1"" stroke-width=""1.5"" stroke-dasharray=""2 2"" />");
+            }
+
+            // Barre Waterfall
+            sb.AppendLine($@"<rect x=""{F(barX)}"" y=""{F(rowY)}"" width=""{F(barW)}"" height=""{F(BarH)}"" rx=""4"" fill=""{color}"" opacity=""0.9""><title>{titleEsc}</title></rect>");
+
+            // Libellé à gauche
+            sb.AppendLine($@"<text x=""{F(LeftPad - 10)}"" y=""{F(rowY + BarH / 2 + 4)}"" text-anchor=""end"" font-size=""11.5"" fill=""#334155"" font-family=""Inter,sans-serif"" font-weight=""500"">{labelEsc}</text>");
+
+            // Valeur numérique à droite de la barre
+            sb.AppendLine($@"<text x=""{F(barX + barW + 8)}"" y=""{F(rowY + BarH / 2 + 4)}"" text-anchor=""start"" font-size=""11"" fill=""{color}"" font-family=""JetBrains Mono,monospace"" font-weight=""700"">{valEsc}</text>");
+        }
+
+        // Ligne de base
+        sb.AppendLine($@"<line x1=""{F(LeftPad)}"" y1=""{F(TopPad)}"" x2=""{F(LeftPad)}"" y2=""{F(TopPad + ChartH)}"" stroke=""#cbd5e1"" stroke-width=""1.5"" />");
+
+        return new MarkupString(sb.ToString());
+    }
+}

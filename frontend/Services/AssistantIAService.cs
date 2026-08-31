@@ -28,5 +28,24 @@ namespace WicStock.Web.Services
                 return null;
             }
         }
+
+        public async Task<AssistantResponseDto?> ChatAsync(ChatRequest request)
+        {
+            try
+            {
+                var response = await _http.PostAsJsonAsync("chat", request);
+                if (!response.IsSuccessStatusCode)
+                    return null;
+
+                return await response.Content.ReadFromJsonAsync<AssistantResponseDto>(
+                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                );
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[AssistantIAService ChatAsync Error] {ex.Message}");
+                return null;
+            }
+        }
     }
 }

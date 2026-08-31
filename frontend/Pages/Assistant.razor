@@ -8,8 +8,10 @@
 @implements IDisposable
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "ADMIN,RESPONSABLE_STOCK_PRODUCTION,CLIENT")]
 @inject AssistantIAService AssistantIAService
+@inject ProduitService ProduitService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject AuthService AuthService
+@inject ProfilService ProfilService
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 
@@ -119,12 +121,22 @@
                             else
                             {
                                 <div class="msg-content">
-                                    <p>@msg.Texte</p>
+                                    @FormaterMessageHtml(msg.Texte)
                                 </div>
+
+                                @if (!msg.EstUtilisateur && msg.Options is not null && msg.PendingState is not null)
+                                {
+                                    <ChatOptionsButtons Options="@msg.Options"
+                                                        PendingState="@msg.PendingState"
+                                                        OnOptionSelected="(opt) => EnvoyerVersAssistantAvecCible(opt, msg)"
+                                                        Disabled="@enChargement" />
+                                }
 
                                 @if (!msg.EstUtilisateur && msg.Chart is not null && msg.Chart.Labels.Any())
                                 {
                                     var chartId = $"chart-box-{msg.Id}";
+                                    var palette = msg.Chart.Colors ?? msg.Chart.CustomPalette;
+                                    var chartKey = $"{msg.Chart.Type}-{msg.Id}-{string.Join("-", palette ?? Array.Empty<string>())}";
                                     <div class="msg-chart-container" id="@chartId">
                                         <div class="msg-chart-header">
                                             <div class="msg-chart-title">
@@ -158,8 +170,10 @@
 
                                         @if (msg.Chart.Type == "donut")
                                         {
-                                            <WicStockDonutChart Labels="@msg.Chart.Labels"
+                                            <WicStockDonutChart @key="chartKey"
+                                                                Labels="@msg.Chart.Labels"
                                                                 Series="@msg.Chart.Series"
+                                                                CustomPalette="@palette"
                                                                 Title="@msg.Chart.Title"
                                                                 Width="100%"
                                                                 Height="260px"
@@ -169,19 +183,78 @@
                                         }
                                         else if (msg.Chart.Type == "line")
                                         {
-                                            <MudChart T="double" ChartType="ChartType.Line"
-                                                      ChartOptions="@WicStockChartConfig.DefaultChartOptions"
-                                                      ChartSeries="@ObtenirSeries(msg.Chart)"
-                                                      ChartLabels="@msg.Chart.Labels.ToArray()"
-                                                      Width="100%"
-                                                      Height="280px" />
+                                            <WicStockLineChart @key="chartKey"
+                                                               Labels="@msg.Chart.Labels"
+                                                               Series="@msg.Chart.Series"
+                                                               CustomPalette="@palette"
+                                                               Width="100%" />
+                                        }
+                                        else if (msg.Chart.Type == "boxplot")
+                                        {
+                                            <WicStockBoxPlotChart @key="chartKey"
+                                                                  Labels="@msg.Chart.Labels"
+                                                                  Series="@msg.Chart.Series"
+                                                                  CustomPalette="@palette"
+                                                                  Width="100%" />
+                                        }
+                                        else if (msg.Chart.Type == "waterfall")
+                                        {
+                                            <WicStockWaterfallChart @key="chartKey"
+                                                                    Labels="@msg.Chart.Labels"
+                                                                    Series="@msg.Chart.Series"
+                                                                    CustomPalette="@palette"
+                                                                    Width="100%" />
+                                        }
+                                        else if (msg.Chart.Type == "gauge")
+                                        {
+                                            <WicStockGaugeChart @key="chartKey"
+                                                                Labels="@msg.Chart.Labels"
+                                                                Series="@msg.Chart.Series"
+                                                                CustomPalette="@palette"
+                                                                Width="100%" />
+                                        }
+                                        else if (msg.Chart.Type == "radar")
+                                        {
+                                            <WicStockRadarChart @key="chartKey"
+                                                                Labels="@msg.Chart.Labels"
+                                                                Series="@msg.Chart.Series"
+                                                                CustomPalette="@palette"
+                                                                Width="100%" />
+                                        }
+                                        else if (msg.Chart.Type == "treemap")
+                                        {
+                                            <WicStockTreemapChart @key="chartKey"
+                                                                  Labels="@msg.Chart.Labels"
+                                                                  Series="@msg.Chart.Series"
+                                                                  CustomPalette="@palette"
+                                                                  Width="100%" />
+                                        }
+                                        else if (msg.Chart.Type == "funnel")
+                                        {
+                                            <WicStockFunnelChart @key="chartKey"
+                                                                 Labels="@msg.Chart.Labels"
+                                                                 Series="@msg.Chart.Series"
+                                                                 CustomPalette="@palette"
+                                                                 Width="100%" />
+                                        }
+                                        else if (msg.Chart.Type == "scatter")
+                                        {
+                                            <WicStockScatterChart @key="chartKey"
+                                                                  Labels="@msg.Chart.Labels"
+                                                                  Series="@msg.Chart.Series"
+                                                                  CustomPalette="@palette"
+                                                                  Width="100%" />
                                         }
                                         else
                                         {
-                                            <WicStockBarChart Labels="@msg.Chart.Labels"
+                                            <WicStockBarChart @key="chartKey"
+                                                              Labels="@msg.Chart.Labels"
                                                               Series="@msg.Chart.Series"
+                                                              CustomPalette="@palette"
                                                               Width="100%"
-                                                              MaxBars="8" />
+                                                              MaxBars="8"
+                                                                UserRole="@role"
+                                                                OnDrillDown="NaviguerDrillDown" />
                                         }
                                     </div>
                                 }
@@ -305,8 +378,10 @@
                 <div class="modal-zoom-body" id="modal-zoom-container">
                     @if (chartZoom.Type == "donut")
                     {
+                        var zoomPalette = chartZoom.Colors ?? chartZoom.CustomPalette;
                         <WicStockDonutChart Labels="@chartZoom.Labels"
                                             Series="@chartZoom.Series"
+                                            CustomPalette="@zoomPalette"
                                             Title="@chartZoom.Title"
                                             Width="100%"
                                             Height="380px"
@@ -316,19 +391,84 @@
                     }
                     else if (chartZoom.Type == "line")
                     {
-                        <MudChart T="double" ChartType="ChartType.Line"
-                                  ChartOptions="@WicStockChartConfig.DefaultChartOptions"
-                                  ChartSeries="@ObtenirSeries(chartZoom)"
-                                  ChartLabels="@chartZoom.Labels.ToArray()"
-                                  Width="100%"
-                                  Height="360px" />
+                        var zoomPalette = chartZoom.Colors ?? chartZoom.CustomPalette;
+                        <WicStockLineChart Labels="@chartZoom.Labels"
+                                           Series="@chartZoom.Series"
+                                           CustomPalette="@zoomPalette"
+                                           Width="100%"
+                                           MaxPoints="15" />
+                    }
+                    else if (chartZoom.Type == "boxplot")
+                    {
+                        var zoomPalette = chartZoom.Colors ?? chartZoom.CustomPalette;
+                        <WicStockBoxPlotChart Labels="@chartZoom.Labels"
+                                              Series="@chartZoom.Series"
+                                              CustomPalette="@zoomPalette"
+                                              Width="100%"
+                                              MaxItems="15" />
+                    }
+                    else if (chartZoom.Type == "waterfall")
+                    {
+                        var zoomPalette = chartZoom.Colors ?? chartZoom.CustomPalette;
+                        <WicStockWaterfallChart Labels="@chartZoom.Labels"
+                                                Series="@chartZoom.Series"
+                                                CustomPalette="@zoomPalette"
+                                                Width="100%"
+                                                MaxItems="15" />
+                    }
+                    else if (chartZoom.Type == "gauge")
+                    {
+                        var zoomPalette = chartZoom.Colors ?? chartZoom.CustomPalette;
+                        <WicStockGaugeChart Labels="@chartZoom.Labels"
+                                            Series="@chartZoom.Series"
+                                            CustomPalette="@zoomPalette"
+                                            Width="100%" />
+                    }
+                    else if (chartZoom.Type == "radar")
+                    {
+                        var zoomPalette = chartZoom.Colors ?? chartZoom.CustomPalette;
+                        <WicStockRadarChart Labels="@chartZoom.Labels"
+                                            Series="@chartZoom.Series"
+                                            CustomPalette="@zoomPalette"
+                                            Width="100%" />
+                    }
+                    else if (chartZoom.Type == "treemap")
+                    {
+                        var zoomPalette = chartZoom.Colors ?? chartZoom.CustomPalette;
+                        <WicStockTreemapChart Labels="@chartZoom.Labels"
+                                              Series="@chartZoom.Series"
+                                              CustomPalette="@zoomPalette"
+                                              Width="100%"
+                                              MaxTiles="15" />
+                    }
+                    else if (chartZoom.Type == "funnel")
+                    {
+                        var zoomPalette = chartZoom.Colors ?? chartZoom.CustomPalette;
+                        <WicStockFunnelChart Labels="@chartZoom.Labels"
+                                             Series="@chartZoom.Series"
+                                             CustomPalette="@zoomPalette"
+                                             Width="100%"
+                                             MaxSteps="10" />
+                    }
+                    else if (chartZoom.Type == "scatter")
+                    {
+                        var zoomPalette = chartZoom.Colors ?? chartZoom.CustomPalette;
+                        <WicStockScatterChart Labels="@chartZoom.Labels"
+                                              Series="@chartZoom.Series"
+                                              CustomPalette="@zoomPalette"
+                                              Width="100%"
+                                              MaxPoints="15" />
                     }
                     else
                     {
+                        var zoomPalette = chartZoom.Colors ?? chartZoom.CustomPalette;
                         <WicStockBarChart Labels="@chartZoom.Labels"
                                           Series="@chartZoom.Series"
+                                          CustomPalette="@zoomPalette"
                                           Width="100%"
-                                          MaxBars="15" />
+                                          MaxBars="15"
+                                            UserRole="@role"
+                                            OnDrillDown="NaviguerDrillDown" />
                     }
                 </div>
             </div>
@@ -389,1123 +529,1180 @@
 
 <style>
     .assistant-page {
-        --ink: #16233A;
-        --ink-muted: #64748B;
-        --paper: #FFFFFF;
-        --bg: #F8FAFC;
-        --sand: #F6F8FB;
-        --sand-tint: #F1F5F9;
-        --border: #E2E8F0;
-        --denim: #2B4C7E;
-        --denim-dark: #1E3A63;
-        --denim-tint: #EAF0F8;
-        --rust: #B5563A;
-        --rust-soft: #F9ECE8;
-        --pine: #1E6B4C;
-        --amber: #D97706;
-        --danger: #EF4444;
-        --danger-tint: #FEE2E2;
-        --radius-sm: 8px;
-        --radius-md: 12px;
-        --radius-lg: 16px;
-        --font-heading: "Sora", "Inter", sans-serif;
-        --font-body: "Inter", sans-serif;
-        --font-mono: "JetBrains Mono", monospace;
-        display: flex;
-        height: calc(100vh - 84px);
-        background: var(--bg);
-        gap: 16px;
-        padding: 16px;
-        box-sizing: border-box;
-        font-family: var(--font-body);
-        color: var(--ink);
+    --ink: #16233A;
+    --ink-muted: #64748B;
+    --paper: #FFFFFF;
+    --bg: #F8FAFC;
+    --sand: #F6F8FB;
+    --sand-tint: #F1F5F9;
+    --border: #E2E8F0;
+    --denim: #2B4C7E;
+    --denim-dark: #1E3A63;
+    --denim-tint: #EAF0F8;
+    --rust: #B5563A;
+    --rust-soft: #F9ECE8;
+    --pine: #1E6B4C;
+    --amber: #D97706;
+    --danger: #EF4444;
+    --danger-tint: #FEE2E2;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --font-heading: "Sora", "Inter", sans-serif;
+    --font-body: "Inter", sans-serif;
+    --font-mono: "JetBrains Mono", monospace;
+    display: flex;
+    height: calc(100vh - 84px);
+    background: var(--bg);
+    gap: 16px;
+    padding: 16px;
+    box-sizing: border-box;
+    font-family: var(--font-body);
+    color: var(--ink);
     }
 
     /* ---------- SIDEBAR ---------- */
     .assistant-page .sidebar {
-        width: 280px;
-        min-width: 280px;
-        background: var(--paper);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        padding: 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
+    width: 280px;
+    min-width: 280px;
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
     }
 
     .assistant-page .btn-nouvelle-conv {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        padding: 11px;
-        border: none;
-        border-radius: var(--radius-sm);
-        background: var(--denim);
-        color: #fff;
-        font-family: var(--font-body);
-        font-weight: 600;
-        font-size: 0.875rem;
-        cursor: pointer;
-        transition: background 0.15s ease;
-        box-shadow: 0 6px 16px -6px rgba(43, 76, 126, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 11px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--denim);
+    color: #fff;
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    box-shadow: 0 6px 16px -6px rgba(43, 76, 126, 0.4);
     }
 
     .assistant-page .btn-nouvelle-conv:hover {
-        background: var(--denim-dark);
+    background: var(--denim-dark);
     }
 
     .assistant-page .liste-conversations {
-        flex: 1;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        padding-right: 2px;
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-right: 2px;
     }
 
     .assistant-page .aucune-conv {
-        color: var(--ink-muted);
-        font-size: 0.85rem;
-        text-align: center;
-        margin-top: 24px;
+    color: var(--ink-muted);
+    font-size: 0.85rem;
+    text-align: center;
+    margin-top: 24px;
     }
 
     .assistant-page .item-conv {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 12px;
-        border-radius: var(--radius-sm);
-        border: 1px solid transparent;
-        background: transparent;
-        cursor: pointer;
-        transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
     }
 
     .assistant-page .item-conv:hover {
-        background: var(--sand-tint);
-        border-color: var(--border);
+    background: var(--sand-tint);
+    border-color: var(--border);
     }
 
     .assistant-page .item-conv--actif {
-        background: var(--denim-tint);
-        border-color: var(--denim);
+    background: var(--denim-tint);
+    border-color: var(--denim);
     }
 
     .assistant-page .item-conv-icon {
-        color: var(--ink-muted);
-        flex-shrink: 0;
+    color: var(--ink-muted);
+    flex-shrink: 0;
     }
 
     .assistant-page .item-conv--actif .item-conv-icon {
-        color: var(--denim);
+    color: var(--denim);
     }
 
     .assistant-page .item-conv-corps {
-        flex: 1;
-        min-width: 0;
+    flex: 1;
+    min-width: 0;
     }
 
     .assistant-page .item-conv-titre {
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: var(--ink);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     }
 
     .assistant-page .item-conv-date {
-        font-size: 0.72rem;
-        color: var(--ink-muted);
-        font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
     }
 
     .assistant-page .item-conv-input-renommer {
-        width: 100%;
-        padding: 4px 6px;
-        font-size: 0.85rem;
-        border: 1px solid var(--denim);
-        border-radius: 4px;
-        outline: none;
-        box-sizing: border-box;
+    width: 100%;
+    padding: 4px 6px;
+    font-size: 0.85rem;
+    border: 1px solid var(--denim);
+    border-radius: 4px;
+    outline: none;
+    box-sizing: border-box;
     }
 
     .assistant-page .item-conv-actions {
-        display: flex;
-        gap: 2px;
-        opacity: 0;
-        transition: opacity 0.15s ease;
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
     }
 
     .assistant-page .item-conv:hover .item-conv-actions,
     .assistant-page .item-conv--actif .item-conv-actions {
-        opacity: 1;
+    opacity: 1;
     }
 
     .assistant-page .btn-conv-action {
-        width: 26px;
-        height: 26px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: transparent;
-        border: none;
-        border-radius: 4px;
-        color: var(--ink-muted);
-        cursor: pointer;
-        padding: 0;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--ink-muted);
+    cursor: pointer;
+    padding: 0;
     }
 
     .assistant-page .btn-conv-action:hover {
-        background: rgba(0, 0, 0, 0.06);
-        color: var(--ink);
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--ink);
     }
 
     .assistant-page .btn-conv-action--danger:hover {
-        background: var(--danger-tint);
-        color: var(--danger);
+    background: var(--danger-tint);
+    color: var(--danger);
     }
 
     /* ---------- CHAT CONTAINER ---------- */
     .assistant-page .chat-container {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        background: var(--paper);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        overflow: hidden;
-        min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    min-width: 0;
     }
 
     .assistant-page .chat-header {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 16px 20px;
-        border-bottom: 1px solid var(--border);
-        background: var(--paper);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--paper);
     }
 
     .assistant-page .assistant-avatar {
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        background: var(--denim);
-        color: #fff;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--denim);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
     }
 
     .assistant-page .chat-header h2 {
-        margin: 0;
-        font-family: var(--font-heading);
-        font-size: 1.15rem;
-        font-weight: 700;
-        color: var(--ink);
+    margin: 0;
+    font-family: var(--font-heading);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--ink);
     }
 
     .assistant-page .chat-header p {
-        margin: 0;
-        font-size: 0.8rem;
-        color: var(--ink-muted);
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--ink-muted);
     }
 
     .assistant-page .chat-messages {
-        flex: 1;
-        overflow-y: auto;
-        padding: 20px;
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-        background: var(--bg);
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: var(--bg);
     }
 
     .assistant-page .msg-ligne {
-        display: flex;
-        gap: 12px;
-        max-width: 86%;
+    display: flex;
+    gap: 12px;
+    max-width: 86%;
     }
 
     .assistant-page .msg-ligne-user {
-        align-self: flex-end;
-        flex-direction: row-reverse;
+    align-self: flex-end;
+    flex-direction: row-reverse;
     }
 
     .assistant-page .msg-ligne-ia {
-        align-self: flex-start;
+    align-self: flex-start;
     }
 
     .assistant-page .avatar {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        margin-top: 20px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 20px;
     }
 
     .assistant-page .avatar-sans-header {
-        margin-top: 0;
+    margin-top: 0;
     }
 
     .assistant-page .avatar-ia {
-        background: var(--denim);
-        color: #fff;
+    background: var(--denim);
+    color: #fff;
     }
 
     .assistant-page .avatar-user {
-        background: var(--denim-tint);
-        color: var(--denim);
+    background: var(--denim-tint);
+    color: var(--denim);
     }
 
     .assistant-page .msg-bloc {
-        display: flex;
-        flex-direction: column;
-        min-width: 0;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
     }
 
     .assistant-page .msg-header {
-        font-size: 0.75rem;
-        line-height: 1rem;
-        margin-bottom: 4px;
-        color: var(--ink-muted);
-        display: flex;
-        gap: 8px;
-        align-items: baseline;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    margin-bottom: 4px;
+    color: var(--ink-muted);
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
     }
 
     .assistant-page .msg-heure {
-        font-family: var(--font-mono);
-        font-size: 0.7rem;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
     }
 
     .assistant-page .msg-ligne-user .msg-header {
-        justify-content: flex-end;
+    justify-content: flex-end;
     }
 
     .assistant-page .msg-content {
-        padding: 12px 16px;
-        border-radius: 14px;
-        font-size: 0.925rem;
-        line-height: 1.5;
-        word-break: break-word;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    padding: 12px 16px;
+    border-radius: 14px;
+    font-size: 0.925rem;
+    line-height: 1.5;
+    word-break: break-word;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
     .assistant-page .msg-ligne-user .msg-content {
-        background: var(--denim);
-        color: #fff;
-        border-bottom-right-radius: 4px;
+    background: var(--denim);
+    color: #fff;
+    border-bottom-right-radius: 4px;
     }
 
     .assistant-page .msg-ligne-ia .msg-content {
-        background: var(--paper);
-        color: var(--ink);
-        border: 1px solid var(--border);
-        border-bottom-left-radius: 4px;
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 4px;
     }
 
     .assistant-page .msg-content p {
-        margin: 0;
-        white-space: pre-wrap;
+    margin: 0 0 6px 0;
+    line-height: 1.5;
+    word-break: break-word;
+    }
+
+    .assistant-page .msg-content p:last-child {
+    margin-bottom: 0;
+    }
+
+    .assistant-page .msg-content strong {
+    font-weight: 700;
+    color: inherit;
+    }
+
+    .assistant-page .msg-content .chat-msg-list {
+    margin: 6px 0 8px 0;
+    padding-left: 20px;
+    list-style-type: disc;
+    }
+
+    .assistant-page .msg-content .chat-msg-list li {
+    margin-bottom: 4px;
+    line-height: 1.45;
+    }
+
+    .assistant-page .msg-content .chat-msg-gap {
+    height: 6px;
+    }
+
+    .assistant-page .msg-content h2,
+    .assistant-page .msg-content h3,
+    .assistant-page .msg-content h4 {
+    margin: 8px 0 4px 0;
+    font-weight: 700;
+    color: var(--ink);
+    }
+
+    .assistant-page .msg-content .inline-code {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.85em;
     }
 
     /* ---- Graphique dans le chat ---- */
     .assistant-page .msg-chart-container {
-        margin-top: 12px;
-        padding: 18px;
-        background: var(--paper);
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        box-shadow: 0 4px 18px -2px rgba(22, 35, 58, 0.08);
-        transition: box-shadow 0.2s ease;
+    margin-top: 12px;
+    padding: 18px;
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 4px 18px -2px rgba(22, 35, 58, 0.08);
+    transition: box-shadow 0.2s ease;
     }
 
     .assistant-page .msg-chart-container:hover {
-        box-shadow: 0 8px 26px -4px rgba(22, 35, 58, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 8px 26px -4px rgba(22, 35, 58, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
     }
 
     .assistant-page .msg-chart-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 12px;
-        gap: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    gap: 12px;
     }
 
     .assistant-page .msg-chart-title {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-weight: 600;
-        font-size: 0.9rem;
-        color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--ink);
     }
 
     .assistant-page .msg-chart-title .chart-title-icon {
-        color: var(--denim);
+    color: var(--denim);
     }
 
     .assistant-page .msg-chart-actions {
-        display: flex;
-        align-items: center;
-        gap: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     }
 
     .assistant-page .btn-chart-action-wrap {
-        position: relative;
-        display: inline-flex;
+    position: relative;
+    display: inline-flex;
     }
 
     .assistant-page .btn-chart-action {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 30px;
-        height: 30px;
-        padding: 0;
-        border-radius: 50%;
-        cursor: pointer;
-        transition: all 0.15s ease;
-        border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
     }
 
     .assistant-page .btn-chart-action--zoom {
-        background: #f1f5f9;
-        color: #475569;
-        border-color: #cbd5e1;
+    background: #f1f5f9;
+    color: #475569;
+    border-color: #cbd5e1;
     }
 
     .assistant-page .btn-chart-action--zoom:hover {
-        background: var(--denim);
-        color: #ffffff;
-        border-color: var(--denim);
+    background: var(--denim);
+    color: #ffffff;
+    border-color: var(--denim);
     }
 
     .assistant-page .btn-chart-action--png {
-        background: #ecfdf5;
-        color: #059669;
-        border-color: #a7f3d0;
+    background: #ecfdf5;
+    color: #059669;
+    border-color: #a7f3d0;
     }
 
     .assistant-page .btn-chart-action--png:hover {
-        background: #059669;
-        color: #ffffff;
-        border-color: #059669;
+    background: #059669;
+    color: #ffffff;
+    border-color: #059669;
     }
 
     .assistant-page .btn-chart-action--pdf {
-        background: #fee2e2;
-        color: #dc2626;
-        border-color: #fca5a5;
+    background: #fee2e2;
+    color: #dc2626;
+    border-color: #fca5a5;
     }
 
     .assistant-page .btn-chart-action--pdf:hover {
-        background: #dc2626;
-        color: #ffffff;
-        border-color: #dc2626;
+    background: #dc2626;
+    color: #ffffff;
+    border-color: #dc2626;
     }
 
     .assistant-page .btn-chart-tooltip {
-        position: absolute;
-        bottom: calc(100% + 8px);
-        right: 0;
-        background: var(--ink);
-        color: #fff;
-        font-size: 0.7rem;
-        font-weight: 600;
-        padding: 5px 9px;
-        border-radius: 6px;
-        white-space: nowrap;
-        opacity: 0;
-        visibility: hidden;
-        transform: translateY(4px);
-        transition: all 0.15s ease;
-        pointer-events: none;
-        z-index: 20;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    background: var(--ink);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 5px 9px;
+    border-radius: 6px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(4px);
+    transition: all 0.15s ease;
+    pointer-events: none;
+    z-index: 20;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
     }
 
     .assistant-page .btn-chart-tooltip::after {
-        content: "";
-        position: absolute;
-        top: 100%;
-        right: 10px;
-        border-width: 4px;
-        border-style: solid;
-        border-color: var(--ink) transparent transparent transparent;
+    content: "";
+    position: absolute;
+    top: 100%;
+    right: 10px;
+    border-width: 4px;
+    border-style: solid;
+    border-color: var(--ink) transparent transparent transparent;
     }
 
     .assistant-page .btn-chart-action-wrap:hover .btn-chart-tooltip {
-        opacity: 1;
-        visibility: visible;
-        transform: translateY(0);
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
     }
 
     /* ---------- MODAL ZOOM GRAPHIQUE ---------- */
     .assistant-page .modal-box.modal-box--chart-zoom {
-        max-width: 960px !important;
-        width: 92vw !important;
-        padding: 26px 30px !important;
-        text-align: left !important;
-        border-radius: 18px !important;
-        box-shadow: 0 25px 60px rgba(15, 23, 42, 0.35) !important;
+    max-width: 960px !important;
+    width: 92vw !important;
+    padding: 26px 30px !important;
+    text-align: left !important;
+    border-radius: 18px !important;
+    box-shadow: 0 25px 60px rgba(15, 23, 42, 0.35) !important;
     }
 
     .assistant-page .modal-zoom-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 18px;
-        padding-bottom: 14px;
-        border-bottom: 1px solid var(--border);
-        gap: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    gap: 16px;
     }
 
     .assistant-page .modal-zoom-title {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        min-width: 0;
-        flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
     }
 
     .assistant-page .modal-zoom-title h3 {
-        margin: 0;
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: var(--ink);
-        font-family: var(--font-heading);
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--ink);
+    font-family: var(--font-heading);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     }
 
     .assistant-page .modal-zoom-actions {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
     }
 
     .assistant-page .btn-zoom-action {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 7px 14px;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.15s ease;
-        border: 1px solid transparent;
-        font-family: var(--font-body);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+    font-family: var(--font-body);
     }
 
     .assistant-page .btn-zoom-action--png {
-        background: #ecfdf5;
-        color: #059669;
-        border-color: #a7f3d0;
+    background: #ecfdf5;
+    color: #059669;
+    border-color: #a7f3d0;
     }
 
     .assistant-page .btn-zoom-action--png:hover {
-        background: #059669;
-        color: #ffffff;
+    background: #059669;
+    color: #ffffff;
     }
 
     .assistant-page .btn-zoom-action--pdf {
-        background: #fee2e2;
-        color: #dc2626;
-        border-color: #fca5a5;
+    background: #fee2e2;
+    color: #dc2626;
+    border-color: #fca5a5;
     }
 
     .assistant-page .btn-zoom-action--pdf:hover {
-        background: #dc2626;
-        color: #ffffff;
+    background: #dc2626;
+    color: #ffffff;
     }
 
     .assistant-page .btn-icone-fermer {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        border: 1px solid var(--border);
-        background: transparent;
-        color: var(--ink-muted);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: all 0.15s ease;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--ink-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
     }
 
     .assistant-page .btn-icone-fermer:hover {
-        background: #f1f5f9;
-        color: var(--ink);
+    background: #f1f5f9;
+    color: var(--ink);
     }
 
     .assistant-page .modal-zoom-body {
-        padding: 24px;
-        background: #ffffff;
-        border-radius: 12px;
-        border: 1px solid var(--border);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 380px;
-        width: 100%;
-        box-sizing: border-box;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 380px;
+    width: 100%;
+    box-sizing: border-box;
     }
 
     .assistant-page .msg-actions {
-        display: flex;
-        gap: 4px;
-        margin-top: 4px;
-        opacity: 0;
-        transition: opacity 0.15s ease;
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
     }
 
     .assistant-page .msg-ligne:hover .msg-actions {
-        opacity: 1;
+    opacity: 1;
     }
 
     .assistant-page .msg-actions--user {
-        justify-content: flex-end;
+    justify-content: flex-end;
     }
 
     .assistant-page .btn-icone {
-        width: 26px;
-        height: 26px;
-        border-radius: 4px;
-        background: transparent;
-        border: none;
-        color: var(--ink-muted);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 4px;
+    background: transparent;
+    border: none;
+    color: var(--ink-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
     }
 
     .assistant-page .btn-icone:hover {
-        background: rgba(0, 0, 0, 0.05);
-        color: var(--ink);
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--ink);
     }
 
     .assistant-page .msg-edition {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        background: var(--paper);
-        border: 1px solid var(--denim);
-        border-radius: 14px;
-        padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--paper);
+    border: 1px solid var(--denim);
+    border-radius: 14px;
+    padding: 12px;
     }
 
     .assistant-page .msg-edition-textarea {
-        width: 100%;
-        min-height: 70px;
-        border: none;
-        outline: none;
-        font-family: var(--font-body);
-        font-size: 0.925rem;
-        resize: vertical;
-        box-sizing: border-box;
+    width: 100%;
+    min-height: 70px;
+    border: none;
+    outline: none;
+    font-family: var(--font-body);
+    font-size: 0.925rem;
+    resize: vertical;
+    box-sizing: border-box;
     }
 
     .assistant-page .msg-edition-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 8px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
     }
 
     .assistant-page .btn-mini {
-        padding: 6px 12px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        border-radius: 6px;
-        border: none;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     }
 
     .assistant-page .btn-annuler {
-        background: var(--sand);
-        color: var(--ink);
+    background: var(--sand);
+    color: var(--ink);
     }
 
     .assistant-page .btn-valider {
-        background: var(--denim);
-        color: #fff;
+    background: var(--denim);
+    color: #fff;
     }
 
     .assistant-page .btn-valider:hover {
-        background: var(--denim-dark);
+    background: var(--denim-dark);
     }
 
     .assistant-page .btn-danger {
-        background: var(--danger);
-        color: #fff;
+    background: var(--danger);
+    color: #fff;
     }
 
     .assistant-page .btn-danger:hover {
-        background: #B91C1C;
+    background: #B91C1C;
     }
 
     /* ---------- TYPING INDICATOR ---------- */
     .assistant-page .msg-typing {
-        display: flex;
-        gap: 4px;
-        align-items: center;
-        padding: 14px 16px;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding: 14px 16px;
     }
 
     .assistant-page .dot {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: var(--ink-muted);
-        animation: assistant-bounce 1.2s infinite ease-in-out;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ink-muted);
+    animation: assistant-bounce 1.2s infinite ease-in-out;
     }
 
     .assistant-page .dot:nth-child(2) {
-        animation-delay: 0.15s;
+    animation-delay: 0.15s;
     }
 
     .assistant-page .dot:nth-child(3) {
-        animation-delay: 0.3s;
+    animation-delay: 0.3s;
     }
 
     @@keyframes assistant-bounce {
-        0%, 60%, 100% {
-            transform: translateY(0);
-            opacity: 0.6;
-        }
-        30% {
-            transform: translateY(-4px);
-            opacity: 1;
-        }
+    0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.6;
+    }
+
+    30% {
+    transform: translateY(-4px);
+    opacity: 1;
+    }
     }
 
     /* ---------- QUICK PROMPTS (CHIPS) ---------- */
     .assistant-page .quick-prompts-bar {
-        padding: 8px 18px 4px 18px;
-        background: var(--paper);
-        border-top: 1px solid var(--border);
+    padding: 8px 18px 4px 18px;
+    background: var(--paper);
+    border-top: 1px solid var(--border);
     }
 
     .assistant-page .quick-prompts-list {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        overflow-x: auto;
-        padding-bottom: 4px;
-        scrollbar-width: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
     }
 
     .assistant-page .quick-prompts-list::-webkit-scrollbar {
-        display: none;
+    display: none;
     }
 
     .assistant-page .chip-prompt {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 12px;
-        border-radius: 16px;
-        border: 1px solid var(--border);
-        background: var(--sand-tint);
-        color: var(--ink);
-        font-family: var(--font-body);
-        font-size: 0.8rem;
-        font-weight: 500;
-        white-space: nowrap;
-        cursor: pointer;
-        transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--sand-tint);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.15s ease;
     }
 
     .assistant-page .chip-prompt:hover:not(:disabled) {
-        background: var(--denim-tint);
-        border-color: var(--denim);
-        color: var(--denim);
-        transform: translateY(-1px);
-        box-shadow: 0 2px 6px rgba(43, 76, 126, 0.12);
+    background: var(--denim-tint);
+    border-color: var(--denim);
+    color: var(--denim);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(43, 76, 126, 0.12);
     }
 
     .assistant-page .chip-prompt:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
+    opacity: 0.5;
+    cursor: not-allowed;
     }
 
     .assistant-page .chip-icon {
-        font-size: 0.82rem !important;
-        color: var(--denim);
+    font-size: 0.82rem !important;
+    color: var(--denim);
     }
 
     .assistant-page .chip-prompt--toggle {
-        background: transparent;
-        border-style: dashed;
-        color: var(--ink-muted);
+    background: transparent;
+    border-style: dashed;
+    color: var(--ink-muted);
     }
 
     /* ---------- CHAT INPUT FORM ---------- */
     .assistant-page .chat-input-form {
-        display: flex;
-        padding: 16px 20px;
-        background: var(--paper);
-        border-top: 1px solid var(--border);
-        gap: 12px;
+    display: flex;
+    padding: 16px 20px;
+    background: var(--paper);
+    border-top: 1px solid var(--border);
+    gap: 12px;
     }
 
     .assistant-page .chat-input-form .form-control {
-        flex: 1;
-        padding: 12px 16px;
-        border: 1px solid var(--border);
-        border-radius: 24px;
-        font-family: var(--font-body);
-        font-size: 0.95rem;
-        transition: border-color 0.2s;
+    flex: 1;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
     }
 
     .assistant-page .chat-input-form .form-control:focus {
-        outline: none;
-        border-color: var(--denim);
-        box-shadow: 0 0 0 3px var(--denim-tint);
+    outline: none;
+    border-color: var(--denim);
+    box-shadow: 0 0 0 3px var(--denim-tint);
     }
 
     .assistant-page .chat-input-form .btn {
-        width: 46px;
-        height: 46px;
-        min-width: 46px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        border: none;
-        transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.2s ease;
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.2s ease;
     }
 
     .assistant-page .chat-input-form .btn-primary {
-        background: var(--denim);
-        color: #fff;
+    background: var(--denim);
+    color: #fff;
     }
 
     .assistant-page .chat-input-form .btn-primary:hover:not(:disabled) {
-        background: var(--denim-dark);
+    background: var(--denim-dark);
     }
 
     .assistant-page .chat-input-form .btn-mic {
-        background: var(--sand);
-        color: var(--ink-muted);
-        border: 1px solid var(--border);
+    background: var(--sand);
+    color: var(--ink-muted);
+    border: 1px solid var(--border);
     }
 
     .assistant-page .chat-input-form .btn-mic:hover:not(:disabled) {
-        background: var(--sand-dark, #cbd5e1);
-        color: var(--ink);
+    background: var(--sand-dark, #cbd5e1);
+    color: var(--ink);
     }
 
     .assistant-page .chat-input-form .btn-mic--actif {
-        background: var(--danger-tint);
-        color: var(--danger);
-        border-color: var(--danger);
-        animation: pulse-mic 1.2s infinite;
+    background: var(--danger-tint);
+    color: var(--danger);
+    border-color: var(--danger);
+    animation: pulse-mic 1.2s infinite;
     }
 
     .assistant-page .chat-input-form .btn-stop {
-        background: var(--danger);
-        color: #fff;
+    background: var(--danger);
+    color: #fff;
     }
 
     .assistant-page .chat-input-form .btn-stop:hover {
-        background: #B91C1C;
+    background: #B91C1C;
     }
 
     @@keyframes pulse-mic {
-        0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
-        70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+    0% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4);
+    }
+
+    70% {
+    box-shadow: 0 0 0 10px rgba(220, 38, 38, 0);
+    }
+
+    100% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+    }
     }
 
     /* ---------- MODAL ---------- */
     .assistant-page .modal-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(22, 35, 58, 0.55);
-        backdrop-filter: blur(2px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-        animation: overlay-fade 0.15s ease-out;
+    position: fixed;
+    inset: 0;
+    background: rgba(22, 35, 58, 0.55);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: overlay-fade 0.15s ease-out;
     }
 
     .assistant-page .modal-box {
-        background: var(--paper);
-        border-radius: var(--radius-lg);
-        padding: 28px;
-        max-width: 380px;
-        width: 90%;
-        text-align: center;
-        box-shadow: 0 20px 45px -10px rgba(22, 35, 58, 0.35);
-        animation: modal-pop 0.18s ease-out;
+    background: var(--paper);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    max-width: 380px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 20px 45px -10px rgba(22, 35, 58, 0.35);
+    animation: modal-pop 0.18s ease-out;
     }
 
     .assistant-page .modal-icon-danger {
-        width: 52px;
-        height: 52px;
-        border-radius: 50%;
-        background: var(--danger-tint);
-        color: var(--danger);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto 16px;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--danger-tint);
+    color: var(--danger);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
     }
 
     .assistant-page .modal-box h4 {
-        font-family: var(--font-heading);
-        margin: 0 0 8px 0;
-        color: var(--ink);
-        font-size: 1.1rem;
+    font-family: var(--font-heading);
+    margin: 0 0 8px 0;
+    color: var(--ink);
+    font-size: 1.1rem;
     }
 
     .assistant-page .modal-box p {
-        margin: 0 0 22px 0;
-        color: var(--ink-muted);
-        font-size: 0.875rem;
-        line-height: 1.5;
+    margin: 0 0 22px 0;
+    color: var(--ink-muted);
+    font-size: 0.875rem;
+    line-height: 1.5;
     }
 
     .assistant-page .modal-actions {
-        display: flex;
-        justify-content: center;
-        gap: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
     }
 
     .assistant-page .modal-actions .btn-mini {
-        flex: 1;
-        justify-content: center;
-        padding: 10px 14px;
+    flex: 1;
+    justify-content: center;
+    padding: 10px 14px;
     }
 
     @@keyframes overlay-fade {
-        from { opacity: 0; }
-        to { opacity: 1; }
+    from {
+    opacity: 0;
+    }
+
+    to {
+    opacity: 1;
+    }
     }
 
     @@keyframes modal-pop {
-        from {
-            opacity: 0;
-            transform: scale(0.94) translateY(4px);
-        }
-        to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-        }
+    from {
+    opacity: 0;
+    transform: scale(0.94) translateY(4px);
+    }
+
+    to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    }
     }
 
     /* ---------- TOAST ---------- */
     .assistant-page .toast-notification {
-        position: fixed;
-        bottom: 24px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(22, 35, 58, 0.94);
-        color: #fff;
-        padding: 10px 18px;
-        border-radius: 20px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 0.85rem;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-        z-index: 2000;
-        animation: toast-in 0.2s ease-out;
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(22, 35, 58, 0.94);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    z-index: 2000;
+    animation: toast-in 0.2s ease-out;
     }
 
     @@keyframes toast-in {
-        from {
-            opacity: 0;
-            transform: translate(-50%, 10px);
-        }
-        to {
-            opacity: 1;
-            transform: translate(-50%, 0);
-        }
+    from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+    }
+
+    to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+    }
     }
 </style>
 
 <script>
     // Export Image PNG Haute Resolution
     window.wicstockExportPng = async function (elementId, titre) {
-        const el = document.getElementById(elementId);
-        if (!el) return;
+    const el = document.getElementById(elementId);
+    if (!el) return;
 
-        const nomFichier = (titre || 'Graphique_WicStock')
-            .toLowerCase()
-            .replace(/[^a-z0-9]/g, '_')
-            .replace(/_+/g, '_')
-            .trim();
+    const nomFichier = (titre || 'Graphique_WicStock')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '_')
+    .replace(/_+/g, '_')
+    .trim();
 
-        const btns = el.querySelectorAll('.msg-chart-actions, .btn-chart-action-wrap, .modal-zoom-actions, .btn-export-pdf-wrap, .btn-icone-fermer');
-        btns.forEach(b => b.style.visibility = 'hidden');
+    const btns = el.querySelectorAll('.msg-chart-actions, .btn-chart-action-wrap, .modal-zoom-actions, .btn-export-pdf-wrap, .btn-icone-fermer');
+    btns.forEach(b => b.style.visibility = 'hidden');
 
-        try {
-            if (!window.html2canvas) {
-                console.error('html2canvas non charge');
-                return;
-            }
+    try {
+    if (!window.html2canvas) {
+    console.error('html2canvas non charge');
+    return;
+    }
 
-            const canvas = await html2canvas(el, {
-                scale: 2.5,
-                backgroundColor: '#ffffff',
-                useCORS: true,
-                logging: false,
-                scrollX: 0,
-                scrollY: 0
-            });
+    const canvas = await html2canvas(el, {
+    scale: 2.5,
+    backgroundColor: '#ffffff',
+    useCORS: true,
+    logging: false,
+    scrollX: 0,
+    scrollY: 0
+    });
 
-            const a = document.createElement('a');
-            a.download = nomFichier + '.png';
-            a.href = canvas.toDataURL('image/png', 1.0);
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        } catch (e) {
-            console.error('[wicstockExportPng]', e);
-        } finally {
-            btns.forEach(b => b.style.visibility = '');
-        }
+    const a = document.createElement('a');
+    a.download = nomFichier + '.png';
+    a.href = canvas.toDataURL('image/png', 1.0);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    } catch (e) {
+    console.error('[wicstockExportPng]', e);
+    } finally {
+    btns.forEach(b => b.style.visibility = '');
+    }
     };
 
     // Export Document PDF Haute Definition A4 Paysage
     window.wicstockExportPdf = async function (elementId, titre) {
-        const el = document.getElementById(elementId);
-        if (!el) return;
+    const el = document.getElementById(elementId);
+    if (!el) return;
 
-        const nomFichier = (titre || 'Graphique_WicStock')
-            .toLowerCase()
-            .replace(/[^a-z0-9]/g, '_')
-            .replace(/_+/g, '_')
-            .trim();
+    const nomFichier = (titre || 'Graphique_WicStock')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '_')
+    .replace(/_+/g, '_')
+    .trim();
 
-        const btns = el.querySelectorAll('.msg-chart-actions, .btn-chart-action-wrap, .modal-zoom-actions, .btn-export-pdf-wrap, .btn-icone-fermer');
-        btns.forEach(b => b.style.visibility = 'hidden');
+    const btns = el.querySelectorAll('.msg-chart-actions, .btn-chart-action-wrap, .modal-zoom-actions, .btn-export-pdf-wrap, .btn-icone-fermer');
+    btns.forEach(b => b.style.visibility = 'hidden');
 
-        try {
-            if (!window.html2canvas) {
-                console.error('html2canvas non charge');
-                return;
-            }
+    try {
+    if (!window.html2canvas) {
+    console.error('html2canvas non charge');
+    return;
+    }
 
-            const canvas = await html2canvas(el, {
-                scale: 2.5,
-                backgroundColor: '#ffffff',
-                useCORS: true,
-                logging: false,
-                scrollX: 0,
-                scrollY: 0
-            });
+    const canvas = await html2canvas(el, {
+    scale: 2.5,
+    backgroundColor: '#ffffff',
+    useCORS: true,
+    logging: false,
+    scrollX: 0,
+    scrollY: 0
+    });
 
-            const jspdfModule = window.jspdf ? window.jspdf.jsPDF : (window.jsPDF || null);
-            if (!jspdfModule) {
-                console.error('jsPDF non charge');
-                return;
-            }
+    const jspdfModule = window.jspdf ? window.jspdf.jsPDF : (window.jsPDF || null);
+    if (!jspdfModule) {
+    console.error('jsPDF non charge');
+    return;
+    }
 
-            const pdf = new jspdfModule({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-            const pdfW = 297;
-            const pdfH = 210;
-            const margin = 15;
-            const maxW = pdfW - margin * 2;
-            const maxH = pdfH - margin * 2;
+    const pdf = new jspdfModule({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pdfW = 297;
+    const pdfH = 210;
+    const margin = 15;
+    const maxW = pdfW - margin * 2;
+    const maxH = pdfH - margin * 2;
 
-            const ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
-            const imgW = canvas.width * ratio;
-            const imgH = canvas.height * ratio;
-            const posX = (pdfW - imgW) / 2;
-            const posY = (pdfH - imgH) / 2;
+    const ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
+    const imgW = canvas.width * ratio;
+    const imgH = canvas.height * ratio;
+    const posX = (pdfW - imgW) / 2;
+    const posY = (pdfH - imgH) / 2;
 
-            const imgData = canvas.toDataURL('image/png', 1.0);
-            pdf.addImage(imgData, 'PNG', posX, posY, imgW, imgH);
-            pdf.save(nomFichier + '.pdf');
-        } catch (e) {
-            console.error('[wicstockExportPdf]', e);
-        } finally {
-            btns.forEach(b => b.style.visibility = '');
-        }
+    const imgData = canvas.toDataURL('image/png', 1.0);
+    pdf.addImage(imgData, 'PNG', posX, posY, imgW, imgH);
+    pdf.save(nomFichier + '.pdf');
+    } catch (e) {
+    console.error('[wicstockExportPdf]', e);
+    } finally {
+    btns.forEach(b => b.style.visibility = '');
+    }
     };
 </script>
 
 <script>
     // Dictee vocale basee sur la Web Speech API
     window.wicstockVoice = window.wicstockVoice || (function () {
-        let recognition = null;
-        let dotNetRef = null;
+    let recognition = null;
+    let dotNetRef = null;
 
-        function estSupporte() {
-            return ('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window);
-        }
+    function estSupporte() {
+    return ('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window);
+    }
 
-        function demarrer(ref) {
-            if (!estSupporte()) return false;
-            const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognition = new SpeechRecognitionCtor();
-            recognition.lang = 'fr-FR';
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            dotNetRef = ref;
+    function demarrer(ref) {
+    if (!estSupporte()) return false;
+    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognitionCtor();
+    recognition.lang = 'fr-FR';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    dotNetRef = ref;
 
-            recognition.onresult = function (event) {
-                const texte = event.results[0][0].transcript;
-                if (dotNetRef) {
-                    dotNetRef.invokeMethodAsync('RecevoirTexteVocal', texte);
-                }
-            };
+    recognition.onresult = function (event) {
+    const texte = event.results[0][0].transcript;
+    if (dotNetRef) {
+    dotNetRef.invokeMethodAsync('RecevoirTexteVocal', texte);
+    }
+    };
 
-            recognition.onerror = function () {
-                if (dotNetRef) {
-                    dotNetRef.invokeMethodAsync('SignalerErreurVocale');
-                }
-            };
+    recognition.onerror = function () {
+    if (dotNetRef) {
+    dotNetRef.invokeMethodAsync('SignalerErreurVocale');
+    }
+    };
 
-            recognition.onend = function () {
-                if (dotNetRef) {
-                    dotNetRef.invokeMethodAsync('SignalerFinEcoute');
-                }
-            };
+    recognition.onend = function () {
+    if (dotNetRef) {
+    dotNetRef.invokeMethodAsync('SignalerFinEcoute');
+    }
+    };
 
-            try {
-                recognition.start();
-                return true;
-            } catch (e) {
-                return false;
-            }
-        }
+    try {
+    recognition.start();
+    return true;
+    } catch (e) {
+    return false;
+    }
+    }
 
-        function arreter() {
-            if (recognition) {
-                try { recognition.stop(); } catch (e) {}
-                recognition = null;
-            }
-        }
+    function arreter() {
+    if (recognition) {
+    try { recognition.stop(); } catch (e) {}
+    recognition = null;
+    }
+    }
 
-        return {
-            estSupporte: estSupporte,
-            demarrer: demarrer,
-            arreter: arreter
-        };
+    return {
+    estSupporte: estSupporte,
+    demarrer: demarrer,
+    arreter: arreter
+    };
     })();
 </script>
 
@@ -1519,6 +1716,7 @@
     private bool enChargement = false;
     private string? role;
     private int? utilisateurId;
+    private string? userIdentifier;
 
     private bool afficherToutesSuggestions = false;
     private string? messageEnEditionId;
@@ -1538,22 +1736,60 @@
     private DotNetObjectReference<Assistant>? refDotNet;
     private ChartDto? chartZoom;
 
+    private async Task EnsureIdentityResolvedAsync()
+    {
+        if (utilisateurId.HasValue && utilisateurId.Value > 0 && !string.IsNullOrEmpty(role))
+        {
+            return;
+        }
+
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            role = authState.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            if (string.IsNullOrEmpty(role))
+            {
+                role = await AuthService.ObtenirRole();
+            }
+
+            var idClaim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                          ?? authState.User.FindFirst("sub")?.Value
+                          ?? authState.User.FindFirst("nameid")?.Value
+                          ?? authState.User.FindFirst("id")?.Value;
+            if (int.TryParse(idClaim, out var id))
+            {
+                utilisateurId = id;
+            }
+
+            if (!utilisateurId.HasValue || utilisateurId.Value <= 0)
+            {
+                var profil = await ProfilService.ObtenirMonProfil();
+                if (profil != null)
+                {
+                    utilisateurId = profil.Id;
+                    if (string.IsNullOrEmpty(role))
+                    {
+                        role = profil.Role;
+                    }
+                }
+            }
+
+            userIdentifier = utilisateurId?.ToString()
+                            ?? idClaim
+                            ?? authState.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+                            ?? authState.User.FindFirst("email")?.Value
+                            ?? authState.User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+                            ?? authState.User.Identity?.Name;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[EnsureIdentityResolved Error] {ex.Message}");
+        }
+    }
+
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        role = authState.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
-        if (string.IsNullOrEmpty(role))
-        {
-            role = await AuthService.ObtenirRole();
-        }
-
-        var idClaim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-                      ?? authState.User.FindFirst("sub")?.Value;
-        if (int.TryParse(idClaim, out var id))
-        {
-            utilisateurId = id;
-        }
-
+        await EnsureIdentityResolvedAsync();
         refDotNet = DotNetObjectReference.Create(this);
     }
 
@@ -1571,13 +1807,147 @@
             {
                 await inputRenommageRef.FocusAsync();
             }
-            catch {}
+            catch { }
         }
     }
 
     public void Dispose()
     {
         refDotNet?.Dispose();
+    }
+
+    private string ObtenirCleStockage()
+    {
+        if (utilisateurId.HasValue && utilisateurId.Value > 0)
+        {
+            return $"wicstock_assistant_conversations_user_{utilisateurId.Value}";
+        }
+        if (!string.IsNullOrWhiteSpace(userIdentifier))
+        {
+            var keySanitized = System.Text.RegularExpressions.Regex.Replace(userIdentifier, @"[^a-zA-Z0-9_-]", "_");
+            return $"wicstock_assistant_conversations_user_{keySanitized}";
+        }
+        if (!string.IsNullOrWhiteSpace(role))
+        {
+            return $"wicstock_assistant_conversations_role_{role.ToLowerInvariant()}";
+        }
+        return "wicstock_assistant_conversations_guest";
+    }
+
+    private static string NettoyerEncodage(string? texte)
+    {
+        if (string.IsNullOrWhiteSpace(texte)) return string.Empty;
+
+        string cur = texte;
+
+        // 1. Remplacement Regex ultra-robuste des mots connus avec n'importe quelle séquence de corruption entre la première lettre et la suite du mot
+        cur = System.Text.RegularExpressions.Regex.Replace(cur, @"D\S*?couvrez", "Découvrez", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        cur = System.Text.RegularExpressions.Regex.Replace(cur, @"d\S*?sormais", "désormais", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        cur = System.Text.RegularExpressions.Regex.Replace(cur, @"d\S*?tails", "détails", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        cur = System.Text.RegularExpressions.Regex.Replace(cur, @"r\S*?clamation", "réclamation", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        // 2. Remplacements explicites de toutes les variations d'artéfacts (du plus long au plus court)
+        cur = cur
+            .Replace("DÃÃ©couvrez", "Découvrez")
+            .Replace("DÃf©couvrez", "Découvrez")
+            .Replace("DÃfÆ'Ã‚Â©couvrez", "Découvrez")
+            .Replace("DÃfÆ'Ã‚©couvrez", "Découvrez")
+            .Replace("DÃ©couvrez", "Découvrez")
+            .Replace("dÃ©sormais", "désormais")
+            .Replace("dÃ©tails", "détails")
+            .Replace("ÃfÆ'Ã‚Â©", "é")
+            .Replace("ÃfÆ'Ã‚©", "é")
+            .Replace("ÃfÆ'Ã‚", "é")
+            .Replace("Ãf©", "é")
+            .Replace("ÃÃ©", "é")
+            .Replace("ÃÃ¨", "è")
+            .Replace("ÃÃ ", "à")
+            .Replace("Ãé", "é")
+            .Replace("Ã©", "é")
+            .Replace("Ã¨", "è")
+            .Replace("Ã ", "à")
+            .Replace("Ãª", "ê")
+            .Replace("Ã´", "ô")
+            .Replace("Ã§", "ç")
+            .Replace("Ã¯", "ï")
+            .Replace("Ã®", "î")
+            .Replace("Ã¹", "ù")
+            .Replace("Ã»", "û")
+            .Replace("â€™", "’")
+            .Replace("Â", "");
+
+        return cur.Trim();
+    }
+
+    private MarkupString FormaterMessageHtml(string? texteBrut)
+    {
+        if (string.IsNullOrWhiteSpace(texteBrut))
+            return new MarkupString(string.Empty);
+
+        var texte = NettoyerEncodage(texteBrut);
+
+        texte = texte
+            .Replace("\n\n**Souhaitez-vous afficher ces résultats sous forme de graphique ?**", "")
+            .Replace("\n**Souhaitez-vous afficher ces résultats sous forme de graphique ?**", "")
+            .Replace("**Souhaitez-vous afficher ces résultats sous forme de graphique ?**", "")
+            .Trim();
+
+        var html = System.Net.WebUtility.HtmlEncode(texte);
+
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"^###\s+(.*)$", "<h4>$1</h4>", System.Text.RegularExpressions.RegexOptions.Multiline);
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"^##\s+(.*)$", "<h3>$1</h3>", System.Text.RegularExpressions.RegexOptions.Multiline);
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"^#\s+(.*)$", "<h2>$1</h2>", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"\*\*(.*?)\*\*", "<strong>$1</strong>");
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"\*(.*?)\*", "<em>$1</em>");
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"`(.*?)`", "<code class=\"inline-code\">$1</code>");
+
+        var lines = html.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+        var sb = new System.Text.StringBuilder();
+        bool inList = false;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("- ") || trimmed.StartsWith("* "))
+            {
+                if (!inList)
+                {
+                    sb.Append("<ul class=\"chat-msg-list\">");
+                    inList = true;
+                }
+                var content = trimmed.Substring(2);
+                sb.Append($"<li>{content}</li>");
+            }
+            else
+            {
+                if (inList)
+                {
+                    sb.Append("</ul>");
+                    inList = false;
+                }
+
+                if (trimmed.StartsWith("<h2") || trimmed.StartsWith("<h3") || trimmed.StartsWith("<h4"))
+                {
+                    sb.Append(line);
+                }
+                else if (string.IsNullOrWhiteSpace(line))
+                {
+                    sb.Append("<div class=\"chat-msg-gap\"></div>");
+                }
+                else
+                {
+                    sb.Append($"<p>{line}</p>");
+                }
+            }
+        }
+
+        if (inList)
+        {
+            sb.Append("</ul>");
+        }
+
+        return new MarkupString(sb.ToString());
     }
 
     private void OuvrirModalZoom(ChartDto chart) => chartZoom = chart;
@@ -1742,9 +2112,80 @@
         await Envoyer();
     }
 
-    private async Task EnvoyerVersAssistant(string question)
+    private async Task EnvoyerVersAssistant(string question) => await EnvoyerVersAssistantAvecCible(question, null);
+
+    private List<QuickOptionDto>? ObtenirOptionsFormatEtCouleur(AssistantResponseDto? reponse)
+    {
+        if (reponse == null) return null;
+        if (reponse.Options is not null && reponse.Options.Any())
+        {
+            return reponse.Options;
+        }
+
+        if (reponse.Chart is not null)
+        {
+            return new List<QuickOptionDto>
+            {
+                // Formes
+                new QuickOptionDto { Label = "Barres", Value = "barres" },
+                new QuickOptionDto { Label = "Donut", Value = "donut" },
+                new QuickOptionDto { Label = "Ligne", Value = "ligne" },
+                new QuickOptionDto { Label = "Boxplot", Value = "boxplot" },
+                new QuickOptionDto { Label = "Waterfall", Value = "waterfall" },
+                new QuickOptionDto { Label = "Jauge", Value = "jauge" },
+                new QuickOptionDto { Label = "Radar", Value = "radar" },
+                new QuickOptionDto { Label = "Treemap", Value = "treemap" },
+                new QuickOptionDto { Label = "Entonnoir", Value = "funnel" },
+                new QuickOptionDto { Label = "Nuage", Value = "scatter" },
+                new QuickOptionDto { Label = "Autres…", Value = "autre", IsFreeText = true },
+
+                // Palettes de couleurs
+                new QuickOptionDto { Label = "WicStock (Denim + Ambre)", Value = "palette wicstock" },
+                new QuickOptionDto { Label = "Éco Vert", Value = "éco vert" },
+                new QuickOptionDto { Label = "Mode sombre", Value = "mode sombre" },
+                new QuickOptionDto { Label = "Sunset", Value = "sunset" },
+                new QuickOptionDto { Label = "Personnalisée", Value = "personnaliser", IsFreeText = true }
+            };
+        }
+
+        return null;
+    }
+
+    private async Task EnvoyerVersAssistantAvecCible(string question, MessageChat? msgCible = null)
     {
         if (conversationActive is null) return;
+
+        var targetMsg = msgCible;
+        bool estModificationEnPlace = targetMsg is not null;
+
+        var generation = ++generationRequete;
+        enChargement = true;
+        await ScrollEnBas();
+
+        // Sécurité : intercepter les questions d'inventaire interne et financières pour le rôle CLIENT
+        if (string.Equals(role, "CLIENT", StringComparison.OrdinalIgnoreCase))
+        {
+            var qLower = question.ToLowerInvariant();
+            if (qLower.Contains("chiffre d'affaire") || qLower.Contains("chiffre d'affaires") ||
+                qLower.Contains("bénéfice") || qLower.Contains("marge") || qLower.Contains("cout de stockage") ||
+                qLower.Contains("coût de stockage") || qLower.Contains("surstock") || qLower.Contains("rupture"))
+            {
+                if (generation == generationRequete)
+                {
+                    enChargement = false;
+                }
+                conversationActive.Messages.Add(new MessageChat
+                {
+                    Texte = "En tant que client, les données d'inventaire interne et financières ne sont pas accessibles. Vous pouvez consulter l'état de vos commandes, parcourir notre catalogue de vêtements et voir les articles les mieux notés !",
+                    EstUtilisateur = false
+                });
+                conversationActive.DateModification = DateTime.Now;
+                await SauvegarderConversationsDansStockage();
+                await ScrollEnBas();
+                StateHasChanged();
+                return;
+            }
+        }
 
         var requeteToSend = new QuestionIARequest
         {
@@ -1754,14 +2195,17 @@
             UtilisateurId = utilisateurId
         };
 
-        var generation = ++generationRequete;
-        enChargement = true;
-        await ScrollEnBas();
-
-        ReponseIA? reponse = null;
+        AssistantResponseDto? reponse = null;
         try
         {
-            reponse = await AssistantIAService.PoserQuestion(requeteToSend);
+            var chatReq = new ChatRequest
+            {
+                SessionId = conversationActive.Id,
+                Message = question,
+                Role = role,
+                UtilisateurId = utilisateurId
+            };
+            reponse = await AssistantIAService.ChatAsync(chatReq);
         }
         catch (Exception ex)
         {
@@ -1778,12 +2222,123 @@
 
         if (generation != generationRequete) return;
 
-        conversationActive.Messages.Add(new MessageChat
+        var texteReponse = reponse?.Text;
+
+        // Secours spécifique aux requêtes Client uniquement si le backend n'a renvoyé aucune réponse
+        if (string.Equals(role, "CLIENT", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(texteReponse))
         {
-            Texte = reponse?.Reponse ?? "Erreur : impossible de contacter l'assistant. Veuillez vérifier que le service IA est en cours d'exécution.",
-            EstUtilisateur = false,
-            Chart = reponse?.Chart
-        });
+            var qLower = question.ToLowerInvariant();
+            if (qLower.Contains("commande") || qLower.Contains("mes commandes"))
+            {
+                texteReponse = "Vous pouvez suivre à tout moment l'état et l'avancement de vos commandes en cours depuis l'espace 'Mes commandes'.";
+            }
+            else if (qLower.Contains("mieux noté") || qLower.Contains("notés") || qLower.Contains("avis"))
+            {
+                texteReponse = "Les articles les mieux notés par nos clients sont disponibles dans le catalogue produits ! Vous pouvez consulter les avis et évaluations détaillés sur chaque fiche produit.";
+            }
+            else
+            {
+                texteReponse = "Découvrez l'ensemble de notre collection ainsi que nos articles disponibles sur commande directement dans le catalogue produits !";
+            }
+        }
+        else if (string.IsNullOrWhiteSpace(texteReponse))
+        {
+            texteReponse = "Erreur : impossible de contacter l'assistant. Veuillez vérifier que le service IA est en cours d'exécution.";
+        }
+
+        // Nettoyage de la question binaire superflue à la fin du texte
+        if (!string.IsNullOrEmpty(texteReponse))
+        {
+            texteReponse = texteReponse
+                .Replace("\n\n**Souhaitez-vous afficher ces résultats sous forme de graphique ?**", "")
+                .Replace("\n**Souhaitez-vous afficher ces résultats sous forme de graphique ?**", "")
+                .Replace("**Souhaitez-vous afficher ces résultats sous forme de graphique ?**", "")
+                .TrimEnd();
+        }
+
+        // Harmonisation dynamique avec les données réelles du catalogue et du dashboard
+        if (!string.IsNullOrEmpty(texteReponse) && texteReponse.Contains("surstock", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var tousProds = await ProduitService.ObtenirTous();
+                var surstocksReels = tousProds.Where(p => !p.EstArchive && string.Equals(p.StatutIAType, "SURSTOCK", StringComparison.OrdinalIgnoreCase)).ToList();
+
+                if (surstocksReels.Any())
+                {
+                    var matchHeader = System.Text.RegularExpressions.Regex.Match(texteReponse, @"Voici le\(s\)\s*\d+\s*produit\(s\)\s*en surstock\s*:", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    if (matchHeader.Success)
+                    {
+                        var newHeader = $"Voici le(s) {surstocksReels.Count} produit(s) en surstock :";
+                        texteReponse = texteReponse.Replace(matchHeader.Value, newHeader);
+
+                        var lines = texteReponse.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+                        var filteredLines = new List<string>();
+                        foreach (var line in lines)
+                        {
+                            var trimmed = line.Trim();
+                            if (trimmed.StartsWith("-") || trimmed.StartsWith("*"))
+                            {
+                                bool isRealSurstock = surstocksReels.Any(p =>
+                                    (!string.IsNullOrEmpty(p.Nom) && line.Contains(p.Nom, StringComparison.OrdinalIgnoreCase)) ||
+                                    (!string.IsNullOrEmpty(p.Reference) && line.Contains(p.Reference, StringComparison.OrdinalIgnoreCase)));
+                                if (isRealSurstock)
+                                {
+                                    filteredLines.Add(line);
+                                }
+                            }
+                            else
+                            {
+                                filteredLines.Add(line);
+                            }
+                        }
+                        texteReponse = string.Join("\n", filteredLines);
+                    }
+                }
+            }
+            catch (Exception exSync)
+            {
+                Console.WriteLine($"[ASSISTANT SYNC SURSTOCK ERROR] {exSync.Message}");
+            }
+        }
+
+        var optionsCompletes = ObtenirOptionsFormatEtCouleur(reponse);
+        var pendingStateFinal = reponse?.PendingState ?? (reponse?.Chart is not null ? "CHART_ACTIVE" : null);
+
+        if (estModificationEnPlace && targetMsg is not null)
+        {
+            // METTRE À JOUR LE MESSAGE EXISTANT EN PLACE, SANS JAMAIS ÉCRASER SON TEXTE.
+            // (déclenché uniquement par un clic sur un bouton d'option lié à CE message précis :
+            // "Voir en graphique", choix de forme, choix de couleur…)
+            // La réponse textuelle déjà affichée reste intacte ; seuls le graphique et les
+            // options de configuration (forme/couleur) évoluent au fil des choix de l'utilisateur.
+            if (reponse?.Chart is not null)
+            {
+                targetMsg.Chart = reponse.Chart;
+            }
+            else if (!string.IsNullOrWhiteSpace(texteReponse))
+            {
+                // Pas de graphique renvoyé à cette étape (ex: couleur non reconnue) :
+                // on informe l'utilisateur via un toast plutôt que de remplacer le texte affiché.
+                _ = AfficherToast(texteReponse);
+            }
+
+            targetMsg.Options = optionsCompletes;
+            targetMsg.PendingState = pendingStateFinal;
+            targetMsg.Horodatage = DateTime.Now;
+        }
+        else
+        {
+            // NOUVEAU MESSAGE POUR UNE NOUVELLE REQUÊTE
+            conversationActive.Messages.Add(new MessageChat
+            {
+                Texte = texteReponse,
+                EstUtilisateur = false,
+                Chart = reponse?.Chart,
+                Options = optionsCompletes,
+                PendingState = pendingStateFinal
+            });
+        }
 
         conversationActive.DateModification = DateTime.Now;
 
@@ -1983,7 +2538,16 @@
     {
         try
         {
-            var json = await JS.InvokeAsync<string?>("localStorage.getItem", CLE_STORAGE_CONVERSATIONS);
+            await EnsureIdentityResolvedAsync();
+
+            try
+            {
+                await JS.InvokeVoidAsync("localStorage.removeItem", "wicstock_assistant_conversations_v1");
+            }
+            catch { }
+
+            var cle = ObtenirCleStockage();
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", cle);
             if (!string.IsNullOrWhiteSpace(json))
             {
                 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
@@ -2009,9 +2573,11 @@
     {
         try
         {
+            await EnsureIdentityResolvedAsync();
+            var cle = ObtenirCleStockage();
             var options = new JsonSerializerOptions { WriteIndented = false };
             var json = JsonSerializer.Serialize(conversations, options);
-            await JS.InvokeVoidAsync("localStorage.setItem", CLE_STORAGE_CONVERSATIONS, json);
+            await JS.InvokeVoidAsync("localStorage.setItem", cle, json);
         }
         catch (Exception ex)
         {
@@ -2026,7 +2592,7 @@
             await Task.Delay(50);
             await JS.InvokeVoidAsync("eval", "var el = document.getElementById('zoneMessages'); if(el) el.scrollTop = el.scrollHeight;");
         }
-        catch {}
+        catch { }
     }
 
     private async Task AfficherToast(string message)
@@ -2041,13 +2607,16 @@
         }
     }
 
-    public class MessageChat
+    private class MessageChat
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
         public string Texte { get; set; } = string.Empty;
         public bool EstUtilisateur { get; set; }
         public DateTime Horodatage { get; set; } = DateTime.Now;
         public ChartDto? Chart { get; set; }
+        public List<QuickOptionDto>? Options { get; set; }
+        public string? PendingState { get; set; }
+        public string? NoteSuivi { get; set; }
     }
 
     private class Conversation

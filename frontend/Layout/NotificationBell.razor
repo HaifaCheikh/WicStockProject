@@ -1,13 +1,15 @@
-﻿@inject WicStock.Web.Services.NotificationClientService NotificationService
+@inject WicStock.Web.Services.NotificationClientService NotificationService
 @inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject WicStock.Web.Services.AuthService AuthService
 @implements IDisposable
 
 <div class="notification-bell-wrapper">
     <button class="bell-button @(_hasNewPulse ? "pulse-anim" : "")" @onclick="TogglePopover" aria-label="Notifications">
         <MudIcon Icon="@Icons.Material.Filled.Notifications" Size="Size.Medium" Class="bell-icon" />
-        @if (NotificationService.UnreadCount > 0)
+        @if (UnreadCountFiltered > 0)
         {
-            <span class="bell-badge">@NotificationService.UnreadCount</span>
+            <span class="bell-badge">@UnreadCountFiltered</span>
         }
     </button>
 
@@ -15,14 +17,14 @@
         <div class="popover-content">
             <!-- Popover Header -->
             <div class="popover-header">
-                <div class="d-flex align-center gap-2">
+                <div class="header-title-wrap">
                     <span class="header-title">Notifications</span>
-                    @if (NotificationService.UnreadCount > 0)
+                    @if (UnreadCountFiltered > 0)
                     {
-                        <span class="count-badge">@NotificationService.UnreadCount non lue(s)</span>
+                        <span class="count-badge">@UnreadCountFiltered non lue(s)</span>
                     }
                 </div>
-                @if (NotificationService.UnreadCount > 0)
+                @if (UnreadCountFiltered > 0)
                 {
                     <button class="btn-text-action" @onclick="ToutMarquerCommeLu">
                         Tout marquer comme lu
@@ -32,7 +34,7 @@
 
             <!-- Popover Body / List -->
             <div class="popover-body">
-                @if (!NotificationService.Notifications.Any())
+                @if (!FilteredNotifications.Any())
                 {
                     <div class="empty-state">
                         <MudIcon Icon="@Icons.Material.Filled.NotificationsNone" Size="Size.Large" Class="empty-icon" />
@@ -41,7 +43,7 @@
                 }
                 else
                 {
-                    @foreach (var item in NotificationService.Notifications.Take(15))
+                    @foreach (var item in FilteredNotifications.Take(15))
                     {
                         <div class="notification-item @(!item.Lue ? "unread" : "")" @onclick="() => ClicNotification(item)">
                             <div class="item-icon-wrapper @GetIconClass(item.Type)">
@@ -154,8 +156,8 @@
     }
 
     .popover-content {
-        width: 360px;
-        max-width: 90vw;
+        width: 380px;
+        max-width: 92vw;
         background: #ffffff;
         border-radius: 12px;
         overflow: hidden;
@@ -168,6 +170,15 @@
         padding: 12px 16px;
         border-bottom: 1px solid var(--border, #E1E7EF);
         background: #fafafa;
+        gap: 8px;
+    }
+
+    .header-title-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: nowrap;
+        min-width: 0;
     }
 
     .header-title {
@@ -175,6 +186,7 @@
         font-weight: 700;
         font-size: 0.9375rem;
         color: var(--ink, #16233A);
+        white-space: nowrap;
     }
 
     .count-badge {
@@ -185,6 +197,7 @@
         background: var(--denim-tint, #E7EDF6);
         padding: 2px 8px;
         border-radius: 6px;
+        white-space: nowrap;
     }
 
     .btn-text-action {
@@ -197,6 +210,8 @@
         padding: 4px 6px;
         border-radius: 4px;
         transition: background 0.15s ease;
+        white-space: nowrap;
+        flex-shrink: 0;
     }
 
         .btn-text-action:hover {
@@ -276,6 +291,11 @@
         color: #166534;
     }
 
+    .icon-responsable-done {
+        background: #d1fae5;
+        color: #059669;
+    }
+
     .icon-default {
         background: #f1f5f9;
         color: #64748b;
@@ -290,7 +310,7 @@
         font-size: 0.8125rem;
         font-weight: 500;
         color: var(--ink, #16233A);
-        line-height: 1.35;
+        line-height: 1.4;
         margin-bottom: 4px;
         word-break: break-word;
     }
@@ -313,11 +333,63 @@
 @code {
     private bool _isOpen = false;
     private bool _hasNewPulse = false;
+    private string currentRole = "CLIENT";
+    private int? currentUserId = null;
 
-    protected override void OnInitialized()
+    private IEnumerable<WicStock.Web.Models.Dtos.NotificationDto> FilteredNotifications =>
+        NotificationService.Notifications.Where(EstPourUtilisateurCourant);
+
+    private int UnreadCountFiltered => FilteredNotifications.Count(n => !n.Lue);
+
+    private bool EstPourUtilisateurCourant(WicStock.Web.Models.Dtos.NotificationDto notif)
+    {
+        if (notif == null) return false;
+
+        // Si la notif a un utilisateur destinataire spécifique
+        if (notif.UtilisateurDestinataireId.HasValue && currentUserId.HasValue)
+        {
+            if (notif.UtilisateurDestinataireId.Value != currentUserId.Value)
+                return false;
+        }
+
+        // Si la notif a un rôle destinataire spécifique
+        if (!string.IsNullOrWhiteSpace(notif.RoleDestinataire))
+        {
+            if (!string.Equals(notif.RoleDestinataire, currentRole, StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+
+        return true;
+    }
+
+    protected override async Task OnInitializedAsync()
     {
         NotificationService.OnNotificationReceived += HandleNotificationReceived;
         NotificationService.OnUnreadCountChanged += HandleUnreadCountChanged;
+
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var roleClaim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            if (!string.IsNullOrEmpty(roleClaim))
+            {
+                currentRole = roleClaim;
+            }
+            else
+            {
+                var r = await AuthService.ObtenirRole();
+                if (!string.IsNullOrEmpty(r)) currentRole = r;
+            }
+
+            var subClaim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)
+                ?? authState.User.FindFirst("sub")
+                ?? authState.User.FindFirst("nameid");
+            if (subClaim != null && int.TryParse(subClaim.Value, out int uid))
+            {
+                currentUserId = uid;
+            }
+        }
+        catch { }
     }
 
     private async void HandleUnreadCountChanged()
@@ -348,10 +420,146 @@
             await NotificationService.MarquerCommeLueAsync(item.Id);
         }
 
-        if (!string.IsNullOrEmpty(item.UrlCible))
+        var targetUrl = ResoudreRouteNotification(item);
+        if (!string.IsNullOrEmpty(targetUrl))
         {
-            Navigation.NavigateTo(item.UrlCible);
+            Navigation.NavigateTo(targetUrl);
         }
+    }
+
+    private string ResoudreRouteNotification(WicStock.Web.Models.Dtos.NotificationDto item)
+    {
+        if (item == null) return "/";
+
+        var url = item.UrlCible?.Trim();
+        var typeUpper = (item.Type ?? string.Empty).ToUpperInvariant();
+        var msgLower = (item.Message ?? string.Empty).ToLowerInvariant();
+
+        // 0. SURSTOCK ACTION DU RESPONSABLE → Rediriger l'Admin vers le produit concerné
+        if (typeUpper == "ACTION_RESPONSABLE_EXECUTEE")
+        {
+            // L'URL cible contient déjà /produits?statut=SURSTOCK&highlight=...
+            if (!string.IsNullOrEmpty(url)) return url;
+            return "/produits?statut=SURSTOCK";
+        }
+
+        // 0b. ALERTE SURSTOCK POUR LE RESPONSABLE
+        if (typeUpper == "ACTION_IA_A_VALIDER" || typeUpper == "SURSTOCK")
+        {
+            if (!string.IsNullOrEmpty(url)) return url;
+            return "/produits?statut=SURSTOCK";
+        }
+
+        // 1. RÉCLAMATIONS ET AVIS
+        bool estReclamationOuAvis = typeUpper.Contains("RECLAMATION") || typeUpper.Contains("AVIS") || typeUpper.Contains("DISPUTE")
+            || msgLower.Contains("réclamation") || msgLower.Contains("reclamation") || msgLower.Contains("avis") || msgLower.Contains("réclamé");
+
+        if (estReclamationOuAvis)
+        {
+            if (!string.IsNullOrEmpty(url) && (url.Contains("/mes-avis-reclamations") || url.Contains("/admin/reclamations") || url.Contains("/admin/avis")))
+                return url;
+
+            return currentRole == "CLIENT" ? "/mes-avis-reclamations" : "/admin/reclamations";
+        }
+
+        // 2. NOUVEAU PRODUIT ET CATALOGUE
+        bool estNouveauProduit = typeUpper.Contains("PRODUIT") || typeUpper.Contains("CATALOGUE") || typeUpper.Contains("NOUVEAU")
+            || msgLower.Contains("nouveau produit") || msgLower.Contains("article") || msgLower.Contains("catalogue");
+
+        if (estNouveauProduit)
+        {
+            // Essayer d'extraire un ID de produit depuis UrlCible (ex: /catalogue?produit=42)
+            int? produitId = null;
+            string? categorie = null;
+
+            if (!string.IsNullOrEmpty(url))
+            {
+                var matchId = System.Text.RegularExpressions.Regex.Match(url, @"[?&]produit=(\d+)");
+                if (matchId.Success && int.TryParse(matchId.Groups[1].Value, out var pid))
+                    produitId = pid;
+
+                var matchCat = System.Text.RegularExpressions.Regex.Match(url, @"[?&]categorie=([^&]+)");
+                if (matchCat.Success)
+                    categorie = Uri.UnescapeDataString(matchCat.Groups[1].Value);
+
+                // Si URL pointe déjà vers /catalogue avec les bons params, la retourner telle quelle
+                if ((url.Contains("/catalogue") || url.Contains("/produits")) && produitId.HasValue)
+                    return currentRole == "CLIENT" ? url : url.Replace("/catalogue", "/produits");
+            }
+
+            // Essayer d'extraire un ID de produit depuis le message (ex: "produit #42" ou "produit 42")
+            if (!produitId.HasValue)
+            {
+                var matchIdMsg = System.Text.RegularExpressions.Regex.Match(item.Message ?? "", @"(?:produit|article|ref)[^\d]*#?(\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (matchIdMsg.Success && int.TryParse(matchIdMsg.Groups[1].Value, out var pidMsg))
+                    produitId = pidMsg;
+            }
+
+            // Essayer d'extraire une catégorie connue depuis le message
+            if (string.IsNullOrEmpty(categorie))
+            {
+                string[] categoriesConnues = { "Jacket", "Pants", "Set", "Shirt", "Shorts", "Dress", "Coat", "Skirt" };
+                var msgOriginal = item.Message ?? string.Empty;
+                foreach (var cat in categoriesConnues)
+                {
+                    if (msgOriginal.Contains(cat, StringComparison.OrdinalIgnoreCase))
+                    {
+                        categorie = cat;
+                        break;
+                    }
+                }
+            }
+
+            if (currentRole == "CLIENT")
+            {
+                var targetBase = "/catalogue";
+                if (produitId.HasValue)
+                {
+                    var qs = $"?produit={produitId.Value}";
+                    if (!string.IsNullOrEmpty(categorie)) qs += $"&categorie={Uri.EscapeDataString(categorie)}";
+                    return targetBase + qs;
+                }
+                if (!string.IsNullOrEmpty(categorie))
+                    return $"{targetBase}?categorie={Uri.EscapeDataString(categorie)}";
+                return targetBase;
+            }
+
+            return "/produits";
+        }
+
+        // 3. PAIEMENT, LIVRAISON ET SUIVI DE COMMANDE
+        bool estCommandeOuLivraison = typeUpper.Contains("COMMANDE") || typeUpper.Contains("LIVRAISON") || typeUpper.Contains("PAIEMENT") || typeUpper.Contains("STATUT")
+            || msgLower.Contains("commande") || msgLower.Contains("livraison") || msgLower.Contains("livré") || msgLower.Contains("livree") || msgLower.Contains("expédié") || msgLower.Contains("paiement");
+
+        if (estCommandeOuLivraison)
+        {
+            if (!string.IsNullOrEmpty(url) && (url.Contains("/mes-commandes") || url.Contains("/suivi") || url.Contains("/commandes") || url.Contains("/livraisons")))
+                return url;
+
+            if (currentRole == "CLIENT")
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(msgLower + " " + url, @"(?:commande|suivi|#)\s*[\/#]?\s*(\d+)");
+                if (match.Success && int.TryParse(match.Groups[1].Value, out var commandeId) && commandeId > 0)
+                {
+                    return $"/mes-commandes/suivi/{commandeId}";
+                }
+                return "/mes-commandes";
+            }
+
+            if (currentRole == "LIVREUR") return "/livraisons";
+            return "/commandes";
+        }
+
+        // 4. SI URL CIBLE VALIDE DÉJÀ PRÉSENTE
+        if (!string.IsNullOrEmpty(url)) return url;
+
+        // 5. PAR DÉFAUT SELON LE RÔLE
+        return currentRole switch
+        {
+            "CLIENT" => "/catalogue",
+            "LIVREUR" => "/livraisons",
+            _ => "/produits"
+        };
     }
 
     private async Task ToutMarquerCommeLu()
@@ -364,6 +572,7 @@
         "RUPTURE_STOCK" => "icon-rupture",
         "COMMANDE_EN_ATTENTE" => "icon-commande",
         "ACTION_IA_A_VALIDER" => "icon-action-ia",
+        "ACTION_RESPONSABLE_EXECUTEE" => "icon-responsable-done",
         "NOUVEAU_PRODUIT" => "icon-nouveau",
         _ => "icon-default"
     };
@@ -373,13 +582,61 @@
         "RUPTURE_STOCK" => Icons.Material.Filled.Warning,
         "COMMANDE_EN_ATTENTE" => Icons.Material.Filled.ShoppingCart,
         "ACTION_IA_A_VALIDER" => Icons.Material.Filled.SmartToy,
+        "ACTION_RESPONSABLE_EXECUTEE" => Icons.Material.Filled.TaskAlt,
         "NOUVEAU_PRODUIT" => Icons.Material.Filled.NewReleases,
         _ => Icons.Material.Filled.Notifications
     };
 
-        private string FormaterMessage(string? message, string? urlCible)
+    private static string NettoyerEncodage(string? texte)
+    {
+        if (string.IsNullOrWhiteSpace(texte)) return string.Empty;
+
+        string cur = texte;
+
+        // 1. Remplacement Regex ultra-robuste des mots connus avec n'importe quelle séquence de corruption entre la première lettre et la suite du mot
+        cur = System.Text.RegularExpressions.Regex.Replace(cur, @"D\S*?couvrez", "Découvrez", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        cur = System.Text.RegularExpressions.Regex.Replace(cur, @"d\S*?sormais", "désormais", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        cur = System.Text.RegularExpressions.Regex.Replace(cur, @"d\S*?tails", "détails", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        cur = System.Text.RegularExpressions.Regex.Replace(cur, @"r\S*?clamation", "réclamation", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        // 2. Remplacements explicites de toutes les variations d'artéfacts (du plus long au plus court)
+        cur = cur
+            .Replace("DÃÃ©couvrez", "Découvrez")
+            .Replace("DÃf©couvrez", "Découvrez")
+            .Replace("DÃfÆ'Ã‚Â©couvrez", "Découvrez")
+            .Replace("DÃfÆ'Ã‚©couvrez", "Découvrez")
+            .Replace("DÃ©couvrez", "Découvrez")
+            .Replace("dÃ©sormais", "désormais")
+            .Replace("dÃ©tails", "détails")
+            .Replace("ÃfÆ'Ã‚Â©", "é")
+            .Replace("ÃfÆ'Ã‚©", "é")
+            .Replace("ÃfÆ'Ã‚", "é")
+            .Replace("Ãf©", "é")
+            .Replace("ÃÃ©", "é")
+            .Replace("ÃÃ¨", "è")
+            .Replace("ÃÃ ", "à")
+            .Replace("Ãé", "é")
+            .Replace("Ã©", "é")
+            .Replace("Ã¨", "è")
+            .Replace("Ã ", "à")
+            .Replace("Ãª", "ê")
+            .Replace("Ã´", "ô")
+            .Replace("Ã§", "ç")
+            .Replace("Ã¯", "ï")
+            .Replace("Ã®", "î")
+            .Replace("Ã¹", "ù")
+            .Replace("Ã»", "û")
+            .Replace("â€™", "’")
+            .Replace("Â", "");
+
+        return cur.Trim();
+    }
+
+    private string FormaterMessage(string? message, string? urlCible)
     {
         if (string.IsNullOrWhiteSpace(message)) return string.Empty;
+
+        message = NettoyerEncodage(message);
 
         bool estReclamationOuAvis = (urlCible != null && (urlCible.Contains("reclamation", StringComparison.OrdinalIgnoreCase) || urlCible.Contains("avis", StringComparison.OrdinalIgnoreCase)))
             || message.Contains("réclamation", StringComparison.OrdinalIgnoreCase)

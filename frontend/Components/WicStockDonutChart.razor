@@ -1,4 +1,4 @@
-@using System.Globalization
+﻿@using System.Globalization
 @using WicStock.Web.Models
 
 <div class="wicstock-donut-wrapper">
@@ -541,6 +541,7 @@
     [Parameter] public string CenterSubLabel { get; set; } = "Total";
     [Parameter] public string? UserRole { get; set; }
     [Parameter] public EventCallback<string> OnDrillDown { get; set; }
+    [Parameter] public string[]? CustomPalette { get; set; }
 
     private const double SvgSize = 260;
     private const double Center = 130;
@@ -586,7 +587,7 @@
         {
             var val = Math.Max(0, Series[i]);
             var label = i < (Labels?.Count ?? 0) ? Labels![i] : $"CatÃ©gorie {i + 1}";
-            var color = WicStockChartConfig.GetColor(i);
+            var color = (CustomPalette != null && CustomPalette.Length > 0) ? CustomPalette[i % CustomPalette.Length] : WicStockChartConfig.GetColor(i);
 
             TousLesSegments.Add(new DonutSegment
             {
@@ -700,3 +701,4 @@
         return val.Length <= maxLen ? val : val.Substring(0, maxLen - 1) + "â€¦";
     }
 }
+

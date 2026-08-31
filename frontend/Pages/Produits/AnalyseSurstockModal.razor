@@ -1,7 +1,13 @@
 @using WicStock.Web.Models.Dtos
 @using WicStock.Web.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
 @inject ProduitService ProduitService
+@inject UtilisateurService UtilisateurService
+@inject NotificationClientService NotificationService
+@inject HttpClient Http
 @inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthStateProvider
 
 <!-- FENÊTRE POP-UP MODAL CENTRÉE (RENDUE AU NIVEAU RACINE DE LA PAGE) -->
 <div class="dialog-overlay-root" @onclick="Fermer">
@@ -68,25 +74,38 @@
                     <p class="diag-text-root mb-0">@analyse.Diagnostic</p>
                 </div>
 
-                <!-- GRILLE DES MÉTRIQUES CLÉS -->
+                <!-- GRILLE DES MÉTRIQUES CLÉS (VERSION MODERNISÉE) -->
                 <div class="metrics-grid-root mb-4">
                     <div class="metric-box-root">
+                        <div class="metric-box-icon-root">
+                            <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Small" />
+                        </div>
                         <div class="metric-box-lbl-root">Stock actuel</div>
                         <div class="metric-box-val-root">
-                            @analyse.Metriques.StockActuel u.
-                            @if (analyse.Metriques.PourcentageAuDessusDuSeuil > 0)
-                            {
-                                <span class="surplus-tag-root">+@analyse.Metriques.PourcentageAuDessusDuSeuil%</span>
-                            }
+                            @analyse.Metriques.StockActuel<span class="metric-box-unit-root">u.</span>
                         </div>
+                        @if (analyse.Metriques.SurplusUnites > 0)
+                        {
+                            <span class="surplus-tag-root">+@analyse.Metriques.SurplusUnites u. en surplus</span>
+                        }
                     </div>
+
                     <div class="metric-box-root">
-                        <div class="metric-box-lbl-root">Date d'ajout</div>
-                        <div class="metric-box-val-root">@analyse.Metriques.DateAjoutFormatee</div>
+                        <div class="metric-box-icon-root">
+                            <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Size="Size.Small" />
+                        </div>
+                        <div class="metric-box-lbl-root">Entrée & inactivité</div>
+                        <div class="metric-box-val-root metric-box-val-sm">@analyse.Metriques.DateAjoutFormatee</div>
+                        <span class="inactive-badge-root">@analyse.Metriques.JoursDepuisDerniereSortie j. inactif</span>
                     </div>
+
                     <div class="metric-box-root">
-                        <div class="metric-box-lbl-root">Inactivité</div>
-                        <div class="metric-box-val-root">@analyse.Metriques.JoursDepuisDerniereSortie j.</div>
+                        <div class="metric-box-icon-root">
+                            <MudIcon Icon="@Icons.Material.Filled.LocalOffer" Size="Size.Small" />
+                        </div>
+                        <div class="metric-box-lbl-root">Durée d'action</div>
+                        <div class="metric-box-val-root metric-box-val-sm text-pine">Promo 14 jours</div>
+                        <span class="duration-tag-root">Valable jusqu'au @DateTime.Today.AddDays(14).ToString("dd/MM")</span>
                     </div>
                 </div>
 
@@ -106,7 +125,7 @@
                         </div>
 
                         <!-- 1. FORMULAIRE PROMOTION CIBLEE -->
-                        @if (actionAConfirmer.TypeAction.ToUpperInvariant() == "PROMOTION_CIBLEE")
+                        @if (string.Equals(actionAConfirmer.TypeAction, "PROMOTION_CIBLEE", StringComparison.OrdinalIgnoreCase))
                         {
                             <div class="confirm-form-grid mb-3">
                                 <div class="form-group-root">
@@ -142,7 +161,7 @@
                                 </div>
                             </div>
                         }
-                        @if (actionAConfirmer.TypeAction.ToUpperInvariant() == "RECYCLAGE_ANTICIPE")
+                        @if (string.Equals(actionAConfirmer.TypeAction, "RECYCLAGE_ANTICIPE", StringComparison.OrdinalIgnoreCase))
                         {
                             <div class="confirm-form-grid mb-3">
                                 <div class="form-group-root">
@@ -186,16 +205,28 @@
                                 </div>
                             </div>
                         }
-                        @if (actionAConfirmer.TypeAction.ToUpperInvariant() == "NOTIFICATION_PRODUCTION")
+                        @if (string.Equals(actionAConfirmer.TypeAction, "NOTIFICATION_PRODUCTION", StringComparison.OrdinalIgnoreCase))
                         {
                             <div class="confirm-form-grid mb-3">
                                 <div class="form-group-root">
-                                    <label class="form-label-root">Destinataire</label>
-                                    <select class="form-select-root" @bind="formDestinataire">
-                                        <option value="Chef de Production">Chef de Production</option>
-                                        <option value="Responsable Atelier Coupe">Responsable Atelier Coupe</option>
-                                        <option value="Planificateur de Production">Planificateur de Production</option>
-                                    </select>
+                                    <label class="form-label-root">Choisir le Responsable destinataire</label>
+                                    @if (responsablesDisponibles != null && responsablesDisponibles.Any())
+                                    {
+                                        <select class="form-select-root" @bind="formDestinataireUserId">
+                                            <option value="">Tous les responsables de stock</option>
+                                            @foreach (var resp in responsablesDisponibles)
+                                            {
+                                                <option value="@resp.Id">@resp.Prenom @resp.Nom (@resp.Email)</option>
+                                            }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <div class="destinataire-fixed-badge">
+                                            <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" />
+                                            <span>Responsable stock & production</span>
+                                        </div>
+                                    }
                                 </div>
                                 <div class="form-group-root">
                                     <label class="form-label-root">Niveau de priorité</label>
@@ -246,54 +277,89 @@
                 }
                 else
                 {
-                    <!-- CAS 1 : UNE ACTION EST DÉJÀ ACTIVE SUR CE PRODUIT -->
-                    @if (analyse.ActionActive != null)
+                    <!-- CAS 1 : UNE ACTION DE RÉSOLUTION EST DÉJÀ ACTIVE SUR CE PRODUIT -->
+                    @if (analyse.ActionActive != null && !IsNotificationOnlyActive)
                     {
                         <div class="active-action-card mb-4 pa-3 animate-fade-in">
                             <div class="d-flex align-center justify-space-between mb-2">
                                 <div class="d-flex align-center gap-2">
                                     <span class="active-action-title">Action en cours d'application</span>
-                                    <span class="active-action-badge">
-                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Style="font-size:13px;" />
-                                        Active
-                                    </span>
+                                    @if (IsReadOnlyForResponsable)
+                                    {
+                                        <span class="active-action-badge-readonly" title="Seul un Administrateur peut modifier ou annuler cette décision">
+                                            <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" Style="font-size:13px;" />
+                                            Décision Admin (Lecture seule)
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="active-action-badge">
+                                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Style="font-size:13px;" />
+                                            Active
+                                        </span>
+                                    }
                                 </div>
                                 <span class="active-action-type">@analyse.ActionActive.Label</span>
                             </div>
 
+                            @if (!string.IsNullOrWhiteSpace(analyse.ActionActive.NomAuteur))
+                            {
+                                <div class="d-flex align-center gap-1 mb-2" style="font-size:0.78rem; color:#64748B;">
+                                    <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" Style="font-size:14px; color:#6366F1;" />
+                                    <span>Appliquée par <strong style="color:#1E293B;">@analyse.ActionActive.NomAuteur</strong></span>
+                                </div>
+                            }
+
                             <p class="active-action-desc mb-3">@analyse.ActionActive.Description</p>
 
-                            <div class="d-flex align-center justify-space-between pt-2 active-action-foot">
-                                <button class="btn-action-cancel" @onclick="AnnulerActionEnCours" disabled="@isExecuting">
-                                    <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" />
-                                    <span>Annuler cette action</span>
-                                </button>
-                                <button class="btn-action-modify" @onclick="() => ModifierActionActive(analyse.ActionActive)" disabled="@isExecuting">
-                                    <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" />
-                                    <span>Modifier l'action</span>
+                            @if (!IsReadOnlyForResponsable)
+                            {
+                                <div class="d-flex align-center justify-space-between pt-2 active-action-foot">
+                                    <button class="btn-action-cancel" @onclick="AnnulerActionEnCours" disabled="@isExecuting">
+                                        <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" />
+                                        <span>Annuler cette action</span>
+                                    </button>
+                                    <button class="btn-action-modify" @onclick="() => ModifierActionActive(analyse.ActionActive)" disabled="@isExecuting">
+                                        <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" />
+                                        <span>Modifier l'action</span>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+
+                        @if (!IsReadOnlyForResponsable)
+                        {
+                            <!-- ACCORDÉON POUR VOIR D'AUTRES PROPOSITIONS -->
+                            <div class="d-flex align-center justify-space-between mb-2">
+                                <div class="actions-section-title-root mb-0">Autres suggestions IA</div>
+                                <button class="btn-toggle-suggestions" @onclick="() => afficherAutresSuggestions = !afficherAutresSuggestions">
+                                    <span>@(afficherAutresSuggestions ? "Masquer les alternatives" : "Voir d'autres propositions")</span>
+                                    <MudIcon Icon="@(afficherAutresSuggestions ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" Size="Size.Small" />
                                 </button>
                             </div>
-                        </div>
-
-                        <!-- ACCORDÉON / BOUTON POUR VOIR D'AUTRES PROPOSITIONS -->
-                        <div class="d-flex align-center justify-space-between mb-2">
-                            <div class="actions-section-title-root mb-0">Autres suggestions IA</div>
-                            <button class="btn-toggle-suggestions" @onclick="() => afficherAutresSuggestions = !afficherAutresSuggestions">
-                                <span>@(afficherAutresSuggestions ? "Masquer les alternatives" : "Voir d'autres propositions")</span>
-                                <MudIcon Icon="@(afficherAutresSuggestions ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" Size="Size.Small" />
-                            </button>
-                        </div>
+                        }
                     }
 
-                    <!-- CAS 2 : LISTE DES ACTIONS RECOMMANDÉES (SI PAS D'ACTION ACTIVE OU SI DÉPLIÉ) -->
-                    @if ((analyse.ActionActive == null || afficherAutresSuggestions) && analyse.Actions != null && analyse.Actions.Any())
+                    <!-- CAS 2 : LISTE DES ACTIONS RECOMMANDÉES -->
+                    @if ((!IsResolutionActive || afficherAutresSuggestions) && !IsReadOnlyForResponsable && analyse.Actions != null && analyse.Actions.Any())
                     {
-                        @if (analyse.ActionActive == null)
+                        @if (!IsResolutionActive)
                         {
                             <div class="actions-section-title-root mb-2">Actions recommandées</div>
                         }
+
+                        @if (IsResponsableUser && !HasResponsableReceivedNotification)
+                        {
+                            <div class="pa-3 mb-3 d-flex align-center gap-2" style="background:#FFFBEB; border:1px solid #FCD34D; color:#92400E; font-size:0.85rem; border-radius:8px;">
+                                <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" />
+                                <span>En attente d'une notification de l'Administrateur pour intervenir sur ce surstock.</span>
+                            </div>
+                        }
+
                         <div class="d-flex flex-column gap-2 mb-3 animate-fade-in">
-                            @foreach (var act in analyse.Actions)
+                            @foreach (var act in analyse.Actions.Where(a =>
+                                a.TypeAction.ToUpperInvariant() != "NOTIFICATION_PRODUCTION"
+                                || string.Equals(CurrentUserRole, "ADMIN", StringComparison.OrdinalIgnoreCase)))
                             {
                                 bool isSelected = actionAConfirmer?.Id == act.Id;
                                 <div class="action-item-card-root d-flex align-center justify-space-between pa-3 @(isSelected ? "action-item-selected" : "")">
@@ -306,7 +372,7 @@
                                     </div>
                                     <button class="btn-exec-action-root"
                                             @onclick="() => OuvrirFormulaireConfirmation(act)"
-                                            disabled="@isExecuting">
+                                            disabled="@(isExecuting || !CanResponsableExecuteActions)">
                                         <span>@(analyse.ActionActive != null ? "Remplacer" : "Exécuter")</span>
                                         <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" />
                                     </button>
@@ -327,27 +393,34 @@
 </div>
 
 <style>
-    /* ===== Tokens partages avec la page Produits (identite denim/encre) ===== */
+    /* ===== Design tokens ===== */
     .dialog-overlay-root {
-        --ink: #16233A;
+        --ink: #0F172A;
         --ink-muted: #64748B;
+        --ink-subtle: #94A3B8;
         --paper: #FFFFFF;
         --denim: #2B4C7E;
-        --denim-light: #EBF1F8;
+        --denim-hover: #1E3A60;
+        --denim-light: #EEF3F9;
         --rust: #D96B43;
-        --sand: #F7F5F0;
-        --sand-border: #E8E4DC;
-        --border-subtle: #E2E8F0;
+        --sand: #F8F9FB;
+        --sand-border: #E7EAEF;
+        --border-subtle: #E5E9F0;
+        --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+        --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.06);
+        --shadow-lg: 0 20px 50px -12px rgba(15, 23, 42, 0.25), 0 8px 20px -6px rgba(15, 23, 42, 0.12);
+        --ease: cubic-bezier(0.16, 1, 0.3, 1);
         position: fixed;
         inset: 0;
         z-index: 1300;
-        background: rgba(15, 23, 42, 0.45);
-        backdrop-filter: blur(4px);
+        background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
         display: flex;
         align-items: center;
         justify-content: center;
         padding: 16px;
-        animation: fadeInRoot 0.15s ease both;
+        animation: fadeInRoot 0.18s var(--ease) both;
     }
 
     .dialog-card-root {
@@ -358,92 +431,107 @@
         max-width: 580px;
         max-height: 90vh;
         overflow-y: auto;
-        box-shadow: 0 20px 48px rgba(22, 35, 58, 0.22);
+        box-shadow: var(--shadow-lg);
         display: flex;
         flex-direction: column;
     }
 
+        .dialog-card-root::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .dialog-card-root::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 10px;
+        }
+
     .dialog-accent-strip-root {
-        height: 4px;
-        background: linear-gradient(90deg, var(--denim), var(--rust));
+        height: 3px;
+        background: linear-gradient(90deg, var(--denim) 0%, #4A6FA5 50%, var(--rust) 100%);
         border-radius: 16px 16px 0 0;
         flex-shrink: 0;
     }
 
     .dialog-header-root {
         border-bottom: 1px solid var(--border-subtle);
-        background: var(--sand);
+        background: var(--paper);
         flex-shrink: 0;
     }
 
     .modal-icon-badge-root {
-        width: 38px;
-        height: 38px;
-        border-radius: 10px;
-        background: var(--denim-light);
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        background: linear-gradient(135deg, var(--denim-light), #E3ECF6);
         color: var(--denim);
         display: flex;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
+        box-shadow: inset 0 0 0 1px rgba(43, 76, 126, 0.08);
     }
 
     .modal-eyebrow-root {
-        font-size: 0.68rem;
+        font-size: 0.65rem;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.09em;
         color: var(--denim);
+        margin-bottom: 1px;
     }
 
     .modal-title-root {
-        font-size: 1.1rem;
+        font-size: 1.15rem;
         font-weight: 700;
         color: var(--ink);
-        line-height: 1.2;
+        line-height: 1.25;
+        letter-spacing: -0.01em;
     }
 
     .dialog-close-btn-root {
-        background: transparent;
-        border: none;
+        background: var(--sand);
+        border: 1px solid transparent;
         color: var(--ink-muted);
         cursor: pointer;
-        padding: 6px;
-        border-radius: 8px;
-        transition: all 0.15s ease;
+        padding: 7px;
+        border-radius: 9px;
+        transition: all 0.15s var(--ease);
         display: flex;
         align-items: center;
         justify-content: center;
     }
 
-    .dialog-close-btn-root:hover {
-        background: rgba(0, 0, 0, 0.06);
-        color: var(--ink);
-    }
+        .dialog-close-btn-root:hover {
+            background: #F1F5F9;
+            border-color: var(--border-subtle);
+            color: var(--ink);
+        }
 
     .diagnostic-card-root {
         background: var(--sand);
         border: 1px solid var(--sand-border);
         border-radius: 12px;
+        box-shadow: var(--shadow-sm);
     }
 
     .diag-title-root {
-        font-size: 0.82rem;
+        font-size: 0.8rem;
         font-weight: 700;
         color: var(--ink);
+        letter-spacing: -0.01em;
     }
 
     .trend-badge-root {
-        font-size: 0.68rem;
+        font-size: 0.64rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.06em;
-        padding: 3px 8px;
-        border-radius: 6px;
+        padding: 4px 9px;
+        border-radius: 20px;
     }
 
     .trend-cat {
-        background: #FEE2E2;
+        background: #FEF2F2;
         color: #DC2626;
         border: 1px solid #FECACA;
     }
@@ -451,15 +539,16 @@
     .trend-isolated {
         background: var(--denim-light);
         color: var(--denim);
-        border: 1px solid rgba(43, 76, 126, 0.2);
+        border: 1px solid rgba(43, 76, 126, 0.15);
     }
 
     .diag-text-root {
-        font-size: 0.85rem;
-        color: var(--ink);
-        line-height: 1.5;
+        font-size: 0.86rem;
+        color: #334155;
+        line-height: 1.6;
     }
 
+    /* ===== GRILLE DES MÉTRIQUES (VERSION MODERNISÉE) ===== */
     .metrics-grid-root {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
@@ -469,72 +558,125 @@
     .metric-box-root {
         background: var(--paper);
         border: 1px solid var(--border-subtle);
-        border-radius: 10px;
-        padding: 10px 12px;
+        border-radius: 12px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease), transform 0.15s var(--ease);
     }
 
-    .metric-box-lbl-root {
-        font-size: 0.68rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--ink-muted);
-        font-weight: 600;
+        .metric-box-root:hover {
+            border-color: #CBD5E1;
+            box-shadow: var(--shadow-sm);
+            transform: translateY(-1px);
+        }
+
+    .metric-box-icon-root {
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+        background: var(--denim-light);
+        color: var(--denim);
+        display: flex;
+        align-items: center;
+        justify-content: center;
         margin-bottom: 2px;
     }
 
-    .metric-box-val-root {
-        font-size: 0.98rem;
+    .metric-box-lbl-root {
+        font-size: 0.66rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--ink-subtle);
         font-weight: 700;
+    }
+
+    .metric-box-val-root {
+        font-size: 1.35rem;
+        font-weight: 800;
         color: var(--ink);
-        display: flex;
-        align-items: baseline;
-        gap: 4px;
-        flex-wrap: wrap;
+        letter-spacing: -0.02em;
+        line-height: 1.1;
+    }
+
+    .metric-box-val-sm {
+        font-size: 0.95rem;
+        font-weight: 700;
+    }
+
+    .metric-box-unit-root {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--ink-subtle);
+        margin-left: 3px;
+    }
+
+    /* Badges secondaires uniformes (surplus / inactivité / durée) */
+    .surplus-tag-root,
+    .inactive-badge-root,
+    .duration-tag-root {
+        align-self: flex-start;
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 20px;
+        margin-top: 2px;
     }
 
     .surplus-tag-root {
-        font-size: 0.72rem;
         color: var(--rust);
-        font-weight: 700;
+        background: #FEF1EB;
+    }
+
+    .inactive-badge-root {
+        color: #DC2626;
+        background: #FEF2F2;
+    }
+
+    .duration-tag-root {
+        color: var(--denim);
+        background: var(--denim-light);
     }
 
     /* ===== ACTION ACTIVE ===== */
     .active-action-card {
-        background: #F0FDF4;
-        border: 1.5px solid #86EFAC;
+        background: linear-gradient(180deg, #F0FDF4 0%, #F7FEF9 100%);
+        border: 1px solid #B7EBC6;
         border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(34, 197, 94, 0.08);
+        box-shadow: var(--shadow-sm);
     }
 
     .active-action-title {
-        font-size: 0.82rem;
+        font-size: 0.8rem;
         font-weight: 700;
-        color: #166534;
+        color: #14532D;
+        letter-spacing: -0.01em;
     }
 
     .active-action-badge {
         display: inline-flex;
         align-items: center;
-        gap: 3px;
-        background: #DCFCE7;
+        gap: 4px;
+        background: #FFFFFF;
         color: #15803D;
-        font-size: 0.68rem;
+        font-size: 0.66rem;
         font-weight: 700;
-        padding: 2px 7px;
-        border-radius: 10px;
+        padding: 3px 8px;
+        border-radius: 20px;
         border: 1px solid #BBF7D0;
     }
 
     .active-action-type {
-        font-size: 0.75rem;
+        font-size: 0.74rem;
         font-weight: 600;
         color: #166534;
     }
 
     .active-action-desc {
         font-size: 0.84rem;
-        color: #14532D;
-        line-height: 1.45;
+        color: #1E4A2E;
+        line-height: 1.5;
     }
 
     .active-action-foot {
@@ -543,46 +685,47 @@
     }
 
     .btn-action-cancel {
-        background: transparent;
-        border: 1px solid #FCA5A5;
+        background: var(--paper);
+        border: 1px solid #FECACA;
         color: #DC2626;
-        padding: 6px 12px;
-        border-radius: 8px;
+        padding: 7px 13px;
+        border-radius: 9px;
         font-size: 0.78rem;
         font-weight: 600;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
         gap: 5px;
-        transition: all 0.15s ease;
+        transition: all 0.15s var(--ease);
     }
 
-    .btn-action-cancel:hover:not(:disabled) {
-        background: #FEE2E2;
-        border-color: #EF4444;
-    }
+        .btn-action-cancel:hover:not(:disabled) {
+            background: #FEF2F2;
+            border-color: #EF4444;
+            transform: translateY(-1px);
+        }
 
     .btn-action-modify {
         background: #15803D;
-        border: 1px solid #166534;
+        border: 1px solid #15803D;
         color: #FFFFFF;
-        padding: 6px 14px;
-        border-radius: 8px;
+        padding: 7px 15px;
+        border-radius: 9px;
         font-size: 0.78rem;
         font-weight: 600;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
         gap: 5px;
-        box-shadow: 0 2px 6px rgba(21, 128, 61, 0.25);
-        transition: all 0.15s ease;
+        box-shadow: 0 2px 8px rgba(21, 128, 61, 0.22);
+        transition: all 0.15s var(--ease);
     }
 
-    .btn-action-modify:hover:not(:disabled) {
-        background: #166534;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 10px rgba(21, 128, 61, 0.35);
-    }
+        .btn-action-modify:hover:not(:disabled) {
+            background: #166534;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 14px rgba(21, 128, 61, 0.3);
+        }
 
     .btn-toggle-suggestions {
         background: transparent;
@@ -594,41 +737,64 @@
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        padding: 2px 6px;
-        border-radius: 6px;
+        padding: 4px 8px;
+        border-radius: 7px;
+        transition: background 0.15s var(--ease);
     }
 
-    .btn-toggle-suggestions:hover {
-        background: var(--denim-light);
-    }
+        .btn-toggle-suggestions:hover {
+            background: var(--denim-light);
+        }
 
     /* ===== CONFIRM PANEL ===== */
     .confirm-panel-card {
         background: #FFFFFF;
-        border: 2px solid var(--denim);
-        border-radius: 12px;
-        box-shadow: 0 4px 16px rgba(43, 76, 126, 0.15);
+        border: 1px solid var(--border-subtle);
+        border-radius: 13px;
+        box-shadow: var(--shadow-md);
+        position: relative;
     }
+
+        .confirm-panel-card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: 13px;
+            padding: 1px;
+            background: linear-gradient(135deg, var(--denim), transparent 40%);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            pointer-events: none;
+            opacity: 0.5;
+        }
 
     .confirm-panel-title {
         font-size: 0.92rem;
         font-weight: 700;
         color: var(--denim);
+        letter-spacing: -0.01em;
     }
 
     .btn-cancel-sm {
         background: transparent;
         border: 1px solid var(--border-subtle);
         color: var(--ink-muted);
-        padding: 4px 8px;
-        border-radius: 6px;
+        padding: 5px 10px;
+        border-radius: 7px;
         font-size: 0.72rem;
         font-weight: 600;
         cursor: pointer;
         display: flex;
         align-items: center;
         gap: 4px;
+        transition: all 0.15s var(--ease);
     }
+
+        .btn-cancel-sm:hover {
+            background: var(--sand);
+            color: var(--ink);
+        }
 
     .confirm-form-grid {
         display: grid;
@@ -639,11 +805,11 @@
     .form-group-root {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 5px;
     }
 
     .form-label-root {
-        font-size: 0.72rem;
+        font-size: 0.71rem;
         font-weight: 600;
         color: var(--ink-muted);
         text-transform: uppercase;
@@ -653,23 +819,25 @@
     .form-input-root, .form-select-root, .form-textarea-root {
         background: var(--sand);
         border: 1px solid var(--sand-border);
-        border-radius: 8px;
-        padding: 6px 10px;
+        border-radius: 9px;
+        padding: 7px 11px;
         font-size: 0.85rem;
         color: var(--ink);
         width: 100%;
         outline: none;
-        transition: border-color 0.15s ease;
+        transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease), background 0.15s var(--ease);
     }
 
-    .form-input-root:focus, .form-select-root:focus, .form-textarea-root:focus {
-        border-color: var(--denim);
-        background: #FFFFFF;
-    }
+        .form-input-root:focus, .form-select-root:focus, .form-textarea-root:focus {
+            border-color: var(--denim);
+            background: #FFFFFF;
+            box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.12);
+        }
 
     .recap-preview-box {
         background: var(--sand);
         border: 1px solid var(--sand-border);
+        border-radius: 10px;
     }
 
     .recap-lbl {
@@ -680,11 +848,11 @@
     .recap-val-old {
         font-size: 0.78rem;
         text-decoration: line-through;
-        color: var(--ink-muted);
+        color: var(--ink-subtle);
     }
 
     .recap-val-new {
-        font-size: 0.85rem;
+        font-size: 0.86rem;
         font-weight: 700;
         color: var(--rust);
     }
@@ -692,11 +860,13 @@
     .recap-val {
         font-size: 0.78rem;
         color: var(--ink);
+        font-weight: 500;
     }
 
     .warning-banner-recyclage {
         background: #FEF2F2;
-        border: 1px solid #FCA5A5;
+        border: 1px solid #FECACA;
+        border-radius: 10px;
     }
 
     .warning-icon-recyclage {
@@ -706,6 +876,7 @@
     .warning-text-recyclage {
         font-size: 0.76rem;
         color: #991B1B;
+        line-height: 1.5;
     }
 
     .priority-picker-root {
@@ -715,22 +886,23 @@
 
     .priority-opt-root {
         flex: 1;
-        padding: 5px 8px;
+        padding: 6px 8px;
         border: 1px solid var(--border-subtle);
-        border-radius: 6px;
+        border-radius: 8px;
         font-size: 0.74rem;
         font-weight: 600;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 4px;
+        gap: 5px;
         background: var(--paper);
+        transition: all 0.15s var(--ease);
     }
 
-    .priority-opt-root input {
-        display: none;
-    }
+        .priority-opt-root input {
+            display: none;
+        }
 
     .priority-dot-root {
         width: 6px;
@@ -740,81 +912,108 @@
     }
 
     .priority-opt--haute.is-active {
-        background: #FEE2E2;
+        background: #FEF2F2;
         border-color: #EF4444;
         color: #991B1B;
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.08);
     }
-    .priority-opt--haute.is-active .priority-dot-root { background: #DC2626; }
+
+        .priority-opt--haute.is-active .priority-dot-root {
+            background: #DC2626;
+        }
 
     .priority-opt--moyenne.is-active {
-        background: #FEF3C7;
+        background: #FFFBEB;
         border-color: #F59E0B;
         color: #92400E;
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.08);
     }
-    .priority-opt--moyenne.is-active .priority-dot-root { background: #D97706; }
+
+        .priority-opt--moyenne.is-active .priority-dot-root {
+            background: #D97706;
+        }
 
     .priority-opt--basse.is-active {
         background: var(--denim-light);
         border-color: var(--denim);
         color: var(--denim);
+        box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.08);
     }
-    .priority-opt--basse.is-active .priority-dot-root { background: var(--denim); }
+
+        .priority-opt--basse.is-active .priority-dot-root {
+            background: var(--denim);
+        }
 
     .btn-cancel-modal-root {
-        background: transparent;
+        background: var(--paper);
         border: 1px solid var(--border-subtle);
         color: var(--ink-muted);
-        padding: 6px 14px;
-        border-radius: 8px;
+        padding: 7px 15px;
+        border-radius: 9px;
         font-size: 0.8rem;
         font-weight: 600;
         cursor: pointer;
+        transition: all 0.15s var(--ease);
     }
+
+        .btn-cancel-modal-root:hover:not(:disabled) {
+            background: var(--sand);
+            color: var(--ink);
+        }
 
     .btn-submit-confirm-root {
         background: var(--denim);
         border: none;
         color: #FFFFFF;
-        padding: 6px 16px;
-        border-radius: 8px;
+        padding: 7px 17px;
+        border-radius: 9px;
         font-size: 0.82rem;
         font-weight: 600;
         cursor: pointer;
         display: flex;
         align-items: center;
         gap: 6px;
-        box-shadow: 0 2px 8px rgba(43, 76, 126, 0.3);
+        box-shadow: 0 2px 10px rgba(43, 76, 126, 0.28);
+        transition: all 0.15s var(--ease);
     }
 
-    .btn-submit-confirm-root:hover:not(:disabled) {
-        background: #1E3A60;
-        transform: translateY(-1px);
-    }
+        .btn-submit-confirm-root:hover:not(:disabled) {
+            background: var(--denim-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(43, 76, 126, 0.35);
+        }
 
     .actions-section-title-root {
-        font-size: 0.74rem;
+        font-size: 0.73rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.06em;
-        color: var(--ink-muted);
+        color: var(--ink-subtle);
     }
 
     .action-item-card-root {
         background: var(--paper);
         border: 1px solid var(--border-subtle);
-        border-radius: 10px;
-        transition: all 0.15s ease;
+        border-radius: 11px;
+        transition: all 0.15s var(--ease);
     }
 
-    .action-item-card-root:hover {
+        .action-item-card-root:hover {
+            border-color: #C7D3E3;
+            background: var(--sand);
+            box-shadow: var(--shadow-sm);
+        }
+
+    .action-item-selected {
         border-color: var(--denim);
-        background: #F8FAFC;
+        box-shadow: 0 0 0 3px rgba(43, 76, 126, 0.1);
     }
 
     .action-item-title-root {
         font-size: 0.88rem;
         font-weight: 700;
         color: var(--ink);
+        letter-spacing: -0.01em;
     }
 
     .action-item-justif-root {
@@ -823,7 +1022,7 @@
         display: flex;
         align-items: center;
         gap: 4px;
-        margin-top: 2px;
+        margin-top: 3px;
     }
 
     .action-item-justif-icon {
@@ -833,72 +1032,157 @@
 
     .btn-exec-action-root {
         background: var(--denim-light);
-        border: 1px solid rgba(43, 76, 126, 0.2);
+        border: 1px solid transparent;
         color: var(--denim);
-        padding: 5px 12px;
-        border-radius: 8px;
+        padding: 6px 13px;
+        border-radius: 9px;
         font-size: 0.78rem;
         font-weight: 700;
         cursor: pointer;
         display: flex;
         align-items: center;
         gap: 4px;
-        transition: all 0.15s ease;
+        transition: all 0.15s var(--ease);
         flex-shrink: 0;
     }
 
-    .btn-exec-action-root:hover:not(:disabled) {
-        background: var(--denim);
-        color: #FFFFFF;
-        border-color: var(--denim);
-    }
+        .btn-exec-action-root:hover:not(:disabled) {
+            background: var(--denim);
+            color: #FFFFFF;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(43, 76, 126, 0.25);
+        }
 
     .dialog-footer-root {
         border-top: 1px solid var(--border-subtle);
-        background: var(--sand);
+        background: var(--paper);
         flex-shrink: 0;
     }
 
     .btn-close-modal-root {
-        background: var(--paper);
+        background: var(--sand);
         border: 1px solid var(--sand-border);
         color: var(--ink);
-        padding: 6px 16px;
-        border-radius: 8px;
+        padding: 7px 17px;
+        border-radius: 9px;
         font-size: 0.82rem;
         font-weight: 600;
         cursor: pointer;
+        transition: all 0.15s var(--ease);
     }
+
+        .btn-close-modal-root:hover {
+            background: #EEF1F5;
+        }
 
     .btn-retry-root {
         background: var(--denim);
         color: #FFFFFF;
         border: none;
-        padding: 6px 14px;
-        border-radius: 8px;
+        padding: 7px 15px;
+        border-radius: 9px;
         font-size: 0.8rem;
         font-weight: 600;
         cursor: pointer;
+        transition: all 0.15s var(--ease);
+    }
+
+        .btn-retry-root:hover {
+            background: var(--denim-hover);
+        }
+
+    .degrade-banner-root {
+        background: #FFFBEB;
+        border: 1px solid #FDE68A;
+        border-radius: 10px;
+    }
+
+    .degrade-icon-root {
+        color: #D97706;
+    }
+
+    .degrade-text-root {
+        font-size: 0.8rem;
+        color: #92400E;
     }
 
     @@keyframes popModalRoot {
-        from { opacity: 0; transform: translateY(10px) scale(0.98); }
-        to { opacity: 1; transform: translateY(0) scale(1); }
+        from {
+            opacity: 0;
+            transform: translateY(12px) scale(0.97);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
     }
 
     @@keyframes fadeInRoot {
-        from { opacity: 0; transform: translateY(4px); }
-        to { opacity: 1; transform: translateY(0); }
+        from {
+            opacity: 0;
+            transform: translateY(4px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
-    .animate-pop-modal { animation: popModalRoot 0.18s ease both; }
-    .animate-fade-in { animation: fadeInRoot 0.15s ease both; }
+    .animate-pop-modal {
+        animation: popModalRoot 0.22s var(--ease) both;
+    }
+
+    .animate-fade-in {
+        animation: fadeInRoot 0.18s var(--ease) both;
+    }
+
+    .destinataire-fixed-badge {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        background: var(--denim-light);
+        border: 1px solid rgba(43, 76, 126, 0.25);
+        border-radius: 9px;
+        color: var(--denim);
+        font-size: 0.88rem;
+        font-weight: 600;
+    }
+
+    .active-action-badge-readonly {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #F1F5F9;
+        color: #475569;
+        border: 1px solid #CBD5E1;
+        border-radius: 20px;
+        padding: 3px 10px;
+        font-size: 0.71rem;
+        font-weight: 700;
+    }
+
+    .active-action-badge-info {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #EFF8FF;
+        color: #0369A1;
+        border: 1px solid #BAE6FD;
+        border-radius: 20px;
+        padding: 3px 10px;
+        font-size: 0.71rem;
+        font-weight: 700;
+    }
 </style>
 
 @code {
     [Parameter] public ProduitDto Produit { get; set; } = null!;
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback OnActionExecuted { get; set; }
+    [Parameter] public string? CurrentUserRole { get; set; }
 
     private bool isLoading = false;
     private bool hasError = false;
@@ -908,6 +1192,33 @@
 
     private static readonly Dictionary<int, AnalyseProduitDto> CacheAnalyses = new();
     private AnalyseProduitDto? analyse;
+
+    // RÈGLES DE PERMISSION HIÉRARCHIQUE (ADMIN > RESPONSABLE)
+    private bool IsNotificationOnlyActive =>
+        analyse?.ActionActive != null && (
+            string.Equals(analyse.ActionActive.TypeAction, "NOTIFICATION_PRODUCTION", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(analyse.ActionActive.TypeAction, "NOTIFICATION", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(analyse.ActionActive.TypeAction, "NOTIFIER_PRODUCTION", StringComparison.OrdinalIgnoreCase)
+            || (analyse.ActionActive.Label?.Contains("Notification", StringComparison.OrdinalIgnoreCase) ?? false)
+            || (analyse.ActionActive.Label?.Contains("Notifier", StringComparison.OrdinalIgnoreCase) ?? false)
+        );
+
+    private bool IsResolutionActive => analyse?.ActionActive != null && !IsNotificationOnlyActive;
+    private bool IsActiveActionByAdmin => IsResolutionActive && (string.Equals(analyse?.ActionActive?.InitieParRole, "ADMIN", StringComparison.OrdinalIgnoreCase) || analyse?.ActionActive?.InitieParRole == null);
+    private bool IsResponsableUser => string.Equals(CurrentUserRole, "RESPONSABLE_STOCK_PRODUCTION", StringComparison.OrdinalIgnoreCase);
+    private bool IsReadOnlyForResponsable => IsResponsableUser && IsActiveActionByAdmin;
+
+    private bool HasResponsableReceivedNotification =>
+        IsNotificationOnlyActive ||
+        (NotificationService.Notifications != null && NotificationService.Notifications.Any(n =>
+            n.UrlCible != null && Produit != null && (
+                n.UrlCible.Contains(Produit.Reference ?? "___", StringComparison.OrdinalIgnoreCase)
+                || n.UrlCible.Contains(Produit.Nom ?? "___", StringComparison.OrdinalIgnoreCase)
+            )
+        ));
+
+    private bool CanResponsableExecuteActions =>
+        !IsResponsableUser || HasResponsableReceivedNotification;
 
     // ÉTAPE DE CONFIRMATION INTERMÉDIAIRE
     private ActionRecommandeeIaDto? actionAConfirmer;
@@ -923,9 +1234,11 @@
     private string formDestination = "Atelier interne";
 
     // FORMULAIRE NOTIFICATION
-    private string formDestinataire = "Chef de Production";
+    private string formDestinataire = "RESPONSABLE_STOCK_PRODUCTION";
+    private string formDestinataireUserId = "";
     private string formPriorite = "HAUTE";
     private string formMessage = string.Empty;
+    private List<UtilisateurDto>? responsablesDisponibles;
 
     // PROPRIÉTÉS CALCULÉES EN DIRECT
     private decimal PrixPromoSolde => Math.Round(Produit.PrixUnitaire * (1 - (decimal)formRemisePourcentage / 100m), 2);
@@ -940,6 +1253,25 @@
         if (Produit != null)
         {
             await ChargerAnalyseAsync();
+        }
+
+        try
+        {
+            var tousUsers = await UtilisateurService.ObtenirTous();
+            responsablesDisponibles = tousUsers?
+                .Where(u => string.Equals(u.Role, "RESPONSABLE_STOCK_PRODUCTION", StringComparison.OrdinalIgnoreCase)
+                         || string.Equals(u.Role, "RESPONSABLE", StringComparison.OrdinalIgnoreCase)
+                         || string.Equals(u.Role, "MANAGER", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (responsablesDisponibles != null && responsablesDisponibles.Any())
+            {
+                formDestinataireUserId = responsablesDisponibles.First().Id.ToString();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MODAL] Erreur lors du chargement de la liste des responsables : {ex.Message}");
         }
     }
 
@@ -1031,9 +1363,54 @@
             {
                 Snackbar.Add("Action annulée avec succès. L'article est réinitialisé.", Severity.Success);
 
-                // Mettre à jour l'entité locale
-                Produit.RemisePourcentage = null;
-                Produit.DateFinPromotion = null;
+                // Restaurer les données locales selon le type d'action annulée
+                if (analyse?.ActionActive != null)
+                {
+                    var typeAnnule = analyse.ActionActive.TypeAction?.ToUpperInvariant() ?? "";
+
+                    if (typeAnnule == "PROMOTION_CIBLEE")
+                    {
+                        Produit.RemisePourcentage = null;
+                        Produit.DateFinPromotion = null;
+                    }
+                    else if ((typeAnnule == "RECYCLAGE_ANTICIPE" || (analyse.ActionActive.Label?.Contains("Recyclage", StringComparison.OrdinalIgnoreCase) ?? false)) && Produit.Stock != null)
+                    {
+                        int qteRecyclee = analyse.ActionActive.QuantiteCible ?? 0;
+
+                        // Si QuantiteCible n'était pas renseigné, extraire depuis la description (ex: "Recyclage 299 u." ou "Recyclage 299u")
+                        if (qteRecyclee <= 0 && !string.IsNullOrWhiteSpace(analyse.ActionActive.Description))
+                        {
+                            var match = System.Text.RegularExpressions.Regex.Match(analyse.ActionActive.Description, @"(\d+)\s*(?:u|unités?|pièces?)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            if (!match.Success)
+                            {
+                                match = System.Text.RegularExpressions.Regex.Match(analyse.ActionActive.Description, @"\d+");
+                            }
+                            if (match.Success && int.TryParse(match.Groups[match.Groups.Count > 1 ? 1 : 0].Value, out int qteParsed))
+                            {
+                                qteRecyclee = qteParsed;
+                            }
+                        }
+
+                        if (qteRecyclee > 0)
+                        {
+                            Produit.Stock.QuantiteActuelle += qteRecyclee;
+                            try
+                            {
+                                await ProduitService.Modifier(Produit.Id, Produit);
+                            }
+                            catch (Exception exMod)
+                            {
+                                Console.WriteLine($"[MODAL] Erreur persistance annulation stock : {exMod.Message}");
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    // Fallback : réinitialiser seulement la promotion
+                    Produit.RemisePourcentage = null;
+                    Produit.DateFinPromotion = null;
+                }
 
                 CacheAnalyses.Remove(Produit.Id);
                 if (analyse != null)
@@ -1115,12 +1492,68 @@
                 dictParams["motif"] = formMotif;
                 dictParams["destination"] = formDestination;
             }
+            else if (type == "NOTIFICATION_PRODUCTION")
+            {
+                // Target role + specific user selection
+                dictParams["destinataire"] = "RESPONSABLE_STOCK_PRODUCTION";
+                int? userId = int.TryParse(formDestinataireUserId, out int parsedId) ? parsedId : null;
+
+                if (!string.IsNullOrWhiteSpace(formDestinataireUserId))
+                {
+                    dictParams["destinataireUserId"] = formDestinataireUserId;
+                    var respSelected = responsablesDisponibles?.FirstOrDefault(u => u.Id.ToString() == formDestinataireUserId);
+                    if (respSelected != null)
+                    {
+                        dictParams["destinataireEmail"] = respSelected.Email;
+                        dictParams["destinataireNom"] = $"{respSelected.Prenom} {respSelected.Nom}".Trim();
+                    }
+                }
+                dictParams["priorite"] = formPriorite;
+                // Build message with deep-link to the surstock product
+                var lienProduit = $"/produits?statut=SURSTOCK&highlight={Uri.EscapeDataString(Produit.Reference ?? Produit.Nom ?? "")}";
+                var messageComplet = string.IsNullOrWhiteSpace(formMessage)
+                    ? $"Alerte surstock : le produit « {Produit.Nom} » (réf. {Produit.Reference}) nécessite une intervention (promotion ou recyclage)."
+                    : formMessage;
+                dictParams["message"] = messageComplet;
+                dictParams["urlCible"] = lienProduit;
+
+                // On envoie UNIQUEMENT via l'API → la notification sera récupérée
+                // par le Responsable à sa prochaine connexion ou lors du polling.
+                // On NE push PAS dans NotificationService ici car ce code s'exécute
+                // dans le navigateur de l'Admin, pas dans celui du Responsable.
+                var notifReq = new NotificationDto
+                {
+                    Id = Random.Shared.Next(1000, 999999),
+                    Type = "ACTION_IA_A_VALIDER",
+                    Message = messageComplet,
+                    UrlCible = lienProduit,
+                    RoleDestinataire = "RESPONSABLE_STOCK_PRODUCTION",
+                    UtilisateurDestinataireId = userId,
+                    DateCreation = DateTime.Now,
+                    Lue = false
+                };
+
+                // Sauvegarder dans le stockage partagé
+                await NotificationService.AjouterNotificationAsync(notifReq);
+
+                // 2. Persistance serveur via API
+                try
+                {
+                    await Http.PostAsJsonAsync("api/notification", notifReq);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[MODAL] Erreur envoi direct notification: {ex.Message}");
+                }
+            }
             else
             {
                 dictParams["destinataire"] = formDestinataire;
                 dictParams["priorite"] = formPriorite;
                 dictParams["message"] = formMessage;
             }
+
+            dictParams["initieParRole"] = CurrentUserRole ?? "ADMIN";
 
             bool succes = await ProduitService.ExecuterActionSurstock(Produit.Id, actionAConfirmer.TypeAction, actionAConfirmer.Label, dictParams);
 
@@ -1140,10 +1573,90 @@
                 else if (type == "RECYCLAGE_ANTICIPE" && Produit.Stock != null)
                 {
                     Produit.Stock.QuantiteActuelle = NouveauStockApresRecyclage;
+                    try
+                    {
+                        await ProduitService.Modifier(Produit.Id, Produit);
+                    }
+                    catch (Exception exMod)
+                    {
+                        Console.WriteLine($"[MODAL] Erreur persistance exécution recyclage stock : {exMod.Message}");
+                    }
+                }
+
+                if (analyse != null)
+                {
+                    analyse.ActionActive = new ActionActiveDto
+                    {
+                        TypeAction = actionAConfirmer.TypeAction,
+                        Label = actionAConfirmer.Label,
+                        Description = type == "RECYCLAGE_ANTICIPE"
+                            ? $"Recyclage anticipé de {formQuantiteRecyclage} u. vers {formDestination}"
+                            : $"Promotion de {formRemisePourcentage}% pendant {formDureeJours} jours",
+                        QuantiteCible = formQuantiteRecyclage,
+                        RemisePourcentage = formRemisePourcentage,
+                        DureeJours = formDureeJours,
+                        InitieParRole = CurrentUserRole ?? "ADMIN"
+                    };
+                }
+
+                // ──────────────────────────────────────────────────────────────────────
+                // FEEDBACK AU SUPER ADMIN : Le responsable informe l'Admin de son action
+                // ──────────────────────────────────────────────────────────────────────
+                if (IsResponsableUser && (type == "PROMOTION_CIBLEE" || type == "RECYCLAGE_ANTICIPE"))
+                {
+                    // Récupérer le nom du responsable depuis les claims JWT
+                    string nomResponsable = "Le responsable";
+                    try
+                    {
+                        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+                        var nameClaim = authState.User.FindFirst(ClaimTypes.Name)
+                            ?? authState.User.FindFirst("name")
+                            ?? authState.User.FindFirst("given_name");
+                        if (nameClaim != null && !string.IsNullOrWhiteSpace(nameClaim.Value))
+                            nomResponsable = nameClaim.Value;
+                    }
+                    catch { }
+
+                    var lienProduit = $"/produits?statut=SURSTOCK&highlight={Uri.EscapeDataString(Produit.Reference ?? Produit.Nom ?? "")}";
+
+                    // Construire un message détaillé selon le type d'action
+                    string msgAdmin;
+                    if (type == "PROMOTION_CIBLEE")
+                    {
+                        msgAdmin = $"{nomResponsable} a appliqué une promotion ciblée de {formRemisePourcentage}% (durée : {formDureeJours} jours) sur le produit « {Produit.Nom} » (réf. {Produit.Reference}).";
+                    }
+                    else
+                    {
+                        var dest = string.IsNullOrWhiteSpace(formDestination) ? "atelier" : formDestination;
+                        msgAdmin = $"{nomResponsable} a effectué un recyclage anticipé de {formQuantiteRecyclage} unité(s) vers {dest} sur le produit « {Produit.Nom} » (réf. {Produit.Reference}).";
+                    }
+
+                    var notifAdmin = new NotificationDto
+                    {
+                        Id = Random.Shared.Next(1000, 999999),
+                        Type = "ACTION_RESPONSABLE_EXECUTEE",
+                        Message = msgAdmin,
+                        UrlCible = lienProduit,
+                        RoleDestinataire = "ADMIN",
+                        DateCreation = DateTime.Now,
+                        Lue = false
+                    };
+
+                    // Sauvegarder dans le stockage partagé (sera affiché uniquement aux Admins)
+                    await NotificationService.AjouterNotificationAsync(notifAdmin);
+
+                    // 2. Persistance serveur via API
+                    try
+                    {
+                        await Http.PostAsJsonAsync("api/notification", notifAdmin);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[MODAL] Erreur envoi notif Admin : {ex.Message}");
+                    }
                 }
 
                 CacheAnalyses.Remove(Produit.Id);
-                analyse = null;
                 actionAConfirmer = null;
                 estEnModification = false;
 

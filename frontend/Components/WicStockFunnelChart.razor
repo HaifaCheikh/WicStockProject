@@ -1,0 +1,94 @@
+@using WicStock.Web.Models
+@using System.Globalization
+
+<div class="wicstock-funnel-chart" style="width:@Width; font-family:'Inter',sans-serif;">
+    <svg viewBox="0 0 @SvgTotalW @F(SvgH)" width="100%" xmlns="http://www.w3.org/2000/svg"
+         style="display:block; overflow:visible; max-width:100%;">
+        @GetSvgContent()
+    </svg>
+</div>
+
+@code {
+    [Parameter] public List<string> Labels { get; set; } = new();
+    [Parameter] public List<double> Series { get; set; } = new();
+    [Parameter] public string Width { get; set; } = "100%";
+    [Parameter] public int MaxSteps { get; set; } = 6;
+    [Parameter] public string[]? CustomPalette { get; set; }
+
+    private const double SvgTotalW = 720;
+    private const double LeftPad = 160;
+    private const double RightPad = 140;
+    private const double TopPad = 20;
+    private const double StepH = 34;
+    private const double StepGap = 6;
+
+    private List<string> VisibleLabels => Labels.Take(MaxSteps).ToList();
+    private List<double> VisibleSeries => Series.Take(MaxSteps).ToList();
+    private int VisibleCount => Math.Min(Labels.Count, MaxSteps);
+
+    private double ChartW => SvgTotalW - LeftPad - RightPad;
+    private double ChartH => Math.Max(1, VisibleCount * (StepH + StepGap) - StepGap);
+    private double SvgH => TopPad + ChartH + 16;
+
+    private string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private string FormatVal(double v)
+    {
+        if (v >= 1_000_000) return (v / 1_000_000.0).ToString("0.#") + "M";
+        if (v >= 1_000) return (v / 1_000.0).ToString("0.#") + "k";
+        if (v % 1 < double.Epsilon) return ((long)v).ToString();
+        return v.ToString("0.#");
+    }
+
+    private static string Truncate(string s, int max) =>
+        s.Length > max ? s[..Math.Max(1, max - 1)] + "\u2026" : s;
+
+    private MarkupString GetSvgContent()
+    {
+        var sb = new System.Text.StringBuilder();
+
+        if (VisibleCount == 0) return new MarkupString(string.Empty);
+
+        double maxVal = VisibleSeries.Count > 0 ? (VisibleSeries.Max() > 0 ? VisibleSeries.Max() : 1) : 1;
+        double topVal = VisibleSeries.Count > 0 && VisibleSeries[0] > 0 ? VisibleSeries[0] : maxVal;
+
+        for (int i = 0; i < VisibleCount; i++)
+        {
+            double y1 = TopPad + i * (StepH + StepGap);
+            double y2 = y1 + StepH;
+
+            double currVal = VisibleSeries[i];
+            double nextVal = i < VisibleCount - 1 ? VisibleSeries[i + 1] : currVal * 0.85;
+
+            double w1 = (currVal / maxVal) * ChartW;
+            double w2 = (nextVal / maxVal) * ChartW;
+
+            double x1Left = LeftPad + (ChartW - w1) / 2;
+            double x1Right = x1Left + w1;
+            double x2Left = LeftPad + (ChartW - w2) / 2;
+            double x2Right = x2Left + w2;
+
+            string color = (CustomPalette != null && CustomPalette.Length > 0)
+                ? CustomPalette[i % CustomPalette.Length]
+                : WicStockChartConfig.Palette[i % WicStockChartConfig.Palette.Length];
+
+            string labelEsc = System.Net.WebUtility.HtmlEncode(Truncate(VisibleLabels[i], 22));
+            string valEsc = System.Net.WebUtility.HtmlEncode(FormatVal(currVal));
+            double pctVal = topVal > 0 ? (currVal / topVal) * 100.0 : 0;
+            string pctEsc = System.Net.WebUtility.HtmlEncode(pctVal.ToString("0.#") + "%");
+            string titleEsc = System.Net.WebUtility.HtmlEncode($"{VisibleLabels[i]} : {FormatVal(currVal)} ({pctEsc})");
+
+            // Polygon trapèze de l'étape du Funnel
+            string trapPoints = $"{F(x1Left)},{F(y1)} {F(x1Right)},{F(y1)} {F(x2Right)},{F(y2)} {F(x2Left)},{F(y2)}";
+            sb.AppendLine($@"<polygon points=""{trapPoints}"" fill=""{color}"" opacity=""0.9""><title>{titleEsc}</title></polygon>");
+
+            // Étiquette étape à gauche
+            sb.AppendLine($@"<text x=""{F(LeftPad - 12)}"" y=""{F(y1 + StepH / 2 + 4)}"" text-anchor=""end"" font-size=""11.5"" fill=""#334155"" font-family=""Inter,sans-serif"" font-weight=""500"">{labelEsc}</text>");
+
+            // Valeur numérique et pourcentage à droite
+            sb.AppendLine($@"<text x=""{F(LeftPad + ChartW + 12)}"" y=""{F(y1 + StepH / 2 + 4)}"" text-anchor=""start"" font-size=""11.5"" fill=""{color}"" font-family=""JetBrains Mono,monospace"" font-weight=""700"">{valEsc} <tspan fill=""#94a3b8"" font-size=""10.5"">({pctEsc})</tspan></text>");
+        }
+
+        return new MarkupString(sb.ToString());
+    }
+}

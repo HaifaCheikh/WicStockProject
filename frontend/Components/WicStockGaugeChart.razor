@@ -1,0 +1,104 @@
+@using WicStock.Web.Models
+@using System.Globalization
+
+<div class="wicstock-gauge-chart" style="width:@Width; font-family:'Inter',sans-serif; text-align:center;">
+    <svg viewBox="0 0 340 210" width="100%" height="100%" style="display:block; margin:0 auto; max-width:340px;">
+        @GetSvgContent()
+    </svg>
+    <div style="margin-top:-30px;">
+        <span style="font-size:24px; font-weight:700; color:#1e293b; font-family:'Sora',sans-serif;">@FormatVal(CurrentVal)</span>
+        <span style="font-size:13px; color:#64748b; font-family:'Inter',sans-serif; margin-left:4px;">/ @FormatVal(TargetVal)</span>
+        <p style="font-size:12px; font-weight:600; color:#475569; margin:4px 0 0 0;">@DisplayTitle</p>
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<string> Labels { get; set; } = new();
+    [Parameter] public List<double> Series { get; set; } = new();
+    [Parameter] public string Width { get; set; } = "100%";
+    [Parameter] public string[]? CustomPalette { get; set; }
+
+    private const double CenterX = 170;
+    private const double CenterY = 160;
+    private const double OuterR = 120;
+    private const double InnerR = 92;
+
+    private double CurrentVal => Series.Count > 0 ? Series[0] : 0;
+    private double TargetVal => Series.Count > 1 ? Series[1] : (Series.Count > 0 ? (Series[0] > 0 ? Series[0] * 1.25 : 100) : 100);
+    private string DisplayTitle => Labels.Count > 0 ? Labels[0] : "Progression / KPI";
+
+    private string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private string FormatVal(double v)
+    {
+        if (v >= 1_000_000) return (v / 1_000_000.0).ToString("0.#") + "M";
+        if (v >= 1_000) return (v / 1_000.0).ToString("0.#") + "k";
+        if (v % 1 < double.Epsilon) return ((long)v).ToString();
+        return v.ToString("0.#");
+    }
+
+    private MarkupString GetSvgContent()
+    {
+        var sb = new System.Text.StringBuilder();
+
+        double pct = TargetVal > 0 ? Math.Min(Math.Max(CurrentVal / TargetVal, 0), 1) : 0;
+        double startAngle = -Math.PI; // 180 deg (gauche)
+        double totalAngle = Math.PI;   // 180 deg demi-cercle
+        double activeAngle = startAngle + pct * totalAngle;
+
+        string color = (CustomPalette != null && CustomPalette.Length > 0)
+            ? CustomPalette[0]
+            : WicStockChartConfig.Palette[0];
+
+        // Arc de fond gris (180 deg)
+        string bgPath = DescribeArc(CenterX, CenterY, OuterR, InnerR, -Math.PI, 0);
+        sb.AppendLine($@"<path d=""{bgPath}"" fill=""#f1f5f9"" />");
+
+        // Arc actif coloré
+        if (pct > 0.01)
+        {
+            string activePath = DescribeArc(CenterX, CenterY, OuterR, InnerR, startAngle, activeAngle);
+            sb.AppendLine($@"<path d=""{activePath}"" fill=""{color}"" opacity=""0.9"" />");
+        }
+
+        // Marqueur Aiguille (Needle)
+        double needleLen = InnerR - 10;
+        double needleX = CenterX + needleLen * Math.Cos(activeAngle);
+        double needleY = CenterY + needleLen * Math.Sin(activeAngle);
+
+        sb.AppendLine($@"<line x1=""{F(CenterX)}"" y1=""{F(CenterY)}"" x2=""{F(needleX)}"" y2=""{F(needleY)}"" stroke=""#1e293b"" stroke-width=""3.5"" stroke-linecap=""round"" />");
+        sb.AppendLine($@"<circle cx=""{F(CenterX)}"" cy=""{F(CenterY)}"" r=""7"" fill=""#1e293b"" />");
+        sb.AppendLine($@"<circle cx=""{F(CenterX)}"" cy=""{F(CenterY)}"" r=""3"" fill=""#ffffff"" />");
+
+        // Pourcentage central
+        string pctText = (pct * 100.0).ToString("0.#") + "%";
+        sb.AppendLine($@"<text x=""{F(CenterX)}"" y=""{F(CenterY - 35)}"" text-anchor=""middle"" font-size=""22"" fill=""{color}"" font-family=""JetBrains Mono,monospace"" font-weight=""800"">{System.Net.WebUtility.HtmlEncode(pctText)}</text>");
+
+        // Min & Max labels
+        sb.AppendLine($@"<text x=""{F(CenterX - OuterR + 10)}"" y=""{F(CenterY + 22)}"" text-anchor=""middle"" font-size=""11"" fill=""#94a3b8"" font-family=""Inter,sans-serif"">0</text>");
+        sb.AppendLine($@"<text x=""{F(CenterX + OuterR - 10)}"" y=""{F(CenterY + 22)}"" text-anchor=""middle"" font-size=""11"" fill=""#94a3b8"" font-family=""Inter,sans-serif"">{System.Net.WebUtility.HtmlEncode(FormatVal(TargetVal))}</text>");
+
+        return new MarkupString(sb.ToString());
+    }
+
+    private string DescribeArc(double cx, double cy, double outerR, double innerR, double startA, double endA)
+    {
+        var ci = CultureInfo.InvariantCulture;
+        double x1Outer = cx + outerR * Math.Cos(startA);
+        double y1Outer = cy + outerR * Math.Sin(startA);
+        double x2Outer = cx + outerR * Math.Cos(endA);
+        double y2Outer = cy + outerR * Math.Sin(endA);
+
+        double x1Inner = cx + innerR * Math.Cos(startA);
+        double y1Inner = cy + innerR * Math.Sin(startA);
+        double x2Inner = cx + innerR * Math.Cos(endA);
+        double y2Inner = cy + innerR * Math.Sin(endA);
+
+        int largeArc = (endA - startA) > Math.PI ? 1 : 0;
+
+        return $"M {x1Outer.ToString("0.00", ci)} {y1Outer.ToString("0.00", ci)} " +
+               $"A {outerR.ToString("0.00", ci)} {outerR.ToString("0.00", ci)} 0 {largeArc} 1 {x2Outer.ToString("0.00", ci)} {y2Outer.ToString("0.00", ci)} " +
+               $"L {x2Inner.ToString("0.00", ci)} {y2Inner.ToString("0.00", ci)} " +
+               $"A {innerR.ToString("0.00", ci)} {innerR.ToString("0.00", ci)} 0 {largeArc} 0 {x1Inner.ToString("0.00", ci)} {y1Inner.ToString("0.00", ci)} Z";
+    }
+}

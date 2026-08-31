@@ -1,4 +1,4 @@
-﻿@page "/payment/checkout/{CommandeId:int}"
+@page "/payment/checkout/{CommandeId:int}"
 @using WicStock.Web.Models.Dtos
 @using WicStock.Web.Services
 @attribute [Authorize(Roles = "CLIENT")]
@@ -566,7 +566,7 @@
     private string adresseLivraison = "";
     private string codePostal = "7015";
     private string ville = "";
-    private string pays = "Tunisia";
+    private string pays = "TN";
 
     protected override async Task OnInitializedAsync()
     {
@@ -587,7 +587,7 @@
                 AdresseLivraison = adresseLivraison,
                 CodePostal = codePostal,
                 Ville = ville,
-                Pays = pays
+                Pays = FormatCountryCode(pays)
             };
 
             paymentResponse = await PaymentService.CreateCheckout(request);
@@ -626,7 +626,7 @@
                 AdresseLivraison = adresseLivraison,
                 CodePostal = codePostal,
                 Ville = ville,
-                Pays = pays
+                Pays = FormatCountryCode(pays)
             };
 
             var freshResponse = await PaymentService.CreateCheckout(request);
@@ -652,5 +652,16 @@
     private void RetourCommande()
     {
         Navigation.NavigateTo($"/mes-commandes/suivi/{CommandeId}");
+    }
+
+    private string FormatCountryCode(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return "TN";
+        var clean = input.Trim();
+        if (clean.Equals("Tunisia", StringComparison.OrdinalIgnoreCase) || clean.Equals("Tunisie", StringComparison.OrdinalIgnoreCase))
+            return "TN";
+        if (clean.Equals("France", StringComparison.OrdinalIgnoreCase))
+            return "FR";
+        return clean.Length == 2 ? clean.ToUpper() : clean;
     }
 }

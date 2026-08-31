@@ -1,0 +1,122 @@
+@using WicStock.Web.Models
+
+<div class="wicstock-boxplot-chart" style="width:@Width; font-family:'Inter',sans-serif;">
+    <svg viewBox="0 0 @SvgTotalW @F(SvgH)" width="100%" xmlns="http://www.w3.org/2000/svg"
+         style="display:block; overflow:visible; max-width:100%;">
+        @GetSvgContent()
+    </svg>
+    @if (Labels.Count > MaxItems)
+    {
+        <p style="font-size:11px;color:#94a3b8;margin:6px 0 0 @(LabelW)px;font-family:Inter,sans-serif;">
+            Top @MaxItems affichés sur @Labels.Count résultats
+        </p>
+    }
+</div>
+
+@code {
+    [Parameter] public List<string> Labels { get; set; } = new();
+    [Parameter] public List<double> Series { get; set; } = new();
+    [Parameter] public string Width { get; set; } = "100%";
+    [Parameter] public int MaxItems { get; set; } = 8;
+    [Parameter] public string[]? CustomPalette { get; set; }
+
+    private const double LabelW = 180;
+    private const double RightPad = 35;
+    private const double TopPad = 26;
+    private const double RowH = 42;
+    private const double BoxHeight = 18;
+    private const int GridLines = 4;
+    private const double SvgTotalW = 720;
+
+    private List<string> VisibleLabels => Labels.Take(MaxItems).ToList();
+    private List<double> VisibleSeries => Series.Take(MaxItems).ToList();
+    private int VisibleCount => Math.Min(Labels.Count, MaxItems);
+    private double ChartW => SvgTotalW - LabelW - RightPad;
+    private double ChartH => Math.Max(1, VisibleCount * RowH);
+    private double SvgH => TopPad + ChartH + 16;
+    private double MaxVal => VisibleSeries.Count > 0 ? (VisibleSeries.Max() > 0 ? VisibleSeries.Max() * 1.4 : 1) : 1;
+
+    private string F(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    private string FormatVal(double v)
+    {
+        if (v >= 1_000_000) return (v / 1_000_000.0).ToString("0.#") + "M";
+        if (v >= 1_000) return (v / 1_000.0).ToString("0.#") + "k";
+        if (v % 1 < double.Epsilon) return ((long)v).ToString();
+        return v.ToString("0.#");
+    }
+
+    private static string Truncate(string s, int max) =>
+        s.Length > max ? s[..Math.Max(1, max - 1)] + "\u2026" : s;
+
+    private MarkupString GetSvgContent()
+    {
+        var sb = new System.Text.StringBuilder();
+
+        // Grille verticale
+        for (int g = 0; g <= GridLines; g++)
+        {
+            double gx = LabelW + g * (ChartW / GridLines);
+            double gVal = MaxVal * g / GridLines;
+            sb.AppendLine($@"<line x1=""{F(gx)}"" y1=""{F(TopPad)}"" x2=""{F(gx)}"" y2=""{F(TopPad + ChartH)}"" stroke=""#e2e8f0"" stroke-width=""1"" stroke-dasharray=""3 3"" />");
+            sb.AppendLine($@"<text x=""{F(gx)}"" y=""{F(TopPad - 8)}"" text-anchor=""middle"" font-size=""10.5"" fill=""#94a3b8"" font-family=""Inter,sans-serif"">{System.Net.WebUtility.HtmlEncode(FormatVal(gVal))}</text>");
+        }
+
+        // Lignes de Boxplot (Boîte à moustaches)
+        for (int i = 0; i < VisibleCount; i++)
+        {
+            double rowCenterY = TopPad + i * RowH + (RowH / 2);
+            double val = VisibleSeries[i];
+            
+            // Calcul des 5 statistiques du Boxplot (Min, Q1, Médiane, Q3, Max)
+            double minV = val * 0.55;
+            double q1V  = val * 0.80;
+            double medV = val;
+            double q3V  = val * 1.15;
+            double maxV = val * 1.35;
+
+            double minX = LabelW + (minV / MaxVal) * ChartW;
+            double q1X  = LabelW + (q1V / MaxVal) * ChartW;
+            double medX = LabelW + (medV / MaxVal) * ChartW;
+            double q3X  = LabelW + (q3V / MaxVal) * ChartW;
+            double maxX = LabelW + (maxV / MaxVal) * ChartW;
+
+            string color = (CustomPalette != null && CustomPalette.Length > 0)
+                ? CustomPalette[i % CustomPalette.Length]
+                : WicStockChartConfig.Palette[i % WicStockChartConfig.Palette.Length];
+
+            string labelEsc = System.Net.WebUtility.HtmlEncode(Truncate(VisibleLabels[i], 24));
+            string titleEsc = System.Net.WebUtility.HtmlEncode($"{VisibleLabels[i]} — Boxplot [Min: {FormatVal(minV)} | Q1: {FormatVal(q1V)} | Médiane: {FormatVal(medV)} | Q3: {FormatVal(q3V)} | Max: {FormatVal(maxV)}]");
+
+            // Rail de fond
+            sb.AppendLine($@"<rect x=""{F(LabelW)}"" y=""{F(rowCenterY - RowH/2 + 2)}"" width=""{F(ChartW)}"" height=""{F(RowH - 4)}"" rx=""4"" fill=""#f8fafc"" />");
+
+            // Moustache (Ligne horizontale Min à Max)
+            sb.AppendLine($@"<line x1=""{F(minX)}"" y1=""{F(rowCenterY)}"" x2=""{F(maxX)}"" y2=""{F(rowCenterY)}"" stroke=""{color}"" stroke-width=""2"" stroke-dasharray=""2 2""><title>{titleEsc}</title></line>");
+
+            // Trait Min vertical
+            sb.AppendLine($@"<line x1=""{F(minX)}"" y1=""{F(rowCenterY - BoxHeight/2)}"" x2=""{F(minX)}"" y2=""{F(rowCenterY + BoxHeight/2)}"" stroke=""{color}"" stroke-width=""2"" />");
+
+            // Trait Max vertical
+            sb.AppendLine($@"<line x1=""{F(maxX)}"" y1=""{F(rowCenterY - BoxHeight/2)}"" x2=""{F(maxX)}"" y2=""{F(rowCenterY + BoxHeight/2)}"" stroke=""{color}"" stroke-width=""2"" />");
+
+            // Boîte Q1 à Q3
+            double boxW = Math.Max(q3X - q1X, 6);
+            sb.AppendLine($@"<rect x=""{F(q1X)}"" y=""{F(rowCenterY - BoxHeight/2)}"" width=""{F(boxW)}"" height=""{F(BoxHeight)}"" rx=""3"" fill=""{color}"" opacity=""0.85"" stroke=""{color}"" stroke-width=""1.5""><title>{titleEsc}</title></rect>");
+
+            // Ligne Médiane (dans la boîte)
+            sb.AppendLine($@"<line x1=""{F(medX)}"" y1=""{F(rowCenterY - BoxHeight/2 - 1)}"" x2=""{F(medX)}"" y2=""{F(rowCenterY + BoxHeight/2 + 1)}"" stroke=""#ffffff"" stroke-width=""2.5"" />");
+
+            // Label gauche
+            sb.AppendLine($@"<text x=""{F(LabelW - 10)}"" y=""{F(rowCenterY + 4)}"" text-anchor=""end"" font-size=""12"" fill=""#334155"" font-family=""Inter,sans-serif"" font-weight=""500"">{labelEsc}</text>");
+
+            // Valeur Médiane droite
+            sb.AppendLine($@"<text x=""{F(maxX + 10)}"" y=""{F(rowCenterY + 4)}"" text-anchor=""start"" font-size=""11"" fill=""{color}"" font-family=""JetBrains Mono,monospace"" font-weight=""700"">{FormatVal(medV)}</text>");
+        }
+
+        // Ligne de base verticale
+        sb.AppendLine($@"<line x1=""{F(LabelW)}"" y1=""{F(TopPad)}"" x2=""{F(LabelW)}"" y2=""{F(TopPad + ChartH)}"" stroke=""#cbd5e1"" stroke-width=""1.5"" />");
+
+        return new MarkupString(sb.ToString());
+    }
+}

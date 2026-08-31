@@ -33,3 +33,5 @@ __pycache__/
 
 ## Fichiers uploadés
 **/wwwroot/uploads/
+.pytest_cache/
+chroma_db/
