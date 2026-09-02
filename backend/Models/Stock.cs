@@ -1,4 +1,4 @@
-﻿namespace WicStock_.Models
+namespace WicStock_.Models
 {
     public class Stock
     {
@@ -6,6 +6,7 @@
 
         public int QuantiteActuelle { get; set; }
         public int SeuilAlerte { get; set; }
+        public int? SeuilSurstock { get; set; } = 50;
         public string Emplacement { get; set; } = string.Empty;
         public DateTime DateMiseAJour { get; set; } = DateTime.Now;
 

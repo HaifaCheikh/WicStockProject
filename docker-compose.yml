@@ -1,0 +1,100 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "VotreMotDePasseFort123!"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P $$SA_PASSWORD -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=WicStockDb;User Id=sa;Password=VotreMotDePasseFort123!;TrustServerCertificate=True;"
+      AppSettings__BaseUrl: "http://localhost:8080"
+      AppSettings__FrontendUrl: "http://localhost:8081"
+    ports:
+      - "8080:8080"
+    volumes:
+      - api_uploads:/app/wwwroot/uploads
+
+  web:
+    build:
+      context: ./frontend
+    depends_on:
+      - api
+    ports:
+      - "8081:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+  # --- Services optionnels, à activer avec le profil extended ---
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    profiles: ["extended"]
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/11434' 2>/dev/null || exit 1"]
+      interval: 10s
+      retries: 20
+      start_period: 30s
+
+  ollama-setup:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    entrypoint: ["sh", "-c", "OLLAMA_HOST=http://ollama:11434 ollama pull nomic-embed-text && OLLAMA_HOST=http://ollama:11434 ollama pull qwen3:1.7b"]
+    profiles: ["extended"]
+    restart: "no"
+
+  ai:
+    build:
+      context: ./ai-service
+    depends_on:
+      ollama:
+        condition: service_healthy
+      ollama-setup:
+        condition: service_completed_successfully
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - SQLSERVER_CONNECTION_STRING=Driver={ODBC Driver 18 for SQL Server};Server=sqlserver;Database=WicStockDb;UID=sa;PWD=VotreMotDePasseFort123!;TrustServerCertificate=yes;
+    ports:
+      - "8000:8000"
+    profiles: ["extended"]
+    restart: on-failure
+
+  whatsapp:
+    build:
+      context: ./whatsapp-service
+    volumes:
+      - whatsapp_auth:/app/auth_info
+    profiles: ["extended"]
+
+volumes:
+  sqlserver_data:
+  whatsapp_auth:
+  ollama_data:
+  api_uploads:
