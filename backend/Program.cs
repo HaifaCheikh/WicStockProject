@@ -150,6 +150,11 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
+// CORS MUST be before Authentication/Authorization
+app.UseCors("PermettreBlazor");
+
+app.UseStaticFiles();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
