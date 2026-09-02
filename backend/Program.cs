@@ -130,6 +130,24 @@ builder.Services.AddHttpClient<WhatsAppService>();
 
 var app = builder.Build();
 
+// 1. CORS MUST be the very first middleware so ALL responses (including 500 errors) carry CORS headers
+app.UseCors("PermettreBlazor");
+
+// 2. Exception Handler ensures 500 errors return clear JSON instead of unhandled crashes
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        context.Response.StatusCode = 500;
+        context.Response.ContentType = "application/json";
+        var exceptionHandlerFeature = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>();
+        var ex = exceptionHandlerFeature?.Error;
+        var errorMessage = ex?.Message ?? "Une erreur serveur interne s'est produite.";
+        Console.WriteLine($"[API ERROR 500] {ex}");
+        await context.Response.WriteAsJsonAsync(new { message = errorMessage, detail = ex?.InnerException?.Message });
+    });
+});
+
 try
 {
     using (var scope = app.Services.CreateScope())
@@ -149,9 +167,6 @@ app.UseSwaggerUI(c =>
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "WicStock API v1");
     c.RoutePrefix = "swagger";
 });
-
-// CORS MUST be before Authentication/Authorization
-app.UseCors("PermettreBlazor");
 
 app.UseStaticFiles();
 
