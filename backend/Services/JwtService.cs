@@ -17,8 +17,8 @@ namespace WicStock_.Services
 
         public string GenererToken(Utilisateur utilisateur)
         {
-            var key = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
+            var jwtKey = _config["Jwt:Key"] ?? "WicStockDefaultFallbackSecretKey2026Min32Chars!";
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
 
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -41,8 +41,8 @@ namespace WicStock_.Services
             }
 
             var token = new JwtSecurityToken(
-                issuer: _config["Jwt:Issuer"],
-                audience: _config["Jwt:Audience"],
+                issuer: _config["Jwt:Issuer"] ?? "WicStock",
+                audience: _config["Jwt:Audience"] ?? "WicStockUsers",
                 claims: claims,
                 expires: DateTime.UtcNow.AddMinutes(expireMinutes),
                 signingCredentials: credentials

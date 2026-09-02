@@ -41,7 +41,10 @@ builder.Services.AddHttpClient("WicStockIA", client =>
     client.BaseAddress = new Uri("http://localhost:8001/"));
 
 // Authentification JWT
-var jwtKey = builder.Configuration["Jwt:Key"]!;
+var jwtKey = builder.Configuration["Jwt:Key"] ?? "WicStockDefaultFallbackSecretKey2026Min32Chars!";
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "WicStock";
+var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "WicStockUsers";
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -55,8 +58,8 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
     };
 
