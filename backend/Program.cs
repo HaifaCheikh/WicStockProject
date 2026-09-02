@@ -12,9 +12,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Log effective connection string at startup to help debugging
 Console.WriteLine($"[CONFIG] DefaultConnection = {builder.Configuration.GetConnectionString("DefaultConnection")}");
 
-// Base de données
+// Base de données PostgreSQL (Aiven/Supabase - gratuit)
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Services métier
 builder.Services.AddScoped<JwtService>();
