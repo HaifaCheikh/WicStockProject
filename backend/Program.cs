@@ -9,6 +9,12 @@ using WicStock_.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Disable reloadOnChange for file configuration sources to prevent Linux inotify limit crashes on Render/Docker
+foreach (var source in builder.Configuration.Sources.OfType<Microsoft.Extensions.Configuration.FileConfigurationSource>())
+{
+    source.ReloadOnChange = false;
+}
+
 // Log effective connection string at startup to help debugging
 Console.WriteLine($"[CONFIG] DefaultConnection = {builder.Configuration.GetConnectionString("DefaultConnection")}");
 
