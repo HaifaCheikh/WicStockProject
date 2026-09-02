@@ -1,0 +1,37 @@
+name: CD - Deploy to Production
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  deploy-github-pages:
+    name: Deploy Frontend to GitHub Pages
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish Blazor WebAssembly
+        run: dotnet publish frontend/WicStock.Web.csproj -c Release -o output/wwwroot
+
+      - name: Add .nojekyll file
+        run: touch output/wwwroot/wwwroot/.nojekyll
+
+      - name: Deploy to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: output/wwwroot/wwwroot
+          branch: gh-pages

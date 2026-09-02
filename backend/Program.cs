@@ -118,7 +118,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("PermettreBlazor", policy =>
     {
-        policy.WithOrigins("https://localhost:7121", "http://localhost:5121", "https://localhost:7179")
+        policy.SetIsOriginAllowed(_ => true)
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();
@@ -130,41 +130,30 @@ builder.Services.AddHttpClient<WhatsAppService>();
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
+try
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await DatabaseSchemaBootstrap.ApplyAsync(db, scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseSchemaBootstrap"));
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await DatabaseSchemaBootstrap.ApplyAsync(db, scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseSchemaBootstrap"));
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"[DB BOOTSTRAP WARNING] {ex.Message}");
 }
 
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
-app.UseHttpsRedirection();
-
-var contentTypeProvider = new FileExtensionContentTypeProvider();
-if (!contentTypeProvider.Mappings.ContainsKey(".avif"))
-{
-    contentTypeProvider.Mappings[".avif"] = "image/avif";
-}
-if (!contentTypeProvider.Mappings.ContainsKey(".webp"))
-{
-    contentTypeProvider.Mappings[".webp"] = "image/webp";
-}
-
-app.UseStaticFiles(new StaticFileOptions
-{
-    ContentTypeProvider = contentTypeProvider
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "WicStock API v1");
+    c.RoutePrefix = "swagger";
 });
 
-app.UseCors("PermettreBlazor");
-
-// L'ORDRE est important : Authentication AVANT Authorization
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapGet("/", () => Results.Ok(new { status = "WicStock API Online", timestamp = DateTime.UtcNow }));
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
 

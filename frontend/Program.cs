@@ -13,7 +13,8 @@ builder.Services.AddMudServices(config =>
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-var apiBaseUrl = "https://localhost:7179/";
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "https://wicstock-api.onrender.com/";
+if (!apiBaseUrl.EndsWith("/")) apiBaseUrl += "/";
 
 builder.Services.AddScoped<LocalStorageService>();
 builder.Services.AddScoped<AuthorizationMessageHandler>();
