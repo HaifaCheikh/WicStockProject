@@ -1,4 +1,4 @@
-﻿@page "/mes-avis-reclamations"
+@page "/mes-avis-reclamations"
 @using WicStock.Web.Models.Dtos
 @using WicStock.Web.Services
 @using WicStock.Web.Pages.Feedback
@@ -1014,8 +1014,17 @@
         return (DateTime.Now - dateVente).TotalDays > 14;
     }
 
-    private string GetFullImageUrl(string? url) =>
-        string.IsNullOrEmpty(url) ? "" : $"{Http.BaseAddress}{url.TrimStart('/')}";
+    private string GetFullImageUrl(string? url)
+    {
+        if (string.IsNullOrEmpty(url)) return "";
+        if (url.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
+            url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return url;
+        }
+        return $"{Http.BaseAddress}{url.TrimStart('/')}";
+    }
 
     private string GetAvisStatutClass(string statut) => statut?.ToUpperInvariant() switch
     {

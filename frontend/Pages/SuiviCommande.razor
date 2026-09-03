@@ -1,4 +1,4 @@
-﻿@page "/mes-commandes/suivi/{Id:int}"
+@page "/mes-commandes/suivi/{Id:int}"
 @using WicStock.Web.Models.Dtos
 @using WicStock.Web.Services
 @using WicStock.Web.Pages.Feedback
@@ -1085,8 +1085,17 @@
 
     private void Retour() => Navigation.NavigateTo("/mes-commandes");
 
-    private string GetFullImageUrl(string? url) =>
-        string.IsNullOrEmpty(url) ? "" : $"{Http.BaseAddress}{url.TrimStart('/')}";
+    private string GetFullImageUrl(string? url)
+    {
+        if (string.IsNullOrEmpty(url)) return "";
+        if (url.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
+            url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return url;
+        }
+        return $"{Http.BaseAddress}{url.TrimStart('/')}";
+    }
 
     private int GetCurrentStepIndex()
     {

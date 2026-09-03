@@ -1,4 +1,4 @@
-﻿@page "/admin/reclamations"
+@page "/admin/reclamations"
 @using WicStock.Web.Models.Dtos
 @using WicStock.Web.Services
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "ADMIN")]
@@ -1366,8 +1366,17 @@
         }
     }
 
-    private string GetFullImageUrl(string? url) =>
-        string.IsNullOrEmpty(url) ? "" : $"{Http.BaseAddress}{url.TrimStart('/')}";
+    private string GetFullImageUrl(string? url)
+    {
+        if (string.IsNullOrEmpty(url)) return "";
+        if (url.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
+            url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return url;
+        }
+        return $"{Http.BaseAddress}{url.TrimStart('/')}";
+    }
 
     private string GetInitiales(string? nom)
     {
