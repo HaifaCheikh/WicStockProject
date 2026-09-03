@@ -15,12 +15,15 @@ namespace WicStock_.Services
 
         public async Task EnvoyerCodeReinitialisationAsync(string destinataire, string prenom, string code)
         {
-            var host = _config["Email:Host"] ?? "smtp.gmail.com";
-            var portStr = _config["Email:Port"];
+            var host = _config["Email:Host"] ?? _config["Email__Host"] ?? _config["EMAIL_HOST"] ?? "smtp.gmail.com";
+            var portStr = _config["Email:Port"] ?? _config["Email__Port"] ?? _config["EMAIL_PORT"];
             var port = int.TryParse(portStr, out var p) ? p : 587;
-            var expediteur = _config["Email:Expediteur"];
-            var motDePasse = _config["Email:MotDePasse"];
-            var nomAffiche = _config["Email:NomAffiché"] ?? "WicStock";
+            var expediteur = _config["Email:Expediteur"] ?? _config["Email__Expediteur"] ?? _config["EMAIL_EXPEDITEUR"];
+            var rawPassword = _config["Email:MotDePasse"] ?? _config["Email__MotDePasse"] ?? _config["EMAIL_MOTDEPASSE"];
+            var motDePasse = rawPassword?.Replace(" ", "").Trim();
+            var nomAffiche = _config["Email:NomAffiché"] ?? _config["Email__NomAffiché"] ?? "WicStock";
+
+            Console.WriteLine($"[EMAIL SERVICE] Configuration - Host: '{host}', Port: '{port}', Expediteur: '{expediteur}', Password length: '{motDePasse?.Length ?? 0}'");
 
             if (string.IsNullOrWhiteSpace(expediteur) || string.IsNullOrWhiteSpace(motDePasse))
             {
