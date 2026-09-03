@@ -15,11 +15,17 @@ namespace WicStock_.Services
 
         public async Task EnvoyerCodeReinitialisationAsync(string destinataire, string prenom, string code)
         {
-            var host = _config["Email:Host"]!;
-            var port = int.Parse(_config["Email:Port"]!);
-            var expediteur = _config["Email:Expediteur"]!;
-            var motDePasse = _config["Email:MotDePasse"]!;
+            var host = _config["Email:Host"] ?? "smtp.gmail.com";
+            var portStr = _config["Email:Port"];
+            var port = int.TryParse(portStr, out var p) ? p : 587;
+            var expediteur = _config["Email:Expediteur"];
+            var motDePasse = _config["Email:MotDePasse"];
             var nomAffiche = _config["Email:NomAffiché"] ?? "WicStock";
+
+            if (string.IsNullOrWhiteSpace(expediteur) || string.IsNullOrWhiteSpace(motDePasse))
+            {
+                throw new InvalidOperationException("Configuration SMTP incomplète (Email:Expediteur / Email:MotDePasse non définis).");
+            }
 
             var message = new MimeMessage();
             message.From.Add(new MailboxAddress(nomAffiche, expediteur));

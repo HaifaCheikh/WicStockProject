@@ -178,57 +178,53 @@ namespace WicStock_.Controllers
             if (utilisateur == null)
                 return NotFound("Utilisateur introuvable avec ces informations.");
 
-            // Génère le code OTP (indexé par Identifiant et par Email/Telephone pour une vérification flexible)
+            // Génère le code OTP (indexé de façon sécurisée en mémoire backend uniquement)
             var code = _resetService.GenerateCode(dto.Identifiant);
             if (!string.IsNullOrEmpty(utilisateur.Email) && !utilisateur.Email.Equals(dto.Identifiant, StringComparison.OrdinalIgnoreCase))
                 _resetService.GenerateCode(utilisateur.Email);
             if (!string.IsNullOrEmpty(utilisateur.Telephone) && !utilisateur.Telephone.Equals(dto.Identifiant, StringComparison.OrdinalIgnoreCase))
                 _resetService.GenerateCode(utilisateur.Telephone);
 
-            bool sendSuccess = false;
-
             if (dto.Methode.Equals("WhatsApp", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
-                    if (!string.IsNullOrWhiteSpace(utilisateur.Telephone))
+                    if (string.IsNullOrWhiteSpace(utilisateur.Telephone))
                     {
-                        var originalNumero = utilisateur.Telephone;
-                        var numeroNormalized = new string(originalNumero.Where(char.IsDigit).ToArray());
-                        await _whatsAppService.EnvoyerCodeReinitialisationAsync(numeroNormalized, utilisateur.Prenom, code);
-                        sendSuccess = true;
+                        return BadRequest("Aucun numéro de téléphone enregistré pour cet utilisateur.");
                     }
+
+                    var originalNumero = utilisateur.Telephone;
+                    var numeroNormalized = new string(originalNumero.Where(char.IsDigit).ToArray());
+                    await _whatsAppService.EnvoyerCodeReinitialisationAsync(numeroNormalized, utilisateur.Prenom, code);
+
+                    return Ok(new
+                    {
+                        Message = $"Un code de réinitialisation sécurisé a été envoyé par WhatsApp au {dto.Identifiant}."
+                    });
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[WHATSAPP ERROR] {ex.Message}");
+                    return StatusCode(500, "Impossible d'envoyer le message WhatsApp. Vérifiez que le service WhatsApp est connecté.");
                 }
-
-                return Ok(new
-                {
-                    Message = sendSuccess 
-                        ? $"Un code de réinitialisation a été envoyé par WhatsApp au {dto.Identifiant}. (Code : {code})"
-                        : $"Un code a été généré pour {dto.Identifiant}. Votre code de réinitialisation est : {code}"
-                });
             }
             else
             {
                 try
                 {
                     await _emailService.EnvoyerCodeReinitialisationAsync(utilisateur.Email, utilisateur.Prenom, code);
-                    sendSuccess = true;
+
+                    return Ok(new
+                    {
+                        Message = $"Un code de réinitialisation sécurisé a été envoyé à l'adresse {utilisateur.Email}. Vérifiez votre boîte mail (et les spams)."
+                    });
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[EMAIL ERROR] {ex.Message}");
+                    return StatusCode(500, "Impossible d'envoyer l'e-mail. Vérifiez la configuration du serveur SMTP (Email:Expediteur / Email:MotDePasse).");
                 }
-
-                return Ok(new
-                {
-                    Message = sendSuccess 
-                        ? $"Un code de réinitialisation a été envoyé à {utilisateur.Email}. (Code : {code})"
-                        : $"Un code a été généré pour {utilisateur.Email}. Votre code de réinitialisation est : {code}"
-                });
             }
         }
 
