@@ -181,24 +181,38 @@ namespace WicStock_.Controllers
                 });
                 await _context.SaveChangesAsync();
 
-                if (produit.Stock.EstSousLeSeuil() && !produit.DisponibleSurCommande)
+                try
                 {
-                    await _notificationService.NotifierNouvelEvenementAsync(
-                        Enums.TypeNotification.RUPTURE_STOCK,
-                        $"Alerte stock bas : Le produit '{produit.Nom}' est sous le seuil d'alerte ({produit.Stock.QuantiteActuelle} / {produit.Stock.SeuilAlerte} unitÃƒÂ©(s)).",
-                        $"/produits/modifier/{produit.Id}",
-                        Enums.RoleUtilisateur.RESPONSABLE_STOCK_PRODUCTION
-                    );
+                    if (produit.Stock.EstSousLeSeuil() && !produit.DisponibleSurCommande)
+                    {
+                        await _notificationService.NotifierNouvelEvenementAsync(
+                            Enums.TypeNotification.RUPTURE_STOCK,
+                            $"Alerte stock bas : Le produit '{produit.Nom}' est sous le seuil d'alerte ({produit.Stock.QuantiteActuelle} / {produit.Stock.SeuilAlerte} unité(s)).",
+                            $"/produits/modifier/{produit.Id}",
+                            Enums.RoleUtilisateur.RESPONSABLE_STOCK_PRODUCTION
+                        );
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[NOTIFICATION ERROR] {ex.Message}");
                 }
             }
 
-            // Notifier les CLIENTS qu'un nouveau produit est disponible
-            await _notificationService.NotifierNouvelEvenementAsync(
-                Enums.TypeNotification.NOUVEAU_PRODUIT,
-                $"Nouveau produit disponible ! DÃƒÂ©couvrez notre nouvel article '{produit.Nom}' dans le catalogue.",
-                $"/catalogue?produit={produit.Id}",
-                Enums.RoleUtilisateur.CLIENT
-            );
+            try
+            {
+                // Notifier les CLIENTS qu'un nouveau produit est disponible
+                await _notificationService.NotifierNouvelEvenementAsync(
+                    Enums.TypeNotification.NOUVEAU_PRODUIT,
+                    $"Nouveau produit disponible ! Découvrez notre nouvel article '{produit.Nom}' dans le catalogue.",
+                    $"/catalogue?produit={produit.Id}",
+                    Enums.RoleUtilisateur.CLIENT
+                );
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[NOTIFICATION ERROR] {ex.Message}");
+            }
 
             return CreatedAtAction(nameof(GetProduit), new { id = produit.Id }, produit);
         }

@@ -7,6 +7,9 @@ using System.Text.Json.Serialization;
 using WicStock_.Hubs;
 using WicStock_.Services;
 
+// Allow legacy DateTime behavior (DateTime.Now) with Npgsql PostgreSQL
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Disable reloadOnChange for file configuration sources to prevent Linux inotify limit crashes on Render/Docker
