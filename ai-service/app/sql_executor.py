@@ -7,7 +7,11 @@ Supporte PostgreSQL (psycopg2) et SQL Server (pyodbc).
 import os
 import re
 
-DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("ConnectionStrings__DefaultConnection") or os.getenv("SQLSERVER_CONNECTION_STRING")
+DATABASE_URL = (
+    os.getenv("DATABASE_URL")
+    or os.getenv("ConnectionStrings__DefaultConnection")
+    or os.getenv("SQLSERVER_CONNECTION_STRING")
+)
 
 MAX_LIGNES = 200
 
@@ -16,8 +20,6 @@ def _ajouter_limite(sql: str) -> str:
     upper = sql.upper()
     if "LIMIT" in upper or "TOP" in upper:
         return sql
-    if upper.lstrip().startswith("SELECT DISTINCT"):
-        return sql + f" LIMIT {MAX_LIGNES}"
     return sql + f" LIMIT {MAX_LIGNES}"
 
 
@@ -31,7 +33,7 @@ def _nettoyer_utf8(val):
     return val
 
 
-def executer_requete(sql: str) -> list[dict]:
+def executer_requete(sql: str) -> list:
     """Exécute la requête SQL et retourne les résultats sous forme de liste de dicts."""
     db_url = DATABASE_URL or ""
 
@@ -39,8 +41,7 @@ def executer_requete(sql: str) -> list[dict]:
         try:
             import psycopg2
             import psycopg2.extras
-            url = db_url.replace("postgres://", "postgresql://", 1)
-            conn = psycopg2.connect(url)
+            conn = psycopg2.connect(db_url)
             try:
                 with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                     cur.execute(_ajouter_limite(sql))
@@ -66,11 +67,11 @@ def executer_requete(sql: str) -> list[dict]:
                     row_dict = {_nettoyer_utf8(col): _nettoyer_utf8(val) for col, val in zip(colonnes, ligne)}
                     resultats.append(row_dict)
                 return resultats
-            finally:
-                conn.close()
             except Exception as ex:
                 print(f"[SQL EXECUTOR ODBC WARNING] {ex}")
                 return []
+            finally:
+                conn.close()
         except Exception as ex:
             print(f"[SQL EXECUTOR WARNING] {ex}")
             return []

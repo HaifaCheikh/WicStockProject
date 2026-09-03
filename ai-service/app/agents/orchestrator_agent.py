@@ -387,7 +387,8 @@ class OrchestratorAgent:
             if "n'est pas accessible" in (error_msg or ""):
                 user_msg = "Cette information n'est pas accessible avec votre rôle actuel."
             else:
-                user_msg = f"🚫 {error_msg or 'Cette requête n\'est pas autorisée.'}"
+                _fallback_msg = "Cette requ\u00eate n'est pas autoris\u00e9e."
+                user_msg = f"\U0001f6ab {error_msg or _fallback_msg}"
 
             tl.response(text=user_msg)
             tl.end()
@@ -409,8 +410,9 @@ class OrchestratorAgent:
         if resultats_db is None:
             tl.response(text=error_msg or "Erreur d'exécution SQL.")
             tl.end()
+            _exec_fallback = "Erreur lors de l'ex\u00e9cution de la requ\u00eate."
             return AssistantResponseDto(
-                text=f"⚠️ {error_msg or 'Erreur lors de l\'exécution de la requête.'}",
+                text=f"\u26a0\ufe0f {error_msg or _exec_fallback}",
                 chart=None,
                 pending_state=None,
                 options=None,
