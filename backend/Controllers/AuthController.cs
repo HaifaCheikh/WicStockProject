@@ -200,7 +200,7 @@ namespace WicStock_.Controllers
 
                     return Ok(new
                     {
-                        Message = $"Un code de réinitialisation sécurisé a été envoyé par WhatsApp au {dto.Identifiant}."
+                        Message = "Message WhatsApp envoyé avec succès !"
                     });
                 }
                 catch (Exception ex)
@@ -217,7 +217,7 @@ namespace WicStock_.Controllers
 
                     return Ok(new
                     {
-                        Message = $"Un code de réinitialisation sécurisé a été envoyé à l'adresse {utilisateur.Email}. Vérifiez votre boîte mail (et les spams)."
+                        Message = "E-mail envoyé avec succès !"
                     });
                 }
                 catch (Exception ex)
