@@ -15,3 +15,15 @@ services:
         value: https://wicstock-api.onrender.com
       - key: AppSettings__FrontendUrl
         value: https://wicstock-project.vercel.app
+
+  - type: web
+    name: wicstock-ai
+    env: docker
+    rootDir: ai-service
+    dockerfilePath: Dockerfile
+    plan: free
+    region: frankfurt
+    envVars:
+      - key: PORT
+        value: 8000
+

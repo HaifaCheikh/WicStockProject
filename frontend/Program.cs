@@ -26,8 +26,11 @@ builder.Services.AddHttpClient("WicStockAPI", client =>
 builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>()
     .CreateClient("WicStockAPI"));
 
+var iaBaseUrl = builder.Configuration["WicStockIAUrl"] ?? "http://localhost:8001/";
+if (!iaBaseUrl.EndsWith("/")) iaBaseUrl += "/";
+
 builder.Services.AddHttpClient("WicStockIA", client =>
-    client.BaseAddress = new Uri("http://localhost:8001/"));
+    client.BaseAddress = new Uri(iaBaseUrl));
 
 builder.Services.AddScoped<AssistantIAService>(sp =>
 {
