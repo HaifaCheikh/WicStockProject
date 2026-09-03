@@ -354,17 +354,20 @@ def synthetiser_reponse_naturelle(question, resultats):
         "Ne mentionne pas le format brut ni de code."
     )
 
-    reponse = ollama.chat(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": prompt}],
-        options={"temperature": 0.1},
-    )
-    texte = reponse["message"]["content"].strip()
-    cleaned = re.sub(r"<think>.*?</think>", "", texte, flags=re.DOTALL).strip()
-    # Remplacer tout symbole euro par DT
-    for euro_sym in ["â‚¬", "EUR", "Euros", "euros", "Euro", "euro"]:
-        cleaned = cleaned.replace(euro_sym, "DT")
-    return cleaned if cleaned else texte
+    try:
+        reponse = ollama.chat(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            options={"temperature": 0.1},
+        )
+        texte = reponse["message"]["content"].strip()
+        cleaned = re.sub(r"<think>.*?</think>", "", texte, flags=re.DOTALL).strip()
+        for euro_sym in ["â‚¬", "EUR", "Euros", "euros", "Euro", "euro"]:
+            cleaned = cleaned.replace(euro_sym, "DT")
+        return cleaned if cleaned else texte
+    except Exception as ex:
+        print(f"[OLLAMA SYNTHESE WARNING] {ex}")
+        return f"Résultats de votre demande ({len(resultats)} éléments trouvés) : " + ", ".join([str(r) for r in resultats[:5]])
 
 
 def generer_explication_action(nom_produit, type_risque, score_risque, quantite_actuelle, type_action):
@@ -379,12 +382,16 @@ Redige, en 2 a 3 phrases en francais, une explication claire pour un responsable
 justifiant pourquoi cette action est recommandee et quel benefice anti-gaspillage elle apporte.
 Sois factuel et concret, pas de formule marketing."""
 
-    reponse = ollama.chat(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": prompt}],
-        options={"temperature": 0.4},
-    )
-    return reponse["message"]["content"].strip()
+    try:
+        reponse = ollama.chat(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            options={"temperature": 0.4},
+        )
+        return reponse["message"]["content"].strip()
+    except Exception as ex:
+        print(f"[OLLAMA EXPLICATION WARNING] {ex}")
+        return f"Action recommandée pour {nom_produit} ({type_action}) : Risque {type_risque} détecté (score: {score_risque:.2f}) sur {quantite_actuelle} unité(s) en stock."
 
 
 def reinitialiser_memoire(session_id):
