@@ -26,7 +26,7 @@ builder.Services.AddHttpClient("WicStockAPI", client =>
 builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>()
     .CreateClient("WicStockAPI"));
 
-var iaBaseUrl = builder.Configuration["WicStockIAUrl"] ?? "http://localhost:8001/";
+var iaBaseUrl = builder.Configuration["WicStockIAUrl"] ?? builder.Configuration["AiBaseUrl"] ?? "https://wicstock-ai.onrender.com/";
 if (!iaBaseUrl.EndsWith("/")) iaBaseUrl += "/";
 
 builder.Services.AddHttpClient("WicStockIA", client =>
