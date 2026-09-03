@@ -60,8 +60,6 @@
                     <a href="/forgot-password" class="link">Mot de passe oublié ?</a>
                 </div>
 
-                <div id="turnstile-widget" class="mb-4"></div>
-
                 @if (!string.IsNullOrEmpty(message))
                 {
                     <div class="error-alert my-4">@message</div>
@@ -313,26 +311,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && !captchaRendered)
-        {
-            captchaRendered = true;
-            dotnetRef = DotNetObjectReference.Create<object>(this);
-
-            // Essayer d'appeler l'interop JS plusieurs fois si le script n'est pas encore chargé
-            for (int i = 0; i < 10; i++)
-            {
-                try
-                {
-                    await JS.InvokeVoidAsync("turnstileInterop.render", "turnstile-widget", TurnstileSiteKey, dotnetRef);
-                    break;
-                }
-                catch (JSException)
-                {
-                    // Attendre un court instant puis réessayer
-                    await Task.Delay(200);
-                }
-            }
-        }
+        await Task.CompletedTask;
     }
 
     [JSInvokable]
