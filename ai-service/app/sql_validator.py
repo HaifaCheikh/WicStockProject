@@ -2,9 +2,8 @@
 sql_validator.py
 Vérifie, AVANT exécution, que la requête générée par le LLM :
 - est bien un SELECT (rien d'autre)
-- n'utilise que des tables/colonnes réellement existantes (schema_reference.py)
-Lève une ValidationError explicite sinon, qui peut être renvoyée au LLM
-pour qu'il se corrige, ou affichée à l'utilisateur.
+- n'utilise que des tables/colonnes réellement existantes
+Supporte la syntaxe PostgreSQL avec guillemets doubles ("TableName").
 """
 
 import re
@@ -21,17 +20,28 @@ class ValidationError(Exception):
     pass
 
 
+def _strip_quotes(name: str) -> str:
+    """Supprime les guillemets doubles PostgreSQL autour d'un identifiant."""
+    return name.strip('"').strip("'").strip("`")
+
+
 def extraire_alias_tables(sql: str) -> dict[str, str]:
-    """Construit un dictionnaire {alias: nom_table} à partir des clauses FROM/JOIN."""
+    """
+    Construit un dictionnaire {alias: nom_table} à partir des clauses FROM/JOIN.
+    Supporte les identifiants entre guillemets doubles (PostgreSQL).
+    """
     alias_map: dict[str, str] = {}
+    # Reconnaît: FROM "TableName" alias  ou  FROM TableName alias
     pattern = re.compile(
-        r"(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+(?:AS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)?",
+        r'(?:FROM|JOIN)\s+"?([a-zA-Z_][a-zA-Z0-9_]*)"?\s+(?:AS\s+)?"?([a-zA-Z_][a-zA-Z0-9_]*)"?',
         re.IGNORECASE,
     )
     for match in pattern.finditer(sql):
-        table, alias = match.group(1), match.group(2)
+        table = _strip_quotes(match.group(1))
+        alias_raw = match.group(2) or ""
+        alias = _strip_quotes(alias_raw)
         alias_map[table] = table
-        if alias and alias.upper() not in ("WHERE", "ON", "GROUP", "ORDER"):
+        if alias and alias.upper() not in ("WHERE", "ON", "GROUP", "ORDER", "LEFT", "RIGHT", "INNER", "OUTER"):
             alias_map[alias] = table
     return alias_map
 
@@ -55,26 +65,35 @@ def valider_requete_sql(sql: str, role: str | None = None) -> str:
 
     for alias, table in alias_map.items():
         if table not in SCHEMA:
-            raise ValidationError(
-                f"Table inconnue : '{table}'. Tables autorisées : {', '.join(SCHEMA.keys())}"
-            )
+            # Tentative sans casse (PostgreSQL est case-insensitive sur les identifiants non quotés)
+            match_insensitive = next((k for k in SCHEMA if k.lower() == table.lower()), None)
+            if match_insensitive:
+                alias_map[alias] = match_insensitive
+                table = match_insensitive
+            else:
+                raise ValidationError(
+                    f"Table inconnue : '{table}'. Tables autorisées : {', '.join(SCHEMA.keys())}"
+                )
         if role == "CLIENT" and table in TABLES_INTERDITES_CLIENT:
             raise ValidationError(
                 f"Accès refusé : la table '{table}' n'est pas accessible pour le rôle CLIENT."
             )
 
+    # Validation des colonnes - ne valider que les colonnes non-quotées pour éviter les faux positifs
     colonnes_utilisees = re.findall(
-        r"\b([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)\b", sql_propre
+        r'\b([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)\b', sql_propre
     )
     for alias, colonne in colonnes_utilisees:
         table = alias_map.get(alias)
         if table is None:
-            continue  # alias non résolu (peut être un nom de fonction SQL, on ignore)
-        colonnes_valides = SCHEMA[table]
+            continue  # alias non résolu (ex: fonction SQL agrégée), on ignore
+        colonnes_valides = SCHEMA.get(table, [])
         if colonne not in colonnes_valides:
-            raise ValidationError(
-                f"Colonne inexistante : '{alias}.{colonne}'. "
-                f"La table '{table}' possède seulement : {', '.join(colonnes_valides)}"
-            )
+            # Tentative case-insensitive
+            if not any(c.lower() == colonne.lower() for c in colonnes_valides):
+                raise ValidationError(
+                    f"Colonne inexistante : '{alias}.{colonne}'. "
+                    f"La table '{table}' possède : {', '.join(colonnes_valides)}"
+                )
 
     return sql_propre

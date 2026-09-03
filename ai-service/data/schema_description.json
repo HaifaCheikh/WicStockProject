@@ -3,82 +3,92 @@
     {
       "id": "intro-contexte",
       "type": "contexte_general",
-      "contenu": "Cette base de donnÃ©es supporte WicStock, une plateforme de gestion de stock textile orientÃ©e anti-gaspillage (WIC MIC GROUP, ODD 12). Les tables rÃ©elles dans SQL Server sont au pluriel : Produits, Stocks, MouvementsStock, HistoriqueVentes, HistoriqueProductions, Alertes, PrevisionsEtatProduit, ActionsRecommandees, Utilisateurs. RÃ´les : ADMIN, RESPONSABLE_STOCK_PRODUCTION, CLIENT."
+      "contenu": "Cette base de données supporte WicStock, une plateforme de gestion de stock textile (WIC MIC GROUP). La base est PostgreSQL. Les noms de tables et colonnes sont en PascalCase et doivent être entre guillemets doubles : SELECT p.\"Nom\" FROM \"Produits\" p. Tables réelles : Produits, Stocks, MouvementsStock, HistoriqueVentes, HistoriqueProductions, Alertes, PrevisionsEtatProduit, ActionsRecommandees, Utilisateurs, Avis, Reclamations, Notifications. Rôles : ADMIN, RESPONSABLE_STOCK_PRODUCTION, CLIENT. IMPORTANT : Utiliser LIMIT au lieu de TOP, false/true au lieu de 0/1 pour les booléens."
     },
     {
       "id": "table-produits",
       "type": "schema_table",
-      "contenu": "Table Produits : reprÃ©sente un article textile (rÃ©fÃ©rence, nom, caractÃ©ristiques, prix). Colonnes : Id (PK), Reference (SKU, ex TSH-001), Nom (libellÃ© commercial), TypeTissu (ex Coton, Laine), Categorie (ex Haut, Bas, Accessoire), CycleDeVie (ex fast-fashion, durable), PrixUnitaire (decimal), DateCreation, ImageUrl, DisponibleSurCommande (bit, 1 si produit sur commande, 0 si produit standard). Relations : 1 Produit a 1 Stock (table Stocks), 0..n HistoriqueVentes, 0..n HistoriqueProductions, 0..n Alertes, 0..n PrevisionsEtatProduit."
+      "contenu": "Table \"Produits\" : représente un article textile. Colonnes : \"Id\" (PK), \"Reference\" (SKU, ex TSH-001), \"Nom\" (libellé commercial), \"TypeTissu\" (ex Coton, Laine), \"Categorie\" (ex Haut, Bas, Accessoire), \"CycleDeVie\", \"PrixUnitaire\" (decimal), \"DateCreation\", \"ImageUrl\", \"RemisePourcentage\", \"DateFinPromotion\", \"DisponibleSurCommande\" (boolean), \"EstArchive\" (boolean). Exemple PostgreSQL : SELECT p.\"Nom\", p.\"Reference\", p.\"PrixUnitaire\" FROM \"Produits\" p WHERE p.\"EstArchive\" = false ORDER BY p.\"Nom\"."
     },
     {
       "id": "table-stocks",
       "type": "schema_table",
-      "contenu": "Table Stocks : État courant du stock pour un produit. Colonnes : Id (PK), QuantiteActuelle, SeuilAlerte, SeuilSurstock, Emplacement, DateMiseAJour, ProduitId (FK vers Produits). RÈGLE UNIFIÉE DES 6 ÉTATS DE STOCK : 1) SUR COMMANDE = QuantiteActuelle <= 0 ET DisponibleSurCommande = 1. 2) RUPTURE = QuantiteActuelle <= 0 ET DisponibleSurCommande = 0. 3) STOCK FAIBLE = QuantiteActuelle > 0 ET QuantiteActuelle < COALESCE(SeuilAlerte, 10). 4) SURSTOCK = QuantiteActuelle >= 500 ET Inactivité >= 21 jours. 5) OBSOLÈTE = Prédiction IA TypeRisquePredit = 'OBSOLESCENCE'. 6) OPTIMAL = Par défaut."
+      "contenu": "Table \"Stocks\" : état courant du stock pour un produit. Colonnes : \"Id\" (PK), \"QuantiteActuelle\", \"SeuilAlerte\", \"SeuilSurstock\", \"Emplacement\", \"DateMiseAJour\", \"ProduitId\" (FK vers Produits). ETATS DE STOCK : Rupture = QuantiteActuelle <= SeuilAlerte. Surstock = QuantiteActuelle > SeuilSurstock. Exemple PostgreSQL : SELECT p.\"Nom\", s.\"QuantiteActuelle\", s.\"SeuilAlerte\" FROM \"Produits\" p JOIN \"Stocks\" s ON s.\"ProduitId\" = p.\"Id\" WHERE s.\"QuantiteActuelle\" <= s.\"SeuilAlerte\" AND p.\"EstArchive\" = false."
     },
     {
       "id": "table-mouvementsstock",
       "type": "schema_table",
-      "contenu": "Table MouvementsStock : historique des entrÃ©es/sorties/retours/ajustements. Colonnes : Id (PK), Type (ENTREE/SORTIE/RETOUR/AJUSTEMENT), Quantite, Date, Motif, StockId (FK vers Stocks)."
+      "contenu": "Table \"MouvementsStock\" : historique des entrées/sorties. Colonnes : \"Id\" (PK), \"Type\" (texte: ENTREE/SORTIE/RETOUR/AJUSTEMENT), \"Quantite\", \"Date\", \"Motif\", \"StockId\" (FK vers Stocks)."
     },
     {
       "id": "table-historiqueventes",
       "type": "schema_table",
-      "contenu": "Table HistoriqueVentes : journal des ventes et commandes. Colonnes : Id (PK), DateVente, QuantiteVendue, PrixUnitaire, StatutCommande (ACCEPTEE/EN_ATTENTE/REFUSEE), Statut (statut detaille : EN_ATTENTE_CONFIRMATION, ACCEPTEE, CONFIRMEE, EN_PREPARATION, PRETE, PAYEE, EN_LIVRAISON, LIVREE, REFUSEE), DatePaiement (date effective du paiement), DateLivraison, PaymentIntentId, EstSurCommande, ProduitId (FK vers Produits), UtilisateurId (FK vers Utilisateurs). IMPORTANT - REGLE CHIFFRE D'AFFAIRES : Le chiffre d'affaires (CA) et les ventes effectives doivent UNIQUEMENT comptabiliser les commandes payees : (DatePaiement IS NOT NULL OR Statut IN ('PAYEE', 'EN_LIVRAISON', 'LIVREE'))."
+      "contenu": "Table \"HistoriqueVentes\" : journal des ventes et commandes. Colonnes : \"Id\" (PK), \"DateVente\", \"QuantiteVendue\", \"PrixUnitaire\", \"StatutCommande\" (texte: ACCEPTEE/EN_ATTENTE/REFUSEE), \"Statut\" (texte: EN_ATTENTE_CONFIRMATION/ACCEPTEE/CONFIRMEE/EN_PREPARATION/PRETE/PAYEE/EN_LIVRAISON/LIVREE/REFUSEE), \"DatePaiement\", \"DateLivraison\", \"DateConfirmation\", \"PaymentIntentId\", \"EstSurCommande\" (boolean), \"ProduitId\" (FK), \"UtilisateurId\" (FK). CA réel = WHERE h.\"Statut\" IN ('PAYEE', 'EN_LIVRAISON', 'LIVREE')."
     },
     {
       "id": "table-historiqueproductions",
       "type": "schema_table",
-      "contenu": "Table HistoriqueProductions : lots produits pour un produit. Colonnes : Id (PK), DateProduction, QuantiteProduite, ProduitId (FK vers Produits)."
+      "contenu": "Table \"HistoriqueProductions\" : lots produits. Colonnes : \"Id\" (PK), \"DateProduction\", \"QuantiteProduite\", \"ProduitId\" (FK vers Produits)."
     },
     {
       "id": "table-alertes",
       "type": "schema_table",
-      "contenu": "Table Alertes : alerte mÃ©tier dÃ©tectÃ©e sur un produit. Colonnes : Id (PK), TypeRisque (SURSTOCK/OBSOLESCENCE/RUPTURE), DateDetection, Statut (NON_TRAITEE/EN_COURS/TRAITEE), NiveauCriticite, ProduitId (FK vers Produits), UtilisateurId (FK vers Utilisateurs, optionnel, responsable assignÃ©)."
+      "contenu": "Table \"Alertes\" : alertes métier. Colonnes : \"Id\" (PK), \"TypeRisque\" (texte: SURSTOCK/OBSOLESCENCE/RUPTURE), \"DateDetection\", \"Statut\" (texte: NON_TRAITEE/EN_COURS/TRAITEE), \"NiveauCriticite\", \"Message\", \"ProduitId\" (FK), \"UtilisateurId\" (FK optionnel). Exemple : WHERE a.\"Statut\" = 'ACTIVE' ou WHERE a.\"Statut\" = 'NON_TRAITEE'."
     },
     {
       "id": "table-previsionsetatproduit",
       "type": "schema_table",
-      "contenu": "Table PrevisionsEtatProduit : prÃ©vision automatique de l'Ã©tat futur d'un produit. Colonnes : Id (PK), ProduitId (FK vers Produits), TypeRisquePredit, ScoreRisque (0 Ã  1), QuantitePredite, HorizonJours, DateCalcul. Relations : 0..1 ActionRecommandee liÃ©e (table ActionsRecommandees)."
+      "contenu": "Table \"PrevisionsEtatProduit\" : prévision de l'état futur d'un produit. Colonnes : \"Id\" (PK), \"ProduitId\" (FK), \"TypeRisquePredit\" (texte), \"ScoreRisque\" (float 0 à 1), \"QuantitePredite\", \"HorizonJours\", \"DateCalcul\"."
     },
     {
       "id": "table-actionsrecommandees",
       "type": "schema_table",
-      "contenu": "Table ActionsRecommandees : action opÃ©rationnelle gÃ©nÃ©rÃ©e pour traiter un risque. Colonnes : Id (PK), ProduitId (FK vers Produits), TypeAction (PROMOTION_CIBLEE/REDISTRIBUTION/RECYCLAGE_ANTICIPE/AUCUNE_ACTION), TexteGenere, DateGeneration, Source (ex ML), PrevisionEtatProduitId (FK vers PrevisionsEtatProduit), UtilisateurId (FK vers Utilisateurs, optionnel, validateur)."
+      "contenu": "Table \"ActionsRecommandees\" : actions générées automatiquement. Colonnes : \"Id\" (PK), \"ProduitId\" (FK), \"TypeAction\" (texte: PROMOTION_CIBLEE/REDISTRIBUTION/RECYCLAGE_ANTICIPE/AUCUNE_ACTION), \"TexteGenere\", \"DateGeneration\", \"Source\", \"PrevisionEtatProduitId\" (FK), \"UtilisateurId\" (FK optionnel)."
     },
     {
       "id": "table-utilisateurs",
       "type": "schema_table",
-      "contenu": "Table Utilisateurs : comptes de la plateforme. Colonnes : Id (PK), Nom, Prenom, Email, Telephone, MotDePasseHash, Role (ADMIN/RESPONSABLE_STOCK_PRODUCTION/CLIENT)."
+      "contenu": "Table \"Utilisateurs\" : comptes de la plateforme. Colonnes : \"Id\" (PK), \"Nom\", \"Prenom\", \"Email\", \"Telephone\", \"MotDePasseHash\", \"Role\" (texte: ADMIN/RESPONSABLE_STOCK_PRODUCTION/CLIENT)."
     },
     {
       "id": "table-avis",
       "type": "schema_table",
-      "contenu": "Table Avis : évaluations et notes laissées par les clients sur les produits. Colonnes : Id (PK), CommandeId (FK vers HistoriqueVentes), ProduitId (FK vers Produits), ClientId (FK vers Utilisateurs), Note (int de 1 à 5 stars/étoiles), Commentaire, DateCreation, Statut, EstMasque (bit). Pour calculer les produits les mieux notés (note moyenne la plus élevée) : `SELECT TOP 5 p.Nom, p.Reference, p.PrixUnitaire, AVG(CAST(a.Note AS FLOAT)) AS NoteMoyenne, COUNT(a.Id) AS NombreAvis FROM Produits p JOIN Avis a ON a.ProduitId = p.Id WHERE p.EstArchive = 0 GROUP BY p.Nom, p.Reference, p.PrixUnitaire ORDER BY NoteMoyenne DESC, NombreAvis DESC`."
+      "contenu": "Table \"Avis\" : évaluations clients. Colonnes : \"Id\" (PK), \"CommandeId\" (FK vers HistoriqueVentes), \"ProduitId\" (FK), \"ClientId\" (FK vers Utilisateurs), \"Note\" (int 1-5), \"Commentaire\", \"DateCreation\", \"Statut\", \"EstMasque\" (boolean). Exemple PostgreSQL : SELECT p.\"Nom\", AVG(CAST(a.\"Note\" AS FLOAT)) AS \"NoteMoyenne\" FROM \"Produits\" p JOIN \"Avis\" a ON a.\"ProduitId\" = p.\"Id\" GROUP BY p.\"Nom\" ORDER BY \"NoteMoyenne\" DESC LIMIT 5."
     },
     {
       "id": "table-reclamations",
       "type": "schema_table",
-      "contenu": "Table Reclamations : réclamations et demandes du client. Colonnes : Id (PK), CommandeId (FK vers HistoriqueVentes), ProduitId (FK vers Produits), ClientId (FK vers Utilisateurs), Motif, Description, PhotosUrls, DateCreation, Statut, ReponseAdmin, DateReponse."
+      "contenu": "Table \"Reclamations\" : réclamations clients. Colonnes : \"Id\" (PK), \"CommandeId\" (FK), \"ProduitId\" (FK), \"ClientId\" (FK), \"Motif\", \"Description\", \"PhotosUrls\", \"DateCreation\", \"Statut\" (texte: ENVOYEE/EN_COURS/RESOLUE), \"ReponseAdmin\", \"DateReponse\"."
+    },
+    {
+      "id": "regle-postgresql-syntaxe",
+      "type": "regles_sql",
+      "contenu": "RÈGLES POSTGRESQL OBLIGATOIRES : 1) Toujours utiliser des guillemets doubles pour les identifiants : \"Produits\", \"QuantiteActuelle\". 2) Utiliser LIMIT N au lieu de TOP N. 3) Booléens : false/true (pas 0/1). 4) Pagination des dates : NOW() - INTERVAL '30 days'. 5) Format date : TO_CHAR(date, 'YYYY-MM'). 6) Les enums sont stockés en texte (varchar) : WHERE h.\"Statut\" = 'PAYEE'. 7) Toujours finir par LIMIT 50 si pas de limite précisée."
     },
     {
       "id": "enum-typerisque",
       "type": "enum",
-      "contenu": "Enum TypeRisque : SURSTOCK (excÃ¨s de stock par rapport Ã  la demande, coÃ»t de stockage), OBSOLESCENCE (produit qui deviendra invendable), RUPTURE (manque de produit)."
+      "contenu": "Enum TypeRisque (stocké en texte) : SURSTOCK, OBSOLESCENCE, RUPTURE."
     },
     {
       "id": "enum-typeaction",
       "type": "enum",
-      "contenu": "Enum TypeAction : PROMOTION_CIBLEE (baisse de prix pour rÃ©duire le surstock), REDISTRIBUTION (dÃ©placer le stock entre emplacements), RECYCLAGE_ANTICIPE (plan de recyclage pour Ã©viter le gaspillage), AUCUNE_ACTION (risque jugÃ© faible)."
+      "contenu": "Enum TypeAction (stocké en texte) : PROMOTION_CIBLEE, REDISTRIBUTION, RECYCLAGE_ANTICIPE, AUCUNE_ACTION."
     },
     {
       "id": "enum-statutalerte",
       "type": "enum",
-      "contenu": "Enum StatutAlerte : NON_TRAITEE (dÃ©tectÃ©e, pas encore prise en charge), EN_COURS (assignÃ©e, en traitement), TRAITEE (rÃ©solue)."
+      "contenu": "Enum StatutAlerte (stocké en texte) : NON_TRAITEE, EN_COURS, TRAITEE, ACTIVE."
     },
     {
       "id": "enum-typemouvement",
       "type": "enum",
-      "contenu": "Enum TypeMouvement : ENTREE (rÃ©ception/production), SORTIE (vente/consommation), RETOUR (retour client), AJUSTEMENT (correction d'inventaire)."
+      "contenu": "Enum TypeMouvement (stocké en texte) : ENTREE, SORTIE, RETOUR, AJUSTEMENT."
+    },
+    {
+      "id": "enum-statutcommande",
+      "type": "enum",
+      "contenu": "Enum StatutCommandeDetaille (stocké en texte) : EN_ATTENTE_CONFIRMATION, ACCEPTEE, CONFIRMEE, EN_PREPARATION, PRETE, PAYEE, EN_LIVRAISON, LIVREE, REFUSEE."
     }
   ]
 }

@@ -2,479 +2,232 @@
     {
         "id": "catalogue-liste-articles",
         "question": "Quels sont les articles du catalogue ?",
-        "sql": "SELECT p.Nom, p.Reference, p.Categorie, p.PrixUnitaire FROM Produits p WHERE p.EstArchive = 0 ORDER BY p.Nom",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"Categorie\", p.\"PrixUnitaire\" FROM \"Produits\" p WHERE p.\"EstArchive\" = false ORDER BY p.\"Nom\" LIMIT 50",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["CLIENT", "RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
         "id": "catalogue-liste-articles-alt",
         "question": "Quels sont les produits du catalogue ?",
-        "sql": "SELECT p.Nom, p.Reference, p.Categorie, p.PrixUnitaire FROM Produits p WHERE p.EstArchive = 0 ORDER BY p.Nom",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"Categorie\", p.\"PrixUnitaire\" FROM \"Produits\" p WHERE p.\"EstArchive\" = false ORDER BY p.\"Nom\" LIMIT 50",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["CLIENT", "RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
         "id": "catalogue-mieux-notes",
         "question": "Quels sont les articles les mieux notés ?",
-        "sql": "SELECT TOP 5 p.Nom, p.Reference, p.PrixUnitaire, AVG(CAST(a.Note AS FLOAT)) AS NoteMoyenne, COUNT(a.Id) AS NombreAvis FROM Produits p JOIN Avis a ON a.ProduitId = p.Id WHERE p.EstArchive = 0 GROUP BY p.Nom, p.Reference, p.PrixUnitaire ORDER BY NoteMoyenne DESC, NombreAvis DESC",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"PrixUnitaire\", AVG(CAST(a.\"Note\" AS FLOAT)) AS \"NoteMoyenne\", COUNT(a.\"Id\") AS \"NombreAvis\" FROM \"Produits\" p JOIN \"Avis\" a ON a.\"ProduitId\" = p.\"Id\" WHERE p.\"EstArchive\" = false GROUP BY p.\"Nom\", p.\"Reference\", p.\"PrixUnitaire\" ORDER BY \"NoteMoyenne\" DESC, \"NombreAvis\" DESC LIMIT 5",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["CLIENT", "RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
         "id": "catalogue-mieux-notes-alt",
         "question": "Quels sont les produits les mieux notés ?",
-        "sql": "SELECT TOP 5 p.Nom, p.Reference, p.PrixUnitaire, AVG(CAST(a.Note AS FLOAT)) AS NoteMoyenne, COUNT(a.Id) AS NombreAvis FROM Produits p JOIN Avis a ON a.ProduitId = p.Id WHERE p.EstArchive = 0 GROUP BY p.Nom, p.Reference, p.PrixUnitaire ORDER BY NoteMoyenne DESC, NombreAvis DESC",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"PrixUnitaire\", AVG(CAST(a.\"Note\" AS FLOAT)) AS \"NoteMoyenne\", COUNT(a.\"Id\") AS \"NombreAvis\" FROM \"Produits\" p JOIN \"Avis\" a ON a.\"ProduitId\" = p.\"Id\" WHERE p.\"EstArchive\" = false GROUP BY p.\"Nom\", p.\"Reference\", p.\"PrixUnitaire\" ORDER BY \"NoteMoyenne\" DESC, \"NombreAvis\" DESC LIMIT 5",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["CLIENT", "RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "catalogue-mieux-notes-avis",
-        "question": "Quels produits ont les meilleures notes clients ?",
-        "sql": "SELECT TOP 5 p.Nom, p.Reference, p.PrixUnitaire, AVG(CAST(a.Note AS FLOAT)) AS NoteMoyenne, COUNT(a.Id) AS NombreAvis FROM Produits p JOIN Avis a ON a.ProduitId = p.Id WHERE p.EstArchive = 0 GROUP BY p.Nom, p.Reference, p.PrixUnitaire ORDER BY NoteMoyenne DESC, NombreAvis DESC",
-        "typeGraphique": null,
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "catalogue-populaires",
-        "question": "Quels sont les articles les plus populaires ?",
-        "sql": "SELECT TOP 5 p.Nom, p.Reference, p.PrixUnitaire, SUM(h.QuantiteVendue) AS TotalVendu FROM HistoriqueVentes h JOIN Produits p ON h.ProduitId = p.Id WHERE (h.DatePaiement IS NOT NULL OR h.Statut IN ('PAYEE', 'EN_LIVRAISON', 'LIVREE')) GROUP BY p.Nom, p.Reference, p.PrixUnitaire ORDER BY TotalVendu DESC",
-        "typeGraphique": "bar",
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "ventes-produits-quantite-totale",
-        "question": "Quel est le volume total de ventes par produit ?",
-        "sql": "SELECT TOP 8 p.Nom AS Label, SUM(h.QuantiteVendue) AS Valeur FROM HistoriqueVentes h JOIN Produits p ON h.ProduitId = p.Id WHERE (h.DatePaiement IS NOT NULL OR h.Statut IN ('PAYEE', 'EN_LIVRAISON', 'LIVREE')) GROUP BY p.Nom ORDER BY Valeur DESC",
-        "typeGraphique": "bar",
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "ventes-top-10-produits-plus-vendus",
-        "question": "Top 10 des produits les plus vendus",
-        "sql": "SELECT TOP 10 p.Nom AS Label, SUM(h.QuantiteVendue) AS Valeur FROM HistoriqueVentes h JOIN Produits p ON h.ProduitId = p.Id WHERE (h.DatePaiement IS NOT NULL OR h.Statut IN ('PAYEE', 'EN_LIVRAISON', 'LIVREE')) GROUP BY p.Nom ORDER BY Valeur DESC",
-        "typeGraphique": "bar",
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "ventes-top-produits-generale",
-        "question": "Quels sont les produits les plus vendus ?",
-        "sql": "SELECT TOP 5 p.Nom AS Label, SUM(h.QuantiteVendue) AS Valeur FROM HistoriqueVentes h JOIN Produits p ON h.ProduitId = p.Id WHERE (h.DatePaiement IS NOT NULL OR h.Statut IN ('PAYEE', 'EN_LIVRAISON', 'LIVREE')) GROUP BY p.Nom ORDER BY Valeur DESC",
-        "typeGraphique": "bar",
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "ventes-top-5-produits-plus-vendus",
-        "question": "Quels sont mes 5 produits les plus vendus ?",
-        "sql": "SELECT TOP 5 p.Nom AS Label, SUM(h.QuantiteVendue) AS Valeur FROM HistoriqueVentes h JOIN Produits p ON h.ProduitId = p.Id WHERE (h.DatePaiement IS NOT NULL OR h.Statut IN ('PAYEE', 'EN_LIVRAISON', 'LIVREE')) GROUP BY p.Nom ORDER BY Valeur DESC",
-        "typeGraphique": "bar",
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "repartition-commandes-statuts-alt",
-        "question": "Répartition des commandes par statut",
-        "sql": "SELECT CASE COALESCE(StatutCommande, Statut) WHEN 'ACCEPTEE' THEN 'Acceptée' WHEN 'REFUSEE' THEN 'Refusée' WHEN 'EN_ATTENTE_CONFIRMATION' THEN 'En attente de confirmation' WHEN 'CONFIRMEE' THEN 'Confirmée' WHEN 'EN_PREPARATION' THEN 'En préparation' WHEN 'PRETE' THEN 'Prête' WHEN 'PAYEE' THEN 'Payée' WHEN 'EN_LIVRAISON' THEN 'En livraison' WHEN 'LIVREE' THEN 'Livrée' ELSE 'En attente' END AS Label, COUNT(*) AS Valeur FROM HistoriqueVentes GROUP BY COALESCE(StatutCommande, Statut)",
-        "typeGraphique": "donut",
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "repartition-produits-categorie",
-        "question": "Quelle est la répartition des produits par catégorie ?",
-        "sql": "SELECT p.Categorie AS Label, COUNT(*) AS Valeur FROM Produits p WHERE p.EstArchive = 0 AND p.Categorie IS NOT NULL AND p.Categorie != '' GROUP BY p.Categorie ORDER BY Valeur DESC",
-        "typeGraphique": "donut",
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "repartition-etats-stock",
-        "question": "Quelle est la répartition des états de stock ?",
-        "sql": "SELECT sub_status.Label, COUNT(*) AS Valeur FROM (SELECT p.Id, CASE WHEN s.QuantiteActuelle <= 0 AND p.DisponibleSurCommande = 1 THEN 'Sur commande' WHEN s.QuantiteActuelle <= 0 THEN 'Rupture' WHEN s.QuantiteActuelle < (CASE WHEN s.SeuilAlerte IS NULL OR s.SeuilAlerte <= 0 THEN 10 ELSE s.SeuilAlerte END) THEN 'Stock faible' WHEN s.QuantiteActuelle >= 500 AND DATEDIFF(day, COALESCE((SELECT MAX(d) FROM (SELECT MAX(hv.DateVente) AS d FROM HistoriqueVentes hv WHERE hv.ProduitId = p.Id UNION ALL SELECT MAX(ms.Date) AS d FROM MouvementsStock ms WHERE ms.StockId = s.Id AND ms.Type = 'SORTIE') sub_dates), p.DateCreation), GETDATE()) >= 21 THEN 'Surstock' WHEN EXISTS (SELECT 1 FROM PrevisionsEtatProduit pr WHERE pr.ProduitId = p.Id AND pr.TypeRisquePredit = 'OBSOLESCENCE') THEN 'Obsolète' ELSE 'Optimal' END AS Label FROM Stocks s JOIN Produits p ON s.ProduitId = p.Id WHERE p.EstArchive = 0) sub_status GROUP BY sub_status.Label",
-        "typeGraphique": "donut",
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "stock-en-stock-liste",
-        "question": "Quels sont les produits en stock ?",
-        "sql": "SELECT p.Nom, p.Reference, s.QuantiteActuelle FROM Stocks s JOIN Produits p ON s.ProduitId = p.Id WHERE s.QuantiteActuelle > 0 AND p.DisponibleSurCommande = 0 ORDER BY s.QuantiteActuelle DESC",
-        "typeGraphique": null,
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "stock-en-stock-liste-alt",
-        "question": "et pour les produits en stock ?",
-        "sql": "SELECT p.Nom, p.Reference, s.QuantiteActuelle FROM Stocks s JOIN Produits p ON s.ProduitId = p.Id WHERE s.QuantiteActuelle > 0 AND p.DisponibleSurCommande = 0 ORDER BY s.QuantiteActuelle DESC",
-        "typeGraphique": null,
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "stock-sur-commande-liste",
-        "question": "Quels sont les produits sur commande ?",
-        "sql": "SELECT p.Nom, p.Reference, s.QuantiteActuelle FROM Stocks s JOIN Produits p ON s.ProduitId = p.Id WHERE p.DisponibleSurCommande = 1",
-        "typeGraphique": null,
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "stock-sur-commande-liste-alt",
-        "question": "et pour les produits sur commandes ?",
-        "sql": "SELECT p.Nom, p.Reference, s.QuantiteActuelle FROM Stocks s JOIN Produits p ON s.ProduitId = p.Id WHERE p.DisponibleSurCommande = 1",
-        "typeGraphique": null,
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "stock-sur-commande-articles",
-        "question": "Quels sont les articles disponibles sur commande ?",
-        "sql": "SELECT p.Nom, p.Reference, p.PrixUnitaire FROM Produits p WHERE p.DisponibleSurCommande = 1 AND p.EstArchive = 0 ORDER BY p.Nom",
-        "typeGraphique": null,
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "stock-rupture-liste",
+        "id": "stock-rupture",
         "question": "Quels produits sont en rupture de stock ?",
-        "sql": "SELECT p.Nom, p.Reference, s.QuantiteActuelle FROM Stocks s JOIN Produits p ON s.ProduitId = p.Id WHERE s.QuantiteActuelle <= 0 AND p.DisponibleSurCommande = 0 ORDER BY s.QuantiteActuelle ASC",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"Categorie\", s.\"QuantiteActuelle\", s.\"SeuilAlerte\" FROM \"Produits\" p JOIN \"Stocks\" s ON s.\"ProduitId\" = p.\"Id\" WHERE s.\"QuantiteActuelle\" <= s.\"SeuilAlerte\" AND p.\"EstArchive\" = false ORDER BY s.\"QuantiteActuelle\" ASC",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "stock-surstock-liste",
+        "id": "stock-rupture-alt",
+        "question": "Quels produits sont en rupture ?",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"Categorie\", s.\"QuantiteActuelle\", s.\"SeuilAlerte\" FROM \"Produits\" p JOIN \"Stocks\" s ON s.\"ProduitId\" = p.\"Id\" WHERE s.\"QuantiteActuelle\" <= s.\"SeuilAlerte\" AND p.\"EstArchive\" = false ORDER BY s.\"QuantiteActuelle\" ASC",
+        "typeGraphique": null,
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
+    },
+    {
+        "id": "stock-surstock",
         "question": "Quels produits sont en surstock ?",
-        "sql": "SELECT p.Nom AS Label, s.QuantiteActuelle AS Valeur FROM Stocks s JOIN Produits p ON s.ProduitId = p.Id WHERE p.EstArchive = 0 AND s.QuantiteActuelle >= 500 AND DATEDIFF(day, COALESCE((SELECT MAX(d) FROM (SELECT MAX(hv.DateVente) AS d FROM HistoriqueVentes hv WHERE hv.ProduitId = p.Id UNION ALL SELECT MAX(ms.Date) AS d FROM MouvementsStock ms WHERE ms.StockId = s.Id AND ms.Type = 'SORTIE') sub_dates), p.DateCreation), GETDATE()) >= 21 ORDER BY s.QuantiteActuelle DESC",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"Categorie\", s.\"QuantiteActuelle\", s.\"SeuilSurstock\" FROM \"Produits\" p JOIN \"Stocks\" s ON s.\"ProduitId\" = p.\"Id\" WHERE s.\"SeuilSurstock\" IS NOT NULL AND s.\"QuantiteActuelle\" > s.\"SeuilSurstock\" AND p.\"EstArchive\" = false ORDER BY s.\"QuantiteActuelle\" DESC",
+        "typeGraphique": null,
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
+    },
+    {
+        "id": "stock-repartition-etats",
+        "question": "Quelle est la répartition des états de stock ?",
+        "sql": "SELECT CASE WHEN s.\"QuantiteActuelle\" = 0 THEN 'Rupture totale' WHEN s.\"QuantiteActuelle\" <= s.\"SeuilAlerte\" THEN 'Stock faible' WHEN s.\"SeuilSurstock\" IS NOT NULL AND s.\"QuantiteActuelle\" > s.\"SeuilSurstock\" THEN 'Surstock' ELSE 'Stock normal' END AS \"EtatStock\", COUNT(*) AS \"NombreProduits\" FROM \"Stocks\" s JOIN \"Produits\" p ON p.\"Id\" = s.\"ProduitId\" WHERE p.\"EstArchive\" = false GROUP BY \"EtatStock\" ORDER BY \"NombreProduits\" DESC",
+        "typeGraphique": "pie",
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
+    },
+    {
+        "id": "stock-repartition-etats-alt",
+        "question": "Répartition des stocks par état",
+        "sql": "SELECT CASE WHEN s.\"QuantiteActuelle\" = 0 THEN 'Rupture totale' WHEN s.\"QuantiteActuelle\" <= s.\"SeuilAlerte\" THEN 'Stock faible' WHEN s.\"SeuilSurstock\" IS NOT NULL AND s.\"QuantiteActuelle\" > s.\"SeuilSurstock\" THEN 'Surstock' ELSE 'Stock normal' END AS \"EtatStock\", COUNT(*) AS \"NombreProduits\" FROM \"Stocks\" s JOIN \"Produits\" p ON p.\"Id\" = s.\"ProduitId\" WHERE p.\"EstArchive\" = false GROUP BY \"EtatStock\" ORDER BY \"NombreProduits\" DESC",
+        "typeGraphique": "pie",
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
+    },
+    {
+        "id": "stock-niveaux",
+        "question": "Quel est le niveau de stock de chaque produit ?",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"Categorie\", s.\"QuantiteActuelle\", s.\"SeuilAlerte\", s.\"SeuilSurstock\", s.\"Emplacement\" FROM \"Produits\" p JOIN \"Stocks\" s ON s.\"ProduitId\" = p.\"Id\" WHERE p.\"EstArchive\" = false ORDER BY s.\"QuantiteActuelle\" ASC LIMIT 50",
         "typeGraphique": "bar",
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "stock-actuel-tous",
-        "question": "Quel est le stock actuel de tous les produits ?",
-        "sql": "SELECT TOP 8 p.Nom AS Label, s.QuantiteActuelle AS Valeur FROM Stocks s JOIN Produits p ON s.ProduitId = p.Id WHERE p.EstArchive = 0 ORDER BY s.QuantiteActuelle DESC",
+        "id": "stock-niveaux-alt",
+        "question": "Niveaux de stock actuels",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"Categorie\", s.\"QuantiteActuelle\", s.\"SeuilAlerte\", s.\"SeuilSurstock\", s.\"Emplacement\" FROM \"Produits\" p JOIN \"Stocks\" s ON s.\"ProduitId\" = p.\"Id\" WHERE p.\"EstArchive\" = false ORDER BY s.\"QuantiteActuelle\" ASC LIMIT 50",
         "typeGraphique": "bar",
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "stock-normal-liste",
-        "question": "Quels produits ont un stock normal (entre 1 et 100) ?",
-        "sql": "SELECT p.Nom, p.Reference, s.QuantiteActuelle FROM Stocks s JOIN Produits p ON s.ProduitId = p.Id WHERE s.QuantiteActuelle > 0 AND s.QuantiteActuelle <= 100 AND p.DisponibleSurCommande = 0 ORDER BY s.QuantiteActuelle",
+        "id": "ventes-recentes",
+        "question": "Quelles sont les dernières commandes ?",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", h.\"QuantiteVendue\", h.\"PrixUnitaire\", h.\"DateVente\", h.\"Statut\", h.\"StatutCommande\" FROM \"HistoriqueVentes\" h JOIN \"Produits\" p ON p.\"Id\" = h.\"ProduitId\" ORDER BY h.\"DateVente\" DESC LIMIT 20",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "stock-surstock-count",
-        "question": "Combien de produits sont en surstock ?",
-        "sql": "SELECT COUNT(*) AS NombreSurstock FROM Stocks s JOIN Produits p ON s.ProduitId = p.Id WHERE p.EstArchive = 0 AND s.QuantiteActuelle >= 500 AND DATEDIFF(day, COALESCE((SELECT MAX(d) FROM (SELECT MAX(hv.DateVente) AS d FROM HistoriqueVentes hv WHERE hv.ProduitId = p.Id UNION ALL SELECT MAX(ms.Date) AS d FROM MouvementsStock ms WHERE ms.StockId = s.Id AND ms.Type = 'SORTIE') sub_dates), p.DateCreation), GETDATE()) >= 21",
+        "id": "ventes-recentes-alt",
+        "question": "Quelles sont les ventes récentes ?",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", h.\"QuantiteVendue\", h.\"PrixUnitaire\", h.\"DateVente\", h.\"Statut\", h.\"StatutCommande\" FROM \"HistoriqueVentes\" h JOIN \"Produits\" p ON p.\"Id\" = h.\"ProduitId\" ORDER BY h.\"DateVente\" DESC LIMIT 20",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "stock-rupture-count",
-        "question": "Combien de produits ont un stock en rupture ?",
-        "sql": "SELECT COUNT(*) AS NombreEnRupture FROM Stocks s JOIN Produits p ON s.ProduitId = p.Id WHERE s.QuantiteActuelle <= 0 AND p.DisponibleSurCommande = 0",
-        "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "stock-epuises-liste",
-        "question": "Lister les articles épuisés ou en rupture totale",
-        "sql": "SELECT p.Nom, p.Reference, s.QuantiteActuelle FROM Stocks s JOIN Produits p ON s.ProduitId = p.Id WHERE s.QuantiteActuelle <= 0 AND p.DisponibleSurCommande = 0 ORDER BY p.Nom",
-        "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "stock-seuil-alerte-liste",
-        "question": "Quels produits sont sous le seuil d'alerte ou complètement épuisés ?",
-        "sql": "SELECT p.Nom, p.Reference, s.QuantiteActuelle, s.SeuilAlerte FROM Stocks s JOIN Produits p ON s.ProduitId = p.Id WHERE s.QuantiteActuelle < s.SeuilAlerte ORDER BY s.QuantiteActuelle ASC",
-        "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "alertes-non-traitees",
-        "question": "Afficher les alertes non traitées triées par niveau de criticité",
-        "sql": "SELECT a.Id, p.Nom, a.TypeRisque, a.NiveauCriticite, a.DateDetection FROM Alertes a JOIN Produits p ON a.ProduitId = p.Id WHERE a.Statut = 'NON_TRAITEE' ORDER BY a.NiveauCriticite DESC",
-        "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "mouvements-historique-produit",
-        "question": "Afficher l'historique des mouvements de stock pour un produit donné",
-        "sql": "SELECT m.Date, m.Type, m.Quantite, m.Motif FROM MouvementsStock m JOIN Stocks s ON m.StockId = s.Id WHERE s.ProduitId = @ProduitId ORDER BY m.Date DESC",
-        "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
-    },
-    {
-        "id": "ventes-ca-90j-produit",
-        "question": "Calculer le chiffre d'affaires par produit sur les 90 derniers jours",
-        "sql": "SELECT p.Nom AS Label, SUM(h.QuantiteVendue * h.PrixUnitaire) AS Valeur FROM HistoriqueVentes h JOIN Produits p ON h.ProduitId = p.Id WHERE (h.DatePaiement IS NOT NULL OR h.Statut IN ('PAYEE', 'EN_LIVRAISON', 'LIVREE')) AND (h.DatePaiement >= DATEADD(DAY, -90, GETDATE())      OR (h.DatePaiement IS NULL AND h.DateVente >= DATEADD(DAY, -90, GETDATE()))) GROUP BY p.Nom ORDER BY Valeur DESC",
+        "id": "ventes-top-produits",
+        "question": "Quels sont les produits les plus vendus ?",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"Categorie\", SUM(h.\"QuantiteVendue\") AS \"TotalVendu\", COUNT(h.\"Id\") AS \"NombreCommandes\" FROM \"HistoriqueVentes\" h JOIN \"Produits\" p ON p.\"Id\" = h.\"ProduitId\" GROUP BY p.\"Nom\", p.\"Reference\", p.\"Categorie\" ORDER BY \"TotalVendu\" DESC LIMIT 10",
         "typeGraphique": "bar",
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "actions-recommandees-ml",
-        "question": "Lister les actions recommandées non validées générées par le moteur ML",
-        "sql": "SELECT ar.Id, p.Nom, ar.TypeAction, ar.TexteGenere FROM ActionsRecommandees ar JOIN Produits p ON ar.ProduitId = p.Id WHERE ar.Source = 'ML' AND ar.UtilisateurId IS NULL",
+        "id": "ventes-chiffre-affaires",
+        "question": "Quel est le chiffre d'affaires total ?",
+        "sql": "SELECT SUM(h.\"QuantiteVendue\" * h.\"PrixUnitaire\") AS \"ChiffreAffaires\", COUNT(h.\"Id\") AS \"NombreCommandes\", SUM(h.\"QuantiteVendue\") AS \"QuantiteTotaleVendue\" FROM \"HistoriqueVentes\" h WHERE h.\"Statut\" IN ('PAYEE', 'EN_LIVRAISON', 'LIVREE')",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["ADMIN"]
     },
     {
-        "id": "previsions-produit-recents",
-        "question": "Afficher la prévision la plus récente pour un produit",
-        "sql": "SELECT TOP 1 pr.QuantitePredite, pr.ScoreRisque, pr.HorizonJours, pr.DateCalcul FROM PrevisionsEtatProduit pr WHERE pr.ProduitId = @ProduitId ORDER BY pr.DateCalcul DESC",
+        "id": "ventes-chiffre-affaires-alt",
+        "question": "Chiffre d'affaires",
+        "sql": "SELECT SUM(h.\"QuantiteVendue\" * h.\"PrixUnitaire\") AS \"ChiffreAffaires\", COUNT(h.\"Id\") AS \"NombreCommandes\" FROM \"HistoriqueVentes\" h WHERE h.\"Statut\" IN ('PAYEE', 'EN_LIVRAISON', 'LIVREE')",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["ADMIN"]
     },
     {
-        "id": "ventes-commandes-statuts",
-        "question": "Combien de commandes en attente, acceptées et refusées ?",
-        "sql": "SELECT CASE COALESCE(StatutCommande, Statut) WHEN 'ACCEPTEE' THEN 'Acceptée' WHEN 'REFUSEE' THEN 'Refusée' WHEN 'EN_ATTENTE_CONFIRMATION' THEN 'En attente de confirmation' WHEN 'CONFIRMEE' THEN 'Confirmée' WHEN 'EN_PREPARATION' THEN 'En préparation' WHEN 'PRETE' THEN 'Prête' WHEN 'PAYEE' THEN 'Payée' WHEN 'EN_LIVRAISON' THEN 'En livraison' WHEN 'LIVREE' THEN 'Livrée' ELSE 'En attente' END AS Label, COUNT(*) AS Valeur FROM HistoriqueVentes GROUP BY COALESCE(StatutCommande, Statut)",
-        "typeGraphique": "donut",
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "id": "ventes-par-categorie",
+        "question": "Quelles sont les ventes par catégorie ?",
+        "sql": "SELECT p.\"Categorie\", SUM(h.\"QuantiteVendue\") AS \"TotalVendu\", SUM(h.\"QuantiteVendue\" * h.\"PrixUnitaire\") AS \"ChiffreAffaires\" FROM \"HistoriqueVentes\" h JOIN \"Produits\" p ON p.\"Id\" = h.\"ProduitId\" GROUP BY p.\"Categorie\" ORDER BY \"ChiffreAffaires\" DESC",
+        "typeGraphique": "pie",
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "recyclage-candidats",
-        "question": "Trouver les produits candidats au recyclage (ancienneté supérieure à 365 jours, faible rotation)",
-        "sql": "SELECT p.Nom, p.DateCreation, s.QuantiteActuelle FROM Produits p JOIN Stocks s ON p.Id = s.ProduitId WHERE DATEDIFF(DAY, p.DateCreation, GETDATE()) > 365 AND s.QuantiteActuelle > 0 AND NOT EXISTS (SELECT 1 FROM HistoriqueVentes h WHERE h.ProduitId = p.Id AND h.DateVente >= DATEADD(DAY, -90, GETDATE()))",
+        "id": "ventes-par-mois",
+        "question": "Quelles sont les ventes par mois ?",
+        "sql": "SELECT TO_CHAR(h.\"DateVente\", 'YYYY-MM') AS \"Mois\", SUM(h.\"QuantiteVendue\") AS \"TotalVendu\", SUM(h.\"QuantiteVendue\" * h.\"PrixUnitaire\") AS \"ChiffreAffaires\" FROM \"HistoriqueVentes\" h WHERE h.\"DateVente\" >= NOW() - INTERVAL '12 months' GROUP BY TO_CHAR(h.\"DateVente\", 'YYYY-MM') ORDER BY \"Mois\"",
+        "typeGraphique": "line",
+        "rolesAutorises": ["ADMIN"]
+    },
+    {
+        "id": "alertes-actives",
+        "question": "Quelles sont les alertes actives ?",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", a.\"TypeRisque\", a.\"Statut\", a.\"DateCreation\", a.\"Message\" FROM \"Alertes\" a JOIN \"Produits\" p ON p.\"Id\" = a.\"ProduitId\" WHERE a.\"Statut\" = 'ACTIVE' ORDER BY a.\"DateCreation\" DESC LIMIT 20",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "alertes-utilisateur-assigne",
-        "question": "Lister les alertes assignées à un utilisateur donné et leur statut",
-        "sql": "SELECT a.Id, p.Nom, a.TypeRisque, a.Statut FROM Alertes a JOIN Produits p ON a.ProduitId = p.Id WHERE a.UtilisateurId = @UtilisateurId",
+        "id": "alertes-actives-alt",
+        "question": "Y a-t-il des alertes de stock ?",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", a.\"TypeRisque\", a.\"Statut\", a.\"DateCreation\", a.\"Message\" FROM \"Alertes\" a JOIN \"Produits\" p ON p.\"Id\" = a.\"ProduitId\" WHERE a.\"Statut\" = 'ACTIVE' ORDER BY a.\"DateCreation\" DESC LIMIT 20",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "ventes-top-produit-mois",
-        "question": "Quel est le produit le plus vendu ce mois-ci ?",
-        "sql": "SELECT TOP 1 p.Nom, SUM(h.QuantiteVendue) AS TotalVendu FROM HistoriqueVentes h JOIN Produits p ON h.ProduitId = p.Id WHERE (h.DatePaiement IS NOT NULL OR h.Statut IN ('PAYEE', 'EN_LIVRAISON', 'LIVREE')) AND MONTH(COALESCE(h.DatePaiement, h.DateVente)) = MONTH(GETDATE()) AND YEAR(COALESCE(h.DatePaiement, h.DateVente)) = YEAR(GETDATE()) GROUP BY p.Nom ORDER BY TotalVendu DESC",
+        "id": "previsions-risques",
+        "question": "Quelles sont les prévisions de risque pour les produits ?",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", pev.\"TypeRisquePredit\", pev.\"ScoreRisque\", pev.\"QuantitePredite\", pev.\"HorizonJours\", pev.\"DateCalcul\" FROM \"PrevisionsEtatProduit\" pev JOIN \"Produits\" p ON p.\"Id\" = pev.\"ProduitId\" ORDER BY pev.\"ScoreRisque\" DESC LIMIT 20",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "produits-total-count",
-        "question": "Combien de produits sont référencés au total ?",
-        "sql": "SELECT COUNT(*) AS TotalProduits FROM Produits",
+        "id": "produits-populaires",
+        "question": "Quels sont les produits les plus populaires ?",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"Categorie\", SUM(h.\"QuantiteVendue\") AS \"TotalVendu\" FROM \"HistoriqueVentes\" h JOIN \"Produits\" p ON h.\"ProduitId\" = p.\"Id\" GROUP BY p.\"Nom\", p.\"Reference\", p.\"Categorie\" ORDER BY \"TotalVendu\" DESC LIMIT 5",
+        "typeGraphique": "bar",
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
+    },
+    {
+        "id": "mouvements-stock-recents",
+        "question": "Quels sont les derniers mouvements de stock ?",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", m.\"Type\", m.\"Quantite\", m.\"Date\", m.\"Motif\" FROM \"MouvementsStock\" m JOIN \"Stocks\" s ON m.\"StockId\" = s.\"Id\" JOIN \"Produits\" p ON s.\"ProduitId\" = p.\"Id\" ORDER BY m.\"Date\" DESC LIMIT 20",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "admin-liste-utilisateurs-admin",
-        "question": "Quels utilisateurs ont le rôle admin ?",
-        "sql": "SELECT Nom, Prenom, Email FROM Utilisateurs WHERE Role = 'ADMIN'",
+        "id": "mouvements-stock-recents-alt",
+        "question": "Historique des mouvements de stock",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", m.\"Type\", m.\"Quantite\", m.\"Date\", m.\"Motif\" FROM \"MouvementsStock\" m JOIN \"Stocks\" s ON m.\"StockId\" = s.\"Id\" JOIN \"Produits\" p ON s.\"ProduitId\" = p.\"Id\" ORDER BY m.\"Date\" DESC LIMIT 20",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "ADMIN"
-        ]
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "production-total-produit-mois",
-        "question": "Quelle est la quantité totale produite pour un produit donné ce mois-ci ?",
-        "sql": "SELECT SUM(QuantiteProduite) AS TotalProduit FROM HistoriqueProductions WHERE ProduitId = @ProduitId AND MONTH(DateProduction) = MONTH(GETDATE())",
+        "id": "commandes-en-attente",
+        "question": "Quelles sont les commandes en attente ?",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", h.\"QuantiteVendue\", h.\"PrixUnitaire\", h.\"DateVente\", h.\"Statut\", h.\"StatutCommande\" FROM \"HistoriqueVentes\" h JOIN \"Produits\" p ON p.\"Id\" = h.\"ProduitId\" WHERE h.\"Statut\" = 'EN_ATTENTE' OR h.\"StatutCommande\" = 'EN_ATTENTE' ORDER BY h.\"DateVente\" ASC LIMIT 20",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "previsions-obsolescence-risque",
-        "question": "Quels produits ont un score de risque d'obsolescence supérieur à 0.7 ?",
-        "sql": "SELECT p.Nom, pr.ScoreRisque FROM PrevisionsEtatProduit pr JOIN Produits p ON pr.ProduitId = p.Id WHERE pr.TypeRisquePredit = 'OBSOLESCENCE' AND pr.ScoreRisque > 0.7 ORDER BY pr.ScoreRisque DESC",
+        "id": "commandes-en-attente-alt",
+        "question": "Commandes en cours de traitement",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", h.\"QuantiteVendue\", h.\"PrixUnitaire\", h.\"DateVente\", h.\"Statut\" FROM \"HistoriqueVentes\" h JOIN \"Produits\" p ON p.\"Id\" = h.\"ProduitId\" WHERE h.\"Statut\" IN ('EN_PREPARATION', 'EN_ATTENTE', 'ACCEPTEE') ORDER BY h.\"DateVente\" ASC LIMIT 20",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "client-historique-commandes",
-        "question": "Quel est l'état de mes commandes ?",
-        "sql": "SELECT p.Nom, h.DateVente, h.QuantiteVendue, h.PrixUnitaire, (h.QuantiteVendue * h.PrixUnitaire) AS Total, h.StatutCommande FROM HistoriqueVentes h JOIN Produits p ON h.ProduitId = p.Id WHERE h.UtilisateurId = @UtilisateurId ORDER BY h.DateVente DESC",
+        "id": "utilisateurs-liste",
+        "question": "Liste des utilisateurs",
+        "sql": "SELECT u.\"Nom\", u.\"Prenom\", u.\"Email\", u.\"Role\" FROM \"Utilisateurs\" u ORDER BY u.\"Nom\" LIMIT 50",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["ADMIN"]
     },
     {
-        "id": "client-historique-commandes-alt",
-        "question": "Quel est mon historique de commandes ?",
-        "sql": "SELECT p.Nom, h.DateVente, h.QuantiteVendue, h.PrixUnitaire, (h.QuantiteVendue * h.PrixUnitaire) AS Total, h.StatutCommande FROM HistoriqueVentes h JOIN Produits p ON h.ProduitId = p.Id WHERE h.UtilisateurId = @UtilisateurId ORDER BY h.DateVente DESC",
+        "id": "reclamations-ouvertes",
+        "question": "Quelles sont les réclamations ouvertes ?",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", r.\"Motif\", r.\"Description\", r.\"Statut\", r.\"DateCreation\" FROM \"Reclamations\" r JOIN \"Produits\" p ON p.\"Id\" = r.\"ProduitId\" WHERE r.\"Statut\" = 'ENVOYEE' OR r.\"Statut\" = 'EN_COURS' ORDER BY r.\"DateCreation\" DESC LIMIT 20",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "produits-jamais-vendus",
-        "question": "Quels produits n'ont jamais été vendus ?",
-        "sql": "SELECT p.Nom, p.Reference FROM Produits p WHERE NOT EXISTS (SELECT 1 FROM HistoriqueVentes h WHERE h.ProduitId = p.Id)",
+        "id": "produits-promotion",
+        "question": "Quels produits sont en promotion ?",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"Categorie\", p.\"PrixUnitaire\", p.\"RemisePourcentage\", p.\"DateFinPromotion\" FROM \"Produits\" p WHERE p.\"RemisePourcentage\" IS NOT NULL AND p.\"RemisePourcentage\" > 0 AND (p.\"DateFinPromotion\" IS NULL OR p.\"DateFinPromotion\" > NOW()) AND p.\"EstArchive\" = false ORDER BY p.\"RemisePourcentage\" DESC",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["CLIENT", "RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "mouvements-stock-aujourdhui",
-        "question": "Quels mouvements de stock ont eu lieu aujourd'hui ?",
-        "sql": "SELECT m.Type, m.Quantite, m.Motif, p.Nom FROM MouvementsStock m JOIN Stocks s ON m.StockId = s.Id JOIN Produits p ON s.ProduitId = p.Id WHERE CAST(m.Date AS DATE) = CAST(GETDATE() AS DATE) ORDER BY m.Date DESC",
+        "id": "stock-faible",
+        "question": "Quels produits ont un stock faible ?",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"Categorie\", s.\"QuantiteActuelle\", s.\"SeuilAlerte\" FROM \"Produits\" p JOIN \"Stocks\" s ON s.\"ProduitId\" = p.\"Id\" WHERE s.\"QuantiteActuelle\" > 0 AND s.\"QuantiteActuelle\" <= (s.\"SeuilAlerte\" * 2) AND p.\"EstArchive\" = false ORDER BY s.\"QuantiteActuelle\" ASC LIMIT 20",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "client-total-depenses",
-        "question": "Quel est le montant total de mes commandes ?",
-        "sql": "SELECT SUM(h.QuantiteVendue * h.PrixUnitaire) AS TotalDepense FROM HistoriqueVentes h WHERE h.UtilisateurId = @UtilisateurId AND (h.DatePaiement IS NOT NULL OR h.Statut IN ('PAYEE', 'EN_LIVRAISON', 'LIVREE', 'ACCEPTEE'))",
+        "id": "productions-recentes",
+        "question": "Quelles sont les dernières productions ?",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", hp.\"QuantiteProduite\", hp.\"DateProduction\" FROM \"HistoriqueProductions\" hp JOIN \"Produits\" p ON p.\"Id\" = hp.\"ProduitId\" ORDER BY hp.\"DateProduction\" DESC LIMIT 20",
         "typeGraphique": null,
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "client-etat-reclamations",
-        "question": "Quel est l'état de mes réclamations ?",
-        "sql": "SELECT r.Motif, r.Description, r.Statut, r.DateCreation, r.ReponseAdmin FROM Reclamations r WHERE r.ClientId = @UtilisateurId ORDER BY r.DateCreation DESC",
-        "typeGraphique": null,
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "id": "produits-par-categorie",
+        "question": "Combien de produits par catégorie ?",
+        "sql": "SELECT p.\"Categorie\", COUNT(p.\"Id\") AS \"NombreProduits\" FROM \"Produits\" p WHERE p.\"EstArchive\" = false GROUP BY p.\"Categorie\" ORDER BY \"NombreProduits\" DESC",
+        "typeGraphique": "pie",
+        "rolesAutorises": ["CLIENT", "RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
-        "id": "client-repartition-commandes",
-        "question": "Répartition de mes commandes par statut",
-        "sql": "SELECT CASE COALESCE(h.StatutCommande, h.Statut) WHEN 'ACCEPTEE' THEN 'Acceptée' WHEN 'REFUSEE' THEN 'Refusée' WHEN 'EN_ATTENTE_CONFIRMATION' THEN 'En attente de confirmation' WHEN 'CONFIRMEE' THEN 'Confirmée' WHEN 'EN_PREPARATION' THEN 'En préparation' WHEN 'PRETE' THEN 'Prête' WHEN 'PAYEE' THEN 'Payée' WHEN 'EN_LIVRAISON' THEN 'En livraison' WHEN 'LIVREE' THEN 'Livrée' ELSE 'En attente' END AS Label, COUNT(*) AS Valeur FROM HistoriqueVentes h WHERE h.UtilisateurId = @UtilisateurId GROUP BY COALESCE(h.StatutCommande, h.Statut)",
-        "typeGraphique": "donut",
-        "rolesAutorises": [
-            "CLIENT",
-            "RESPONSABLE_STOCK_PRODUCTION",
-            "ADMIN"
-        ]
+        "id": "produits-par-categorie-alt",
+        "question": "Répartition des produits par catégorie",
+        "sql": "SELECT p.\"Categorie\", COUNT(p.\"Id\") AS \"NombreProduits\" FROM \"Produits\" p WHERE p.\"EstArchive\" = false GROUP BY p.\"Categorie\" ORDER BY \"NombreProduits\" DESC",
+        "typeGraphique": "pie",
+        "rolesAutorises": ["CLIENT", "RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     }
 ]

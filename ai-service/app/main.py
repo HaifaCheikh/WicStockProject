@@ -146,10 +146,13 @@ class AnalyseSurstockRequest(BaseModel):
 def au_demarrage():
     print("[main] Construction / vérification de la base vectorielle ChromaDB...")
     try:
-        build_vectorstore(force_rebuild=False)
+        # force_rebuild=True pour régénérer avec les exemples SQL PostgreSQL corrigés
+        build_vectorstore(force_rebuild=True)
         print("[main] Base vectorielle prête. Système Multi-Agents WicStock AI initialisé.")
     except Exception as ex:
         print(f"[main] WARN vectorstore non disponible: {ex}. Le service démarre quand même.")
+
+
 
 
 
