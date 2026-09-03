@@ -127,7 +127,7 @@
         <MudGrid Class="mb-6">
             <!-- Graphique Revenus -->
             <MudItem xs="12" lg="8">
-                <div class="chart-card">
+                <div class="chart-card h-100 d-flex flex-column">
                     <div class="chart-header d-flex justify-space-between align-center flex-wrap gap-3">
                         <div>
                             <h3 class="chart-title">Évolution des Revenus Mensuels</h3>
@@ -139,7 +139,7 @@
                         </div>
                     </div>
 
-                    <div class="chart-body">
+                    <div class="chart-body flex-1 d-flex flex-column justify-center">
                         @if (data.EvolutionRevenus != null && data.EvolutionRevenus.Any())
                         {
                             var maxRevenu = Math.Max(100m, data.EvolutionRevenus.Max(r => r.Montant));
@@ -666,11 +666,15 @@
         border-radius: var(--radius-lg);
         overflow: hidden;
         box-shadow: var(--shadow-sm);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
     }
 
     .chart-header {
         padding: 18px 22px;
         border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
     }
 
     .chart-title {
@@ -701,6 +705,23 @@
 
     .chart-body {
         padding: 24px;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .table-responsive {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .data-table {
+        width: 100%;
+        height: 100%;
+        border-collapse: collapse;
     }
 
     /* ===== Empty state ===== */
@@ -713,6 +734,8 @@
         padding: 40px 20px;
         color: var(--ink-muted);
         text-align: center;
+        flex: 1;
+        height: 100%;
     }
 
         .empty-state .mud-icon-root {
@@ -735,7 +758,12 @@
     }
 
     .empty-state--inline {
-        padding: 24px 12px;
+        padding: 36px 12px;
+        min-height: 140px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
     }
 
     /* ===== Bar Chart ===== */
