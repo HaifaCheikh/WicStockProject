@@ -1,11 +1,8 @@
-@inherits LayoutComponentBase
+ï»¿@inherits LayoutComponentBase
 @inject WicStock.Web.Services.NotificationClientService NotificationService
 @inject AuthenticationStateProvider AuthStateProvider
 
 <MudThemeProvider Theme="_theme" />
-<MudPopoverProvider />
-<MudDialogProvider />
-<MudSnackbarProvider />
 
 <MudLayout>
     <MudDrawer Open="true" ClipMode="DrawerClipMode.Never" Elevation="0" Width="220px">
@@ -13,7 +10,7 @@
     </MudDrawer>
 
     <MudMainContent Style="background-color: #f8fafc; min-height: 100vh; position: relative;">
-        <!-- Cloche flottante : hors du flux normal, aucune hauteur réservée, aucun conflit possible -->
+        <!-- Cloche flottante : hors du flux normal, aucune hauteur rÃ©servÃ©e, aucun conflit possible -->
         <div class="floating-bell">
             <AuthorizeView>
                 <Authorized>

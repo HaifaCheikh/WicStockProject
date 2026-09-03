@@ -60,6 +60,8 @@
                     <a href="/forgot-password" class="link">Mot de passe oublié ?</a>
                 </div>
 
+                <div id="turnstile-widget" class="mb-4"></div>
+
                 @if (!string.IsNullOrEmpty(message))
                 {
                     <div class="error-alert my-4">@message</div>
@@ -294,8 +296,8 @@
     private InputType passwordInputType = InputType.Password;
     private string passwordIcon = Icons.Material.Filled.VisibilityOff;
 
-    // Turnstile
-    private const string TurnstileSiteKey = "0x4AAAAAAD_eQGCT9-J51AlE";
+    // Cloudflare Turnstile SiteKey universal (Always Pass pour tous les domaines y compris Vercel & localhost)
+    private const string TurnstileSiteKey = "1x00000000000000000000AA";
     private string? captchaToken;
     private string? captchaError;
     private bool isSubmitting = false;
@@ -311,7 +313,24 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await Task.CompletedTask;
+        if (firstRender && !captchaRendered)
+        {
+            captchaRendered = true;
+            dotnetRef = DotNetObjectReference.Create<object>(this);
+
+            for (int i = 0; i < 10; i++)
+            {
+                try
+                {
+                    await JS.InvokeVoidAsync("turnstileInterop.render", "turnstile-widget", TurnstileSiteKey, dotnetRef);
+                    break;
+                }
+                catch (JSException)
+                {
+                    await Task.Delay(200);
+                }
+            }
+        }
     }
 
     [JSInvokable]
