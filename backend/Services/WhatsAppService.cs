@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.Json;
 
 namespace WicStock_.Services
@@ -16,9 +16,19 @@ namespace WicStock_.Services
 
         public async Task EnvoyerCodeReinitialisationAsync(string numeroDestinataire, string prenom, string code)
         {
-            var urlService = _config["WhatsAppService:Url"] ?? "http://localhost:3001/send";
+            var urlService = _config["WhatsAppService:Url"] 
+                ?? _config["WhatsAppService__Url"] 
+                ?? _config["WHATSAPPSERVICE_URL"] 
+                ?? _config["WHATSAPP_SERVICE_URL"] 
+                ?? "http://localhost:3001/send";
 
-            var message = $"Bonjour {prenom}, votre code de r\u00e9initialisation WicStock est : {code}. Il expire dans 15 minutes.";
+            urlService = urlService.Trim().Trim('"', '\'');
+            if (!urlService.EndsWith("/send", StringComparison.OrdinalIgnoreCase))
+            {
+                urlService = urlService.TrimEnd('/') + "/send";
+            }
+
+            var message = $"Bonjour {prenom}, votre code de réinitialisation WicStock est : {code}. Il expire dans 15 minutes.";
 
             var payload = new
             {
@@ -29,17 +39,15 @@ namespace WicStock_.Services
             var json = JsonSerializer.Serialize(payload);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            // Logs temporaires pour debug : afficher l'URL, le numéro et le payload
-            Console.WriteLine($"[WHATSAPP SERVICE] Appel vers: {urlService}");
-            Console.WriteLine($"[WHATSAPP SERVICE] Destinataire (tel transmis) : {numeroDestinataire}");
-            Console.WriteLine($"[WHATSAPP SERVICE] Payload JSON : {json}");
+            Console.WriteLine($"[WHATSAPP SERVICE] Envoi vers {urlService} pour le numéro {numeroDestinataire}...");
 
             var response = await _httpClient.PostAsync(urlService, content);
 
             if (!response.IsSuccessStatusCode)
             {
                 var erreur = await response.Content.ReadAsStringAsync();
-                throw new Exception($"Erreur service WhatsApp : {erreur}");
+                Console.WriteLine($"[WHATSAPP SERVICE ERROR] Status: {response.StatusCode}, Content: {erreur}");
+                throw new Exception($"Erreur service WhatsApp ({response.StatusCode}) : {erreur}");
             }
         }
     }
