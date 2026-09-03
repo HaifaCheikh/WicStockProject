@@ -9,7 +9,7 @@ from app.rag import trouver_meilleur_match_catalogue, construire_contexte_comple
 from app.ollama_client import extraire_sql, _construire_messages
 import ollama
 
-SEUIL_DISTANCE_MAX = 0.35  # Distance Cosine max pour le matching catalogue
+SEUIL_DISTANCE_MAX = 0.65  # Distance Cosine max pour le matching catalogue (plus large = plus de matches)
 MODEL_NAME = "qwen3:1.7b"
 
 
@@ -121,25 +121,22 @@ class NL2SQLAgent:
                         "type_graphique": None,
                     }
 
-            # Adaptation dynamique des dates relatives ("15 derniers jours", "60 jours", etc.)
+            # Adaptation dynamique des dates relatives ("15 derniers jours", "60 jours", etc.) - PostgreSQL
             match_jours = re.search(r"(\d+)\s*(?:dernières?|derniers?)?\s*jours?", question, re.IGNORECASE)
             if match_jours:
                 nb_jours = match_jours.group(1)
                 sql_final = re.sub(
-                    r"DATEADD\s*\(\s*DAY\s*,\s*-\d+\s*,",
-                    f"DATEADD(DAY, -{nb_jours},",
+                    r"INTERVAL '\d+ days'",
+                    f"INTERVAL '{nb_jours} days'",
                     sql_final,
                     flags=re.IGNORECASE,
                 )
 
-            # Adaptation dynamique du TOP N ("les 5 produits", "top 10", "3 premiers")
+            # Adaptation dynamique du LIMIT N ("les 5 produits", "top 10", "3 premiers") - PostgreSQL
             match_top = re.search(r"(?:top|les)?\s*(\d+)\s*(?:premiers?|meilleurs?)?\s*(?:produits?|articles?|commandes?|ventes?)", question, re.IGNORECASE)
             if match_top:
                 nb_top = match_top.group(1)
-                if "TOP " in sql_final.upper():
-                    sql_final = re.sub(r"\bTOP\s+\d+\b", f"TOP {nb_top}", sql_final, flags=re.IGNORECASE)
-                elif sql_final.upper().lstrip().startswith("SELECT"):
-                    sql_final = re.sub(r"^SELECT\s+", f"SELECT TOP {nb_top} ", sql_final, flags=re.IGNORECASE)
+                sql_final = re.sub(r"\bLIMIT\s+\d+\b", f"LIMIT {nb_top}", sql_final, flags=re.IGNORECASE)
 
             return {
                 "succes": True,
@@ -173,9 +170,7 @@ class NL2SQLAgent:
                     "type_graphique": None,
                 }
 
-            # Détection du type de graphique recommandé par heuristique sur la question / SQL
             type_recommande = self._deduire_type_graphique(question, sql_extrait)
-
             return {
                 "succes": True,
                 "sql_candidat": sql_extrait,
@@ -185,9 +180,10 @@ class NL2SQLAgent:
                 "source": "LLM_GENERATION",
             }
         except Exception as e:
+            print(f"[NL2SQL OLLAMA WARNING] {e}")
             return {
                 "succes": False,
-                "message": f"Erreur lors de la génération SQL : {str(e)}",
+                "message": "L'assistant IA est temporairement indisponible. Veuillez réessayer avec une des suggestions prédéfinies.",
                 "sql_candidat": None,
                 "score_similarite": 0.0,
                 "entree_id_catalogue": None,
