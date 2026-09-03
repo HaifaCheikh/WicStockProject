@@ -13,7 +13,7 @@
     {
       "id": "table-stocks",
       "type": "schema_table",
-      "contenu": "Table \"Stocks\" : état courant du stock pour un produit. Colonnes : \"Id\" (PK), \"QuantiteActuelle\", \"SeuilAlerte\", \"SeuilSurstock\", \"Emplacement\", \"DateMiseAJour\", \"ProduitId\" (FK vers Produits). ETATS DE STOCK : Rupture = QuantiteActuelle <= SeuilAlerte. Surstock = QuantiteActuelle > SeuilSurstock. Exemple PostgreSQL : SELECT p.\"Nom\", s.\"QuantiteActuelle\", s.\"SeuilAlerte\" FROM \"Produits\" p JOIN \"Stocks\" s ON s.\"ProduitId\" = p.\"Id\" WHERE s.\"QuantiteActuelle\" <= s.\"SeuilAlerte\" AND p.\"EstArchive\" = false."
+      "contenu": "Table \"Stocks\" : état courant du stock pour un produit. Colonnes : \"Id\" (PK), \"QuantiteActuelle\", \"SeuilAlerte\", \"SeuilSurstock\", \"Emplacement\", \"DateMiseAJour\", \"ProduitId\" (FK vers Produits). ETATS DE STOCK STRICTS (alignés C#) : Sur commande = QuantiteActuelle = 0 AND DisponibleSurCommande = true. Rupture = QuantiteActuelle = 0 AND (DisponibleSurCommande = false OR DisponibleSurCommande IS NULL). Stock faible = QuantiteActuelle > 0 AND QuantiteActuelle < COALESCE(SeuilAlerte, 10). Surstock = QuantiteActuelle >= 500. Exemple PostgreSQL : SELECT p.\"Nom\", s.\"QuantiteActuelle\", s.\"SeuilAlerte\" FROM \"Produits\" p JOIN \"Stocks\" s ON s.\"ProduitId\" = p.\"Id\" WHERE s.\"QuantiteActuelle\" = 0 AND p.\"EstArchive\" = false."
     },
     {
       "id": "table-mouvementsstock",

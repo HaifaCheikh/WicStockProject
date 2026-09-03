@@ -31,13 +31,14 @@ UTILISATEUR ACTUEL :
 - Format date : TO_CHAR(date, 'YYYY-MM')
 - Les enums sont stockes en texte : WHERE h."Statut" = 'PAYEE'
 
-**REGLES METIER STOCK :**
+**REGLES METIER STOCK STRICTES (alignées avec le catalogue C#) :**
 - CHIFFRE D'AFFAIRES = ventes avec Statut IN ('PAYEE', 'EN_LIVRAISON', 'LIVREE')
-- RUPTURE = s."QuantiteActuelle" <= s."SeuilAlerte" AND p."EstArchive" = false
-- SURSTOCK = s."QuantiteActuelle" > COALESCE(s."SeuilSurstock", 100) AND p."EstArchive" = false
-- STOCK FAIBLE = s."QuantiteActuelle" > 0 AND s."QuantiteActuelle" <= s."SeuilAlerte" AND p."EstArchive" = false
+- SUR COMMANDE = s."QuantiteActuelle" = 0 AND p."DisponibleSurCommande" = true AND p."EstArchive" = false
+- RUPTURE = s."QuantiteActuelle" = 0 AND (p."DisponibleSurCommande" = false OR p."DisponibleSurCommande" IS NULL) AND p."EstArchive" = false
+- STOCK FAIBLE = s."QuantiteActuelle" > 0 AND s."QuantiteActuelle" < COALESCE(s."SeuilAlerte", 10) AND p."EstArchive" = false
+- SURSTOCK = s."QuantiteActuelle" >= 500 AND p."EstArchive" = false
 - REPARTITION ETATS (PostgreSQL) :
-  SELECT CASE WHEN s."QuantiteActuelle" = 0 THEN 'Rupture totale' WHEN s."QuantiteActuelle" <= s."SeuilAlerte" THEN 'Stock faible' WHEN s."SeuilSurstock" IS NOT NULL AND s."QuantiteActuelle" > s."SeuilSurstock" THEN 'Surstock' ELSE 'Stock normal' END AS "EtatStock", COUNT(*) AS "NombreProduits" FROM "Stocks" s JOIN "Produits" p ON p."Id" = s."ProduitId" WHERE p."EstArchive" = false GROUP BY "EtatStock"
+  SELECT CASE WHEN s."QuantiteActuelle" = 0 AND p."DisponibleSurCommande" = true THEN 'Sur commande' WHEN s."QuantiteActuelle" = 0 THEN 'Rupture totale' WHEN s."QuantiteActuelle" < COALESCE(s."SeuilAlerte", 10) THEN 'Stock faible' WHEN s."QuantiteActuelle" >= 500 THEN 'Surstock' ELSE 'Stock normal' END AS "EtatStock", COUNT(*) AS "NombreProduits" FROM "Stocks" s JOIN "Produits" p ON p."Id" = s."ProduitId" WHERE p."EstArchive" = false GROUP BY "EtatStock" ORDER BY "NombreProduits" DESC
 
 REGLES STRICTES :
 1. Genere UNIQUEMENT des SELECT SQL, jamais INSERT/UPDATE/DELETE.
