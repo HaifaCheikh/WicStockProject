@@ -6,25 +6,28 @@ namespace WicStock_.Services
     {
         private readonly ConcurrentDictionary<string, (string Code, DateTime Expiration)> _codes = new();
 
+        private static string CleanKey(string identifier) => identifier.Trim().ToLowerInvariant();
+
         public string GenerateCode(string identifier)
         {
             var random = new Random();
             var code = random.Next(100000, 999999).ToString();
             var expiration = DateTime.UtcNow.AddMinutes(15);
             
-            _codes[identifier] = (code, expiration);
+            var key = CleanKey(identifier);
+            _codes[key] = (code, expiration);
 
-            // Pour faciliter le test en développement, on l'affiche dans la console
-            Console.WriteLine($"[WicStock RESET CODE] Code pour {identifier} : {code} (Expire à : {expiration} UTC)");
+            Console.WriteLine($"[WicStock RESET CODE] Code pour {identifier} ({key}) : {code} (Expire à : {expiration} UTC)");
 
             return code;
         }
 
         public bool VerifyCode(string identifier, string code)
         {
-            if (_codes.TryGetValue(identifier, out var data))
+            var key = CleanKey(identifier);
+            if (_codes.TryGetValue(key, out var data))
             {
-                if (data.Expiration > DateTime.UtcNow && data.Code == code)
+                if (data.Expiration > DateTime.UtcNow && data.Code.Trim() == code.Trim())
                 {
                     return true;
                 }
@@ -34,7 +37,8 @@ namespace WicStock_.Services
 
         public void RemoveCode(string identifier)
         {
-            _codes.TryRemove(identifier, out _);
+            var key = CleanKey(identifier);
+            _codes.TryRemove(key, out _);
         }
     }
 }

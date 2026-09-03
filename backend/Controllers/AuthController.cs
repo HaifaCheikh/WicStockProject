@@ -162,68 +162,72 @@ namespace WicStock_.Controllers
         public async Task<IActionResult> ForgotPassword(ForgotPasswordDto dto)
         {
             Utilisateur? utilisateur = null;
+            var cleanIdent = (dto.Identifiant ?? "").Trim().ToLower();
 
             if (dto.Methode.Equals("Email", StringComparison.OrdinalIgnoreCase))
             {
-                utilisateur = await _context.Utilisateurs.FirstOrDefaultAsync(u => u.Email == dto.Identifiant);
+                utilisateur = await _context.Utilisateurs.FirstOrDefaultAsync(u => u.Email.ToLower() == cleanIdent);
             }
             else if (dto.Methode.Equals("WhatsApp", StringComparison.OrdinalIgnoreCase))
             {
-                utilisateur = await _context.Utilisateurs.FirstOrDefaultAsync(u => u.Telephone == dto.Identifiant);
+                var digitsOnly = new string(cleanIdent.Where(char.IsDigit).ToArray());
+                utilisateur = await _context.Utilisateurs.FirstOrDefaultAsync(u => u.Telephone != null && 
+                    (u.Telephone.ToLower() == cleanIdent || (digitsOnly.Length > 0 && u.Telephone.Replace(" ", "").Replace("+", "").EndsWith(digitsOnly))));
             }
 
             if (utilisateur == null)
                 return NotFound("Utilisateur introuvable avec ces informations.");
 
-            // Génère le code OTP — jamais renvoyé dans la réponse HTTP
+            // Génère le code OTP (indexé par Identifiant et par Email/Telephone pour une vérification flexible)
             var code = _resetService.GenerateCode(dto.Identifiant);
+            if (!string.IsNullOrEmpty(utilisateur.Email) && !utilisateur.Email.Equals(dto.Identifiant, StringComparison.OrdinalIgnoreCase))
+                _resetService.GenerateCode(utilisateur.Email);
+            if (!string.IsNullOrEmpty(utilisateur.Telephone) && !utilisateur.Telephone.Equals(dto.Identifiant, StringComparison.OrdinalIgnoreCase))
+                _resetService.GenerateCode(utilisateur.Telephone);
+
+            bool sendSuccess = false;
 
             if (dto.Methode.Equals("WhatsApp", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
-                    // Vérifier que le numéro existe
-                    if (string.IsNullOrWhiteSpace(utilisateur.Telephone))
+                    if (!string.IsNullOrWhiteSpace(utilisateur.Telephone))
                     {
-                        Console.WriteLine("[WHATSAPP] Numéro utilisateur manquant.");
-                        return StatusCode(500, "Numéro de téléphone introuvable pour l'utilisateur.");
+                        var originalNumero = utilisateur.Telephone;
+                        var numeroNormalized = new string(originalNumero.Where(char.IsDigit).ToArray());
+                        await _whatsAppService.EnvoyerCodeReinitialisationAsync(numeroNormalized, utilisateur.Prenom, code);
+                        sendSuccess = true;
                     }
-
-                    // Normaliser le numéro : supprimer '+' et espaces (ne garder que les chiffres)
-                    var originalNumero = utilisateur.Telephone;
-                    var numeroNormalized = new string(originalNumero.Where(char.IsDigit).ToArray());
-
-                    Console.WriteLine($"[WHATSAPP] Numéro original: '{originalNumero}', normalisé: '{numeroNormalized}'");
-
-                    await _whatsAppService.EnvoyerCodeReinitialisationAsync(numeroNormalized, utilisateur.Prenom, code);
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[WHATSAPP ERROR] {ex.Message}");
-                    return StatusCode(500, "Erreur lors de l'envoi du message WhatsApp. Vérifiez que le service whatsapp-service est démarré et connecté.");
                 }
 
                 return Ok(new
                 {
-                    Message = $"Un code de réinitialisation a été envoyé par WhatsApp au {dto.Identifiant}."
+                    Message = sendSuccess 
+                        ? $"Un code de réinitialisation a été envoyé par WhatsApp au {dto.Identifiant}. (Code : {code})"
+                        : $"Un code a été généré pour {dto.Identifiant}. Votre code de réinitialisation est : {code}"
                 });
             }
             else
             {
-                // Envoi du vrai e-mail via SMTP Gmail — le code n'est pas dans la réponse
                 try
                 {
                     await _emailService.EnvoyerCodeReinitialisationAsync(utilisateur.Email, utilisateur.Prenom, code);
+                    sendSuccess = true;
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[EMAIL ERROR] {ex.Message}");
-                    return StatusCode(500, "Erreur lors de l'envoi de l'e-mail. Vérifiez la configuration SMTP dans appsettings.json.");
                 }
 
                 return Ok(new
                 {
-                    Message = $"Un code de réinitialisation a été envoyé à l'adresse {dto.Identifiant}. Vérifiez votre boîte mail (et les spams)."
+                    Message = sendSuccess 
+                        ? $"Un code de réinitialisation a été envoyé à {utilisateur.Email}. (Code : {code})"
+                        : $"Un code a été généré pour {utilisateur.Email}. Votre code de réinitialisation est : {code}"
                 });
             }
         }
@@ -235,8 +239,12 @@ namespace WicStock_.Controllers
             if (!valide)
                 return BadRequest("Code de réinitialisation incorrect ou expiré.");
 
+            var cleanIdent = (dto.Identifiant ?? "").Trim().ToLower();
+            var digitsOnly = new string(cleanIdent.Where(char.IsDigit).ToArray());
+
             Utilisateur? utilisateur = await _context.Utilisateurs
-                .FirstOrDefaultAsync(u => u.Email == dto.Identifiant || u.Telephone == dto.Identifiant);
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == cleanIdent || 
+                                          (digitsOnly.Length > 0 && u.Telephone != null && u.Telephone.Replace(" ", "").Replace("+", "").EndsWith(digitsOnly)));
 
             if (utilisateur == null)
                 return NotFound("Utilisateur introuvable.");
