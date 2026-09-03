@@ -57,6 +57,8 @@ namespace WicStock_.Controllers
             if (emailExiste)
                 return BadRequest("Un utilisateur avec cet email existe déjà.");
 
+            // Sécurité : Toute inscription publique attribue STRICTEMENT le rôle CLIENT.
+            // Seul un Administrateur peut ensuite modifier le rôle d'un utilisateur dans la gestion des utilisateurs (/utilisateurs).
             var utilisateur = new Utilisateur
             {
                 Nom = dto.Nom,
@@ -64,7 +66,7 @@ namespace WicStock_.Controllers
                 Email = dto.Email,
                 Telephone = dto.Telephone,
                 MotDePasseHash = BCrypt.Net.BCrypt.HashPassword(dto.MotDePasse),
-                Role = dto.Role
+                Role = Enums.RoleUtilisateur.CLIENT
             };
 
             _context.Utilisateurs.Add(utilisateur);

@@ -150,23 +150,6 @@
                             </div>
                         </MudItem>
                     }
-
-                    <!-- Rôle : ToStringFunc affiche un nom propre au lieu de la valeur brute -->
-                    <MudItem xs="12">
-                        <MudSelect T="string" @bind-Value="modele.Role"
-                                   Label="Rôle *"
-                                   Placeholder="Sélectionnez votre rôle"
-                                   Variant="Variant.Outlined"
-                                   Adornment="Adornment.Start"
-                                   AdornmentIcon="@Icons.Material.Filled.Work"
-                                   ToStringFunc="@RoleAffiche"
-                                   Class="soft-field">
-                            <MudSelectItem Value="@("ADMIN")">Admin</MudSelectItem>
-                            <MudSelectItem Value="@("RESPONSABLE_STOCK_PRODUCTION")">Responsable stock &amp; production</MudSelectItem>
-                            <MudSelectItem Value="@("CLIENT")">Client</MudSelectItem>
-                            <MudSelectItem Value="@("LIVREUR")">Livreur</MudSelectItem>
-                        </MudSelect>
-                    </MudItem>
                 </MudGrid>
 
                 @if (!string.IsNullOrEmpty(message))

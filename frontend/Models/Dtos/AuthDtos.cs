@@ -24,7 +24,7 @@ namespace WicStock.Web.Models.Dtos
 
         public string MotDePasse { get; set; } = string.Empty;
         public string ConfirmationMotDePasse { get; set; } = string.Empty;
-        public string Role { get; set; } = string.Empty;
+        public string Role { get; set; } = "CLIENT";
     }
 
     public class ForgotPasswordDto
