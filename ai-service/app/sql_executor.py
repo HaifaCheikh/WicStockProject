@@ -37,7 +37,12 @@ def executer_requete(sql: str) -> list:
     """Exécute la requête SQL et retourne les résultats sous forme de liste de dicts."""
     db_url = DATABASE_URL or ""
 
+    if not db_url:
+        print("[SQL EXECUTOR] ERREUR CRITIQUE: DATABASE_URL non configurée ! Vérifiez les variables d'environnement Render.")
+        return []
+
     if db_url.startswith("postgresql://") or db_url.startswith("postgres://"):
+        print(f"[SQL EXECUTOR] Connexion PostgreSQL, SQL: {sql[:80]}...")
         try:
             import psycopg2
             import psycopg2.extras
@@ -46,12 +51,14 @@ def executer_requete(sql: str) -> list:
                 with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                     cur.execute(_ajouter_limite(sql))
                     rows = cur.fetchall()
+                    print(f"[SQL EXECUTOR] {len(rows)} ligne(s) retournée(s).")
                     return [{_nettoyer_utf8(k): _nettoyer_utf8(v) for k, v in row.items()} for row in rows]
             finally:
                 conn.close()
         except Exception as ex:
             print(f"[SQL EXECUTOR POSTGRES ERROR] {ex}")
             return []
+
     else:
         try:
             import pyodbc
