@@ -23,13 +23,20 @@ namespace WicStock_.Services
             var resendKey = _config["Email:ResendApiKey"] ?? _config["Email__ResendApiKey"] ?? _config["RESEND_API_KEY"];
             var brevoKey = _config["Email:BrevoApiKey"] ?? _config["Email__BrevoApiKey"] ?? _config["BREVO_API_KEY"];
 
-            var host = _config["Email:Host"] ?? _config["Email__Host"] ?? _config["EMAIL_HOST"] ?? "smtp.gmail.com";
+            var rawHost = _config["Email:Host"] ?? _config["Email__Host"] ?? _config["EMAIL_HOST"];
+            var host = string.IsNullOrWhiteSpace(rawHost) 
+                ? "smtp.gmail.com" 
+                : rawHost.Replace("http://", "").Replace("https://", "").Trim().Trim('"', '\'');
+            if (string.IsNullOrWhiteSpace(host)) host = "smtp.gmail.com";
+
             var portStr = _config["Email:Port"] ?? _config["Email__Port"] ?? _config["EMAIL_PORT"];
-            var port = int.TryParse(portStr, out var p) ? p : 587;
-            var expediteur = _config["Email:Expediteur"] ?? _config["Email__Expediteur"] ?? _config["EMAIL_EXPEDITEUR"];
+            var port = int.TryParse(portStr?.Trim(), out var p) ? p : 587;
+
+            var expediteur = (_config["Email:Expediteur"] ?? _config["Email__Expediteur"] ?? _config["EMAIL_EXPEDITEUR"])?.Trim().Trim('"', '\'');
             var rawPassword = _config["Email:MotDePasse"] ?? _config["Email__MotDePasse"] ?? _config["EMAIL_MOTDEPASSE"];
-            var motDePasse = rawPassword?.Replace(" ", "").Trim();
+            var motDePasse = rawPassword?.Replace(" ", "").Trim().Trim('"', '\'');
             var nomAffiche = _config["Email:NomAffiché"] ?? _config["Email__NomAffiché"] ?? "WicStock";
+            destinataire = destinataire?.Trim().Trim('"', '\'');
 
             var htmlContent = $"""
                 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; background: #f8fafc; padding: 32px 16px;">
