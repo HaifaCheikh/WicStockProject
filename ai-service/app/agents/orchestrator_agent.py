@@ -65,13 +65,20 @@ _STRONG_ANALYTICAL_TRIGGERS = [
     r"quel\s+",
     r"quelle\s+",
     r"liste\s+d[eu]s?\s+",
-    r"donne.?moi\s+les",
-    r"affiche\s+les",
+    r"donne.?moi",
+    r"affiche",
     r"montre.?moi",
     r"chiffre.?d.affaire",
     r"surstock",
     r"rupture",
-    r"commandes?\s+en",
+    r"commandes?",
+    r"répartition",
+    r"repartition",
+    r"catégorie",
+    r"categorie",
+    r"statut",
+    r"historique",
+    r"ventes",
     r"produits?\s+les\s+plus",
     r"top\s+\d+",
     r"actions?\s*",
@@ -610,8 +617,8 @@ class OrchestratorAgent:
         # 4. Déclencheurs / mots-clés de personnalisation
         patterns = [
             "graphique", "chart", "visuel", "texte simple",
-            "forme", "type", "couleur", "couleurs", "palette",
-            "change", "changer", "modifier", "personnaliser", "affiche", "montre", "mets",
+            "couleur", "couleurs", "palette",
+            "change la couleur", "changer la couleur", "modifier la couleur", "personnaliser le graphique",
         ]
         if any(re.search(rf"\b{re.escape(p)}\b", msg_lower) for p in patterns):
             salutations = ["bonjour", "bonsoir", "salut", "hello", "hi", "coucou"]

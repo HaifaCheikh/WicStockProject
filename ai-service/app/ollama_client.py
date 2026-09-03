@@ -312,6 +312,19 @@ def synthetiser_reponse_naturelle(question, resultats):
                     else:
                         formatted_items.append(f"- **{label}** : {val}")
 
+                # Case 4: Formatage générique propre de tout dictionnaire SQL (ex: EtatStock/NombreProduits, Categorie/NombreProduits, Statut/NombreCommandes)
+                else:
+                    keys = list(r.keys())
+                    if len(keys) == 2:
+                        k_label, k_count = keys[0], keys[1]
+                        label_val = r[k_label]
+                        count_val = r[k_count]
+                        unit = "commande(s)" if is_cmd else ("produit(s)" if is_cat else "article(s)")
+                        formatted_items.append(f"- **{label_val}** : {count_val} {unit}")
+                    elif keys:
+                        parts = [f"**{k}** : {v}" for k, v in r.items()]
+                        formatted_items.append("- " + " | ".join(parts))
+
     if formatted_items:
         count = len(formatted_items)
         if "mieux not" in q_lower or "noté" in q_lower or "note" in q_lower or "avis" in q_lower:
