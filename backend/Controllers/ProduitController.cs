@@ -338,47 +338,14 @@ namespace WicStock_.Controllers
             if (string.IsNullOrEmpty(base64Data))
                 return null;
 
-            try
+            if (base64Data.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
+                base64Data.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                base64Data.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
-                string extension = ".png";
-                string base64Content = base64Data;
-
-                if (base64Data.Contains(","))
-                {
-                    var parts = base64Data.Split(',');
-                    base64Content = parts[1];
-
-                    var mimePart = parts[0];
-                    if (mimePart.Contains("image/jpeg"))
-                        extension = ".jpg";
-                    else if (mimePart.Contains("image/png"))
-                        extension = ".png";
-                    else if (mimePart.Contains("image/gif"))
-                        extension = ".gif";
-                    else if (mimePart.Contains("image/webp"))
-                        extension = ".webp";
-                }
-
-                byte[] imageBytes = Convert.FromBase64String(base64Content);
-
-                string uploadDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
-                if (!Directory.Exists(uploadDir))
-                {
-                    Directory.CreateDirectory(uploadDir);
-                }
-
-                string fileName = $"{Guid.NewGuid()}{extension}";
-                string filePath = Path.Combine(uploadDir, fileName);
-
-                System.IO.File.WriteAllBytes(filePath, imageBytes);
-
-                return $"/uploads/{fileName}";
+                return base64Data;
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[IMAGE UPLOAD ERROR] : {ex.Message}");
-                return null;
-            }
+
+            return $"data:image/png;base64,{base64Data}";
         }
 
         // DELETE: api/produit/5

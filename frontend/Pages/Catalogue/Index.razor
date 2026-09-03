@@ -1947,6 +1947,12 @@
     private string GetFullImageUrl(string? relativeUrl)
     {
         if (string.IsNullOrEmpty(relativeUrl)) return "";
+        if (relativeUrl.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
+            relativeUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            relativeUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return relativeUrl;
+        }
         return $"{Http.BaseAddress}{relativeUrl.TrimStart('/')}";
     }
 
