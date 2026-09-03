@@ -145,8 +145,12 @@ class AnalyseSurstockRequest(BaseModel):
 @app.on_event("startup")
 def au_demarrage():
     print("[main] Construction / vérification de la base vectorielle ChromaDB...")
-    build_vectorstore(force_rebuild=False)
-    print("[main] Base vectorielle prête. Système Multi-Agents WicStock AI initialisé.")
+    try:
+        build_vectorstore(force_rebuild=False)
+        print("[main] Base vectorielle prête. Système Multi-Agents WicStock AI initialisé.")
+    except Exception as ex:
+        print(f"[main] WARN vectorstore non disponible: {ex}. Le service démarre quand même.")
+
 
 
 # ---------------------------------------------------------------------------
