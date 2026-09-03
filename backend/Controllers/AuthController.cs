@@ -222,8 +222,8 @@ namespace WicStock_.Controllers
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[EMAIL ERROR] {ex.Message}");
-                    return StatusCode(500, "Impossible d'envoyer l'e-mail. Vérifiez la configuration du serveur SMTP (Email:Expediteur / Email:MotDePasse).");
+                    Console.WriteLine($"[EMAIL ERROR] {ex.GetType().Name}: {ex.Message}");
+                    return StatusCode(500, $"Impossible d'envoyer l'e-mail : {ex.Message}");
                 }
             }
         }
