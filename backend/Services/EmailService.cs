@@ -67,27 +67,38 @@ namespace WicStock_.Services
             // Option A: API HTTPS Resend (port 443, non bloqué sur Render)
             if (!string.IsNullOrWhiteSpace(resendKey))
             {
+                var cleanResendKey = resendKey.Trim().Trim('"', '\'');
+                Console.WriteLine($"[EMAIL SERVICE] Tentative d'envoi via Resend API pour {destinataire}...");
                 var client = _httpClientFactory.CreateClient();
-                client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", resendKey);
+                client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", cleanResendKey);
+
                 var payload = new
                 {
-                    from = $"{nomAffiche} <{expediteur ?? "onboarding@resend.dev"}>",
+                    from = $"{nomAffiche} <onboarding@resend.dev>",
                     to = new[] { destinataire },
                     subject = "Réinitialisation de votre mot de passe WicStock",
                     html = htmlContent
                 };
                 var json = JsonSerializer.Serialize(payload);
                 var response = await client.PostAsync("https://api.resend.com/emails", new StringContent(json, Encoding.UTF8, "application/json"));
-                if (response.IsSuccessStatusCode) return;
-                var err = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"[RESEND EMAIL ERROR] {err}");
+                var resContent = await response.Content.ReadAsStringAsync();
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"[RESEND SUCCESS] E-mail envoyé avec succès à {destinataire} ! Reponse: {resContent}");
+                    return;
+                }
+
+                Console.WriteLine($"[RESEND EMAIL ERROR] Status {response.StatusCode}: {resContent}");
+                throw new InvalidOperationException($"Erreur API Resend ({response.StatusCode}) : {resContent}");
             }
 
             // Option B: API HTTPS Brevo (port 443)
             if (!string.IsNullOrWhiteSpace(brevoKey))
             {
+                var cleanBrevoKey = brevoKey.Trim().Trim('"', '\'');
                 var client = _httpClientFactory.CreateClient();
-                client.DefaultRequestHeaders.Add("api-key", brevoKey);
+                client.DefaultRequestHeaders.Add("api-key", cleanBrevoKey);
                 var payload = new
                 {
                     sender = new { name = nomAffiche, email = expediteur ?? "no-reply@wicstock.com" },
@@ -97,9 +108,16 @@ namespace WicStock_.Services
                 };
                 var json = JsonSerializer.Serialize(payload);
                 var response = await client.PostAsync("https://api.brevo.com/v3/smtp/email", new StringContent(json, Encoding.UTF8, "application/json"));
-                if (response.IsSuccessStatusCode) return;
-                var err = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"[BREVO EMAIL ERROR] {err}");
+                var resContent = await response.Content.ReadAsStringAsync();
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"[BREVO SUCCESS] E-mail envoyé avec succès à {destinataire} !");
+                    return;
+                }
+
+                Console.WriteLine($"[BREVO EMAIL ERROR] Status {response.StatusCode}: {resContent}");
+                throw new InvalidOperationException($"Erreur API Brevo ({response.StatusCode}) : {resContent}");
             }
 
             // Option C: MailKit SMTP classique avec fallback automatique 587 -> 465 (SSL)
