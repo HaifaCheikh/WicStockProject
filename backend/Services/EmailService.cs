@@ -136,7 +136,7 @@ namespace WicStock_.Services
                     {
                         Console.WriteLine("[SMTP FALLBACK] Tentative sur le port 465 (SslOnConnect)...");
                         using var fallbackClient = new SmtpClient();
-                        fallbackClient.Timeout = 10000;
+                        fallbackClient.Timeout = 8000;
                         await fallbackClient.ConnectAsync(host, 465, SecureSocketOptions.SslOnConnect);
                         await fallbackClient.AuthenticateAsync(expediteur, motDePasse);
                         await fallbackClient.SendAsync(message);
@@ -148,6 +148,12 @@ namespace WicStock_.Services
                         Console.WriteLine($"[SMTP FALLBACK ERROR] {fallbackEx.Message}");
                     }
                 }
+
+                if (ex.Message.Contains("timed out", StringComparison.OrdinalIgnoreCase) || ex is TimeoutException || ex is System.IO.IOException)
+                {
+                    throw new InvalidOperationException("Render bloque le port SMTP (587/465). Veuillez ajouter la clé gratuite Resend API (Email__ResendApiKey) sur Render.");
+                }
+
                 throw;
             }
         }
