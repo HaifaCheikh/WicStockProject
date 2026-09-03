@@ -15,12 +15,38 @@ foreach (var source in builder.Configuration.Sources.OfType<Microsoft.Extensions
     source.ReloadOnChange = false;
 }
 
-// Log effective connection string at startup to help debugging
-Console.WriteLine($"[CONFIG] DefaultConnection = {builder.Configuration.GetConnectionString("DefaultConnection")}");
+string ConvertPostgresConnectionString(string? connString)
+{
+    if (string.IsNullOrWhiteSpace(connString)) return string.Empty;
+    if (connString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+        connString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+    {
+        try
+        {
+            var uri = new Uri(connString);
+            var userInfo = uri.UserInfo.Split(':');
+            var username = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : "";
+            var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+            var db = uri.AbsolutePath.TrimStart('/');
+            var port = uri.Port > 0 ? uri.Port : 5432;
+            return $"Host={uri.Host};Port={port};Database={db};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true";
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CONFIG WARNING] Failed to parse URI connection string: {ex.Message}");
+        }
+    }
+    return connString;
+}
 
-// Base de données PostgreSQL (Aiven/Supabase - gratuit)
+var rawConnStr = builder.Configuration.GetConnectionString("DefaultConnection");
+var effectiveConnStr = ConvertPostgresConnectionString(rawConnStr);
+
+Console.WriteLine($"[CONFIG] Effective ConnectionString Host configured: {!string.IsNullOrEmpty(effectiveConnStr)}");
+
+// Base de données PostgreSQL (Aiven/Supabase/Render - gratuit)
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(effectiveConnStr));
 
 // Services métier
 builder.Services.AddScoped<JwtService>();
