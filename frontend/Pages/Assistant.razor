@@ -2243,7 +2243,58 @@
         }
         else if (string.IsNullOrWhiteSpace(texteReponse))
         {
-            texteReponse = "Bienvenue ! Je suis votre Assistant IA WicStock. Vous pouvez me poser des questions sur votre inventaire, les alertes de surstock, les prévisions et les recommandations de stock.";
+            var qLower = question.ToLowerInvariant();
+            try
+            {
+                var tousProds = await ProduitService.ObtenirTous();
+                var prodsActifs = tousProds.Where(p => !p.EstArchive).ToList();
+                var totalUnites = prodsActifs.Sum(p => p.Stock?.QuantiteActuelle ?? 0);
+
+                if (qLower.Contains("stock") || qLower.Contains("quantit") || qLower.Contains("inventaire") || qLower.Contains("répartition") || qLower.Contains("produit"))
+                {
+                    var details = string.Join("\n", prodsActifs.Select(p => $"• **{p.Nom}** ({p.Reference}) : **{p.Stock?.QuantiteActuelle ?? 0} unité(s)** — Prix: {p.PrixUnitaire:F2} DT"));
+                    texteReponse = $"**État actuel du stock en temps réel :**\n\n" +
+                                   $"• **Nombre de références** : {prodsActifs.Count} article(s)\n" +
+                                   $"• **Quantité totale en stock** : **{totalUnites} unité(s)**\n\n" +
+                                   $"**Détail des produits :**\n{(string.IsNullOrEmpty(details) ? "Aucun produit en stock actuellement." : details)}";
+                }
+                else if (qLower.Contains("rupture") || qLower.Contains("bas"))
+                {
+                    var ruptures = prodsActifs.Where(p => (p.Stock?.QuantiteActuelle ?? 0) <= 0).ToList();
+                    if (ruptures.Any())
+                    {
+                        texteReponse = $"**Produits en rupture de stock ({ruptures.Count}) :**\n\n" +
+                                       string.Join("\n", ruptures.Select(p => $"• **{p.Nom}** (Réf: {p.Reference})"));
+                    }
+                    else
+                    {
+                        texteReponse = "Bonne nouvelle ! Aucun produit n'est actuellement en rupture de stock.";
+                    }
+                }
+                else if (qLower.Contains("surstock"))
+                {
+                    var surstocks = prodsActifs.Where(p => string.Equals(p.StatutIAType, "SURSTOCK", StringComparison.OrdinalIgnoreCase)).ToList();
+                    if (surstocks.Any())
+                    {
+                        texteReponse = $"**Produits identifiés en surstock par l'analyse IA ({surstocks.Count}) :**\n\n" +
+                                       string.Join("\n", surstocks.Select(p => $"• **{p.Nom}** — {p.Stock?.QuantiteActuelle ?? 0} unité(s) en stock"));
+                    }
+                    else
+                    {
+                        texteReponse = "Aucun surstock critique détecté sur votre inventaire actuel.";
+                    }
+                }
+                else
+                {
+                    texteReponse = $"**Assistant IA WicStock à votre service :**\n\n" +
+                                   $"Actuellement, votre inventaire compte **{prodsActifs.Count} référence(s)** pour un total de **{totalUnites} unité(s)** en stock.\n\n" +
+                                   $"Vous pouvez me demander la répartition des stocks, les produits en rupture, les surstocks ou la liste des produits !";
+                }
+            }
+            catch
+            {
+                texteReponse = "Bienvenue ! Je suis votre Assistant IA WicStock. Vous pouvez me poser des questions sur votre inventaire, les alertes de surstock et la gestion de vos produits.";
+            }
         }
 
         // Nettoyage de la question binaire superflue à la fin du texte
