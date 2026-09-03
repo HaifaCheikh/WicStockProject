@@ -16,7 +16,7 @@ services:
       - key: AppSettings__FrontendUrl
         value: https://wicstock-project.vercel.app
       - key: WhatsAppService__Url
-        value: https://wicstock-whatsapp.onrender.com/send
+        value: https://wicstock-whatsapp-haifa.onrender.com/send
 
   - type: web
     name: wicstock-ai
@@ -30,7 +30,7 @@ services:
         value: 8000
 
   - type: web
-    name: wicstock-whatsapp
+    name: wicstock-whatsapp-haifa
     env: docker
     rootDir: whatsapp-service
     dockerfilePath: Dockerfile
