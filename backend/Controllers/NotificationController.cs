@@ -18,6 +18,16 @@ namespace WicStock_.Controllers
             _context = context;
         }
 
+        private int? ObtenirIdUtilisateur()
+        {
+            var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                       ?? User.FindFirst("id")?.Value
+                       ?? User.FindFirst("sub")?.Value;
+            if (int.TryParse(idClaim, out var id))
+                return id;
+            return null;
+        }
+
         private RoleUtilisateur? ObtenirRoleUtilisateur()
         {
             var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
@@ -29,12 +39,28 @@ namespace WicStock_.Controllers
         private IQueryable<WicStock_.Models.Notification> QueryPourUtilisateurConnecte()
         {
             var role = ObtenirRoleUtilisateur();
+            var userId = ObtenirIdUtilisateur();
+
             var query = _context.Notifications.AsQueryable();
 
-            if (role.HasValue)
+            if (role == RoleUtilisateur.CLIENT)
+            {
+                if (userId.HasValue)
+                {
+                    query = query.Where(n =>
+                        n.UtilisateurDestinataireId == userId.Value ||
+                        (n.UtilisateurDestinataireId == null && n.RoleDestinataire == RoleUtilisateur.CLIENT));
+                }
+                else
+                {
+                    query = query.Where(n => n.UtilisateurDestinataireId == null && n.RoleDestinataire == RoleUtilisateur.CLIENT);
+                }
+            }
+            else if (role.HasValue)
             {
                 query = query.Where(n =>
-                    n.RoleDestinataire == null || n.RoleDestinataire == role.Value);
+                    (userId.HasValue && n.UtilisateurDestinataireId == userId.Value) ||
+                    (n.UtilisateurDestinataireId == null && (n.RoleDestinataire == null || n.RoleDestinataire == role.Value)));
             }
 
             return query;

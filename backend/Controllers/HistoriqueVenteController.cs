@@ -247,7 +247,8 @@ namespace WicStock_.Controllers
                     TypeNotification.COMMANDE_CONFIRMEE,
                     $"Votre commande « {vente.Produit?.Nom} » ({vente.QuantiteVendue} pièce(s)) est confirmée et prête.",
                     "/catalogue",
-                    RoleUtilisateur.CLIENT
+                    RoleUtilisateur.CLIENT,
+                    vente.UtilisateurId
                 );
 
                 return Ok(new { message = "Commande acceptée avec succès.", statut = vente.StatutCommande });
@@ -264,7 +265,8 @@ namespace WicStock_.Controllers
                     TypeNotification.COMMANDE_CONFIRMEE,
                     $"Votre commande « {vente.Produit?.Nom} » est confirmée. Préparation estimée le {dateStr}.",
                     "/catalogue",
-                    RoleUtilisateur.CLIENT
+                    RoleUtilisateur.CLIENT,
+                    vente.UtilisateurId
                 );
 
                 return Ok(new
@@ -458,7 +460,8 @@ namespace WicStock_.Controllers
                 TypeNotification.COMMANDE_CONFIRMEE,
                 "Votre commande est confirmée",
                 $"/mes-commandes/suivi/{vente.Id}",
-                RoleUtilisateur.CLIENT
+                RoleUtilisateur.CLIENT,
+                vente.UtilisateurId
             );
 
             return Ok(new { message = "Commande confirmée.", statut = vente.Statut.ToString(), vente.DateConfirmation, vente.DateEstimeePreparation });
@@ -507,7 +510,8 @@ namespace WicStock_.Controllers
                 TypeNotification.COMMANDE_CONFIRMEE,
                 "Votre commande est en cours de préparation",
                 $"/mes-commandes/suivi/{vente.Id}",
-                RoleUtilisateur.CLIENT
+                RoleUtilisateur.CLIENT,
+                vente.UtilisateurId
             );
 
             return Ok(new { message = "Préparation démarrée.", statut = vente.Statut.ToString(), vente.DateDebutPreparation });
@@ -576,7 +580,8 @@ namespace WicStock_.Controllers
                 TypeNotification.COMMANDE_CONFIRMEE,
                 "Votre commande est prête !",
                 $"/mes-commandes/suivi/{vente.Id}",
-                RoleUtilisateur.CLIENT
+                RoleUtilisateur.CLIENT,
+                vente.UtilisateurId
             );
 
             return Ok(new { message = "Commande marquée prête, stock mis à jour.", statut = vente.Statut.ToString(), vente.DatePrete });
