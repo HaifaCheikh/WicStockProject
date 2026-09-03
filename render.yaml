@@ -15,6 +15,8 @@ services:
         value: https://wicstock-api.onrender.com
       - key: AppSettings__FrontendUrl
         value: https://wicstock-project.vercel.app
+      - key: WhatsAppService__Url
+        value: https://wicstock-whatsapp.onrender.com/send
 
   - type: web
     name: wicstock-ai
@@ -27,3 +29,13 @@ services:
       - key: PORT
         value: 8000
 
+  - type: web
+    name: wicstock-whatsapp
+    env: docker
+    rootDir: whatsapp-service
+    dockerfilePath: Dockerfile
+    plan: free
+    region: frankfurt
+    envVars:
+      - key: PORT
+        value: 3001
