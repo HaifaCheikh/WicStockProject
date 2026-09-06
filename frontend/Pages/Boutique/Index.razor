@@ -169,7 +169,21 @@
 
                         <!-- Corps de la carte -->
                         <div class="b-card-body" @onclick:stopPropagation="false">
-                            <p class="b-card-ref">@p.Reference</p>
+                            <div class="b-card-header-row">
+                                <p class="b-card-ref">@p.Reference</p>
+                                <span class="b-rating-pill" title="Note moyenne des clients">
+                                    <span class="b-star">★</span>
+                                    @if (p.NombreAvis > 0)
+                                    {
+                                        <span class="b-rating-val">@p.NoteMoyenne.ToString("0.0")</span>
+                                        <span class="b-rating-cnt">(@p.NombreAvis)</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="b-rating-none">--</span>
+                                    }
+                                </span>
+                            </div>
                             <h3 class="b-card-name">@p.Nom</h3>
                             @if (!string.IsNullOrEmpty(p.TypeTissu))
                             {
@@ -189,11 +203,23 @@
                                 }
                             </div>
 
-                            <!-- Bouton Ajouter au panier -->
+                            <!-- Info Stock Urgence (uniquement si stock faible) -->
+                            @if (p.EstStockFaibleEffectif && p.QuantiteDisponible > 0)
+                            {
+                                <p class="b-stock-faible-msg">
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none">
+                                        <path d="M12 9 V13 M12 17 H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                        <path d="M10.29 3.86 L1.82 18 a2 2 0 0 0 1.71 3h16.94 a2 2 0 0 0 1.71-3L13.71 3.86 a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                    <span>Il ne reste que <strong>@p.QuantiteDisponible pièce(s)</strong></span>
+                                </p>
+                            }
+
+                            <!-- Bouton Ajouter au panier / Commander -->
                             <button class="b-add-btn @(p.PeutCommander ? "" : "b-add-btn--disabled")"
                                     @onclick="() => AjouterAuPanier(p)"
                                     @onclick:stopPropagation="true"
-                                    disabled="@(!p.PeutCommander && !ajoutsEnCours.Contains(p.Id))">
+                                    disabled="@(!p.PeutCommander || ajoutsEnCours.Contains(p.Id))">
                                 @if (ajoutsEnCours.Contains(p.Id))
                                 {
                                     <svg class="b-spinner" viewBox="0 0 24 24" width="16" height="16">
@@ -201,9 +227,17 @@
                                     </svg>
                                     <span>Ajout...</span>
                                 }
-                                else if (!p.PeutCommander)
+                                else if (p.EstEnRupture)
                                 {
-                                    <span>Rupture de stock</span>
+                                    <span>🚫 En rupture</span>
+                                }
+                                else if (p.EstSurCommande)
+                                {
+                                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none">
+                                        <path d="M6 2 L3 6 V20 C3 21.1 3.9 22 5 22 H19 C20.1 22 21 21.1 21 20 V6 L18 2 Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M12 8 V16 M8 12 H16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                                    </svg>
+                                    <span>Commander (sur commande)</span>
                                 }
                                 else
                                 {
@@ -211,7 +245,7 @@
                                         <path d="M6 2 L3 6 V20 C3 21.1 3.9 22 5 22 H19 C20.1 22 21 21.1 21 20 V6 L18 2 Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                                         <path d="M12 8 V16 M8 12 H16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                                     </svg>
-                                    <span>Ajouter au panier</span>
+                                    <span>Commander</span>
                                 }
                             </button>
                         </div>
@@ -322,14 +356,26 @@
     .b-badge--surcommande { background: var(--b-denim-soft); color: var(--b-denim); border: 1px solid #93A8C4; }
 
     .b-card-body { padding: 16px; }
-    .b-card-ref { font-family: var(--font-mono); font-size: 0.7rem; font-weight: 600; color: var(--b-ink-muted); letter-spacing: 0.02em; text-transform: uppercase; margin-bottom: 4px; }
-    .b-card-name { font-family: var(--font-head); font-size: 1rem; font-weight: 700; color: var(--b-ink); margin-bottom: 4px; line-height: 1.3; }
-    .b-card-tissu { font-size: 0.8rem; color: var(--b-ink-muted); margin-bottom: 12px; }
+    .b-card-header-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+    .b-card-ref { font-family: var(--font-mono); font-size: 0.7rem; font-weight: 600; color: var(--b-ink-muted); letter-spacing: 0.02em; text-transform: uppercase; }
+    
+    /* Rating pill */
+    .b-rating-pill { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 999px; font-size: 0.72rem; font-weight: 600; color: #92400E; }
+    .b-star { color: #D97706; font-size: 0.75rem; }
+    .b-rating-cnt { color: #B45309; font-size: 0.68rem; font-weight: 500; }
+    .b-rating-none { color: #94A3B8; font-size: 0.7rem; font-weight: 500; }
 
-    .b-card-prix { margin-bottom: 14px; }
+    .b-card-name { font-family: var(--font-head); font-size: 1rem; font-weight: 700; color: var(--b-ink); margin-bottom: 4px; line-height: 1.3; }
+    .b-card-tissu { font-size: 0.8rem; color: var(--b-ink-muted); margin-bottom: 10px; }
+
+    .b-card-prix { margin-bottom: 10px; }
     .b-prix { font-size: 1.1rem; font-weight: 700; color: var(--b-denim); font-family: var(--font-head); }
     .b-prix-promo { font-size: 1.1rem; font-weight: 700; color: var(--b-pine); font-family: var(--font-head); }
     .b-prix-barre { font-size: 0.85rem; color: var(--b-ink-muted); text-decoration: line-through; margin-left: 6px; }
+
+    .b-stock-faible-msg { display: flex; align-items: center; gap: 5px; font-size: 0.78rem; color: var(--b-rust); margin-bottom: 12px; font-weight: 500; }
+    .b-stock-faible-msg svg { flex-shrink: 0; color: var(--b-rust); }
+    .b-stock-faible-msg strong { font-weight: 700; }
 
     .b-add-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 16px; background: var(--b-denim); color: #fff; border: none; border-radius: var(--b-radius-sm); font-family: var(--font-body); font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.15s, transform 0.1s; box-shadow: 0 6px 16px -6px rgba(43,76,126,0.35); }
     .b-add-btn:hover:not(:disabled) { background: var(--b-denim-dark); transform: translateY(-1px); }
@@ -455,10 +501,9 @@
 
     private (string Label, string CssClass) GetStatutBadge(CatalogueProduitDto p)
     {
-        if (p.EstEnRupture) return ("Rupture", "b-badge--rupture");
+        if (p.EstEnRupture) return ("Rupture de stock", "b-badge--rupture");
         if (p.EstSurCommande) return ("Sur commande", "b-badge--surcommande");
-        if (p.EstStockFaibleEffectif) return ("Stock faible", "b-badge--faible");
-        return ("Disponible", "b-badge--dispo");
+        return ("En stock", "b-badge--dispo");
     }
 
     public void Dispose()

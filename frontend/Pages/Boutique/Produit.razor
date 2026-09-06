@@ -4,6 +4,7 @@
 @using WicStock.Web.Services
 @inject BoutiqueService BoutiqueService
 @inject CartService CartService
+@inject FeedbackService FeedbackService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
@@ -127,6 +128,22 @@
                     <p class="bp-ref">@produit.Reference</p>
                     <h1 class="bp-name">@produit.Nom</h1>
 
+                    <!-- Rating badge public -->
+                    <div class="bp-rating-row">
+                        <span class="bp-rating-badge">
+                            <span class="star">★</span>
+                            @if (produit.NombreAvis > 0)
+                            {
+                                <strong>@produit.NoteMoyenne.ToString("0.0")</strong>
+                                <span class="cnt">(@produit.NombreAvis avis)</span>
+                            }
+                            else
+                            {
+                                <span class="cnt">Aucun avis pour le moment</span>
+                            }
+                        </span>
+                    </div>
+
                     @if (!string.IsNullOrEmpty(produit.TypeTissu))
                     {
                         <p class="bp-tissu">
@@ -215,6 +232,83 @@
                         </div>
                     }
                 </div>
+            </div>
+
+            <!-- ===== SECTION AVIS CLIENTS ===== -->
+            <div class="bp-avis-section">
+                <h2 class="bp-avis-title">Avis des clients (@(avisList?.Count ?? 0))</h2>
+
+                <!-- Formulaire de soumission (Réservé aux clients connectés) -->
+                <AuthorizeView>
+                    <Authorized>
+                        <div class="bp-avis-form-card">
+                            <h3>Laisser un avis sur ce produit</h3>
+                            @if (avisSoumis)
+                            {
+                                <div class="bp-avis-success">Votre avis a été soumis avec succès et sera publié après validation ! ✓</div>
+                            }
+                            else
+                            {
+                                <div class="bp-rating-picker">
+                                    <span>Votre note :</span>
+                                    @for (int i = 1; i <= 5; i++)
+                                    {
+                                        int starIndex = i;
+                                        <button type="button" class="bp-star-btn @(nouvelleNote >= starIndex ? "active" : "")" @onclick="() => nouvelleNote = starIndex">★</button>
+                                    }
+                                </div>
+                                <textarea class="bp-avis-textarea" placeholder="Partagez votre expérience avec ce produit..." @bind="nouveauCommentaire"></textarea>
+                                @if (!string.IsNullOrEmpty(erreurAvis))
+                                {
+                                    <p class="bp-avis-error">@erreurAvis</p>
+                                }
+                                <button type="button" class="b-btn b-btn-primary" @onclick="SoumettreAvis" disabled="@envoiAvisEnCours">
+                                    @(envoiAvisEnCours ? "Envoi en cours..." : "Publier mon avis")
+                                </button>
+                            }
+                        </div>
+                    </Authorized>
+                    <NotAuthorized>
+                        <div class="bp-avis-auth-prompt">
+                            <p>Vous souhaitez donner votre avis sur ce produit ?</p>
+                            <a href="/login?redirect=/boutique/@Id" class="b-btn b-btn--outline">Se connecter pour laisser un avis</a>
+                        </div>
+                    </NotAuthorized>
+                </AuthorizeView>
+
+                <!-- Liste des avis publics -->
+                @if (avisList == null)
+                {
+                    <p class="bp-avis-empty">Chargement des avis...</p>
+                }
+                else if (!avisList.Any())
+                {
+                    <p class="bp-avis-empty">Soyez le premier à donner votre avis sur ce produit !</p>
+                }
+                else
+                {
+                    <div class="bp-avis-list">
+                        @foreach (var avis in avisList)
+                        {
+                            <div class="bp-avis-item">
+                                <div class="bp-avis-header">
+                                    <span class="bp-avis-author">@(string.IsNullOrEmpty(avis.ClientNom) ? "Client WicStock" : avis.ClientNom)</span>
+                                    <span class="bp-avis-date">@avis.DateCreation.ToString("dd/MM/yyyy")</span>
+                                </div>
+                                <div class="bp-avis-stars">
+                                    @for (int i = 1; i <= 5; i++)
+                                    {
+                                        <span class="@(i <= avis.Note ? "star-fill" : "star-empty")">★</span>
+                                    }
+                                </div>
+                                @if (!string.IsNullOrEmpty(avis.Commentaire))
+                                {
+                                    <p class="bp-avis-text">@avis.Commentaire</p>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
             </div>
         </main>
     }
@@ -326,7 +420,37 @@
     .bp-rupture-msg { background: var(--b-rust-soft); border: 1.5px solid #F0C7BB; border-radius: var(--b-radius-sm); padding: 20px; text-align: center; }
     .bp-rupture-msg p { color: var(--b-rust); font-size: 0.9rem; margin-bottom: 16px; }
 
-    .b-footer { text-align: center; padding: 24px; background: var(--b-paper); border-top: 1px solid var(--b-border); color: var(--b-ink-muted); font-size: 0.8125rem; }
+    /* Rating & Avis */
+    .bp-rating-row { margin-bottom: 12px; }
+    .bp-rating-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; background: var(--b-amber-soft); border: 1px solid #F59E0B; border-radius: 999px; font-size: 0.8rem; color: #92400E; }
+    .bp-rating-badge .star { color: #D97706; font-size: 0.9rem; }
+    .bp-rating-badge .cnt { color: #B45309; font-size: 0.78rem; }
+
+    .bp-avis-section { margin-top: 56px; border-top: 1px solid var(--b-border); padding-top: 40px; }
+    .bp-avis-title { font-family: var(--font-head); font-size: 1.3rem; font-weight: 700; color: var(--b-ink); margin-bottom: 24px; }
+    
+    .bp-avis-form-card { background: var(--b-paper); border: 1px solid var(--b-border); border-radius: var(--b-radius); padding: 24px; margin-bottom: 32px; }
+    .bp-avis-form-card h3 { font-family: var(--font-head); font-size: 1rem; font-weight: 700; margin-bottom: 16px; color: var(--b-ink); }
+    .bp-rating-picker { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 0.9rem; font-weight: 600; }
+    .bp-star-btn { background: none; border: none; font-size: 1.5rem; color: var(--b-border); cursor: pointer; transition: color 0.15s; padding: 0 2px; }
+    .bp-star-btn.active { color: #F59E0B; }
+    .bp-avis-textarea { width: 100%; height: 90px; border: 1.5px solid var(--b-border); border-radius: var(--b-radius-sm); padding: 12px; font-family: var(--font-body); font-size: 0.875rem; color: var(--b-ink); background: var(--b-sand); outline: none; margin-bottom: 14px; resize: vertical; }
+    .bp-avis-textarea:focus { border-color: var(--b-denim); background: var(--b-paper); }
+    .bp-avis-success { background: var(--b-pine-soft); color: var(--b-pine); border: 1px solid #86EFAC; padding: 14px 18px; border-radius: var(--b-radius-sm); font-size: 0.9rem; font-weight: 600; }
+    .bp-avis-error { color: var(--b-rust); font-size: 0.85rem; margin-bottom: 12px; font-weight: 600; }
+
+    .bp-avis-auth-prompt { background: var(--b-paper); border: 1.5px dashed var(--b-border); border-radius: var(--b-radius); padding: 24px; text-align: center; margin-bottom: 32px; }
+    .bp-avis-auth-prompt p { font-size: 0.95rem; color: var(--b-ink-muted); margin-bottom: 14px; }
+
+    .bp-avis-empty { color: var(--b-ink-muted); font-size: 0.9rem; font-style: italic; }
+    .bp-avis-list { display: flex; flex-direction: column; gap: 16px; }
+    .bp-avis-item { background: var(--b-paper); border: 1px solid var(--b-border); border-radius: var(--b-radius-sm); padding: 18px; }
+    .bp-avis-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .bp-avis-author { font-weight: 700; font-size: 0.9rem; color: var(--b-ink); }
+    .bp-avis-date { font-size: 0.78rem; color: var(--b-ink-muted); }
+    .bp-avis-stars { color: #F59E0B; font-size: 0.9rem; margin-bottom: 8px; }
+    .bp-avis-stars .star-empty { color: var(--b-border); }
+    .bp-avis-text { font-size: 0.875rem; color: var(--b-ink); line-height: 1.5; }
 
     .b-spinner { animation: spin 0.8s linear infinite; }
 </style>
@@ -340,6 +464,13 @@
     private int cartCount = 0;
     private bool ajoutEnCours = false;
 
+    private List<AvisDto>? avisList;
+    private int nouvelleNote = 5;
+    private string nouveauCommentaire = string.Empty;
+    private bool envoiAvisEnCours = false;
+    private bool avisSoumis = false;
+    private string? erreurAvis;
+
     protected override async Task OnInitializedAsync()
     {
         cartCount = await CartService.GetCountAsync();
@@ -351,6 +482,12 @@
         chargement = true;
         produit = await BoutiqueService.ObtenirProduitPublic(Id);
         quantite = 1;
+
+        if (produit != null)
+        {
+            avisList = await FeedbackService.ObtenirAvisPublicsProduit(produit.Id);
+        }
+
         chargement = false;
     }
 
@@ -385,12 +522,37 @@
         ajoutEnCours = false;
     }
 
+    private async Task SoumettreAvis()
+    {
+        if (produit == null) return;
+        envoiAvisEnCours = true;
+        erreurAvis = null;
+
+        var dto = new CreerModifierAvisDto
+        {
+            Note = nouvelleNote,
+            Commentaire = nouveauCommentaire
+        };
+
+        var (succes, message, avis) = await FeedbackService.SoumettreAvis(dto);
+        if (succes)
+        {
+            avisSoumis = true;
+            avisList = await FeedbackService.ObtenirAvisPublicsProduit(produit.Id);
+        }
+        else
+        {
+            erreurAvis = string.IsNullOrEmpty(message) ? "Impossible d'envoyer votre avis. Seuls les clients ayant acheté ce produit peuvent donner leur avis." : message;
+        }
+
+        envoiAvisEnCours = false;
+    }
+
     private (string Label, string CssClass) GetStatutBadge(CatalogueProduitDto p)
     {
-        if (p.EstEnRupture) return ("Rupture", "b-badge--rupture");
+        if (p.EstEnRupture) return ("Rupture de stock", "b-badge--rupture");
         if (p.EstSurCommande) return ("Sur commande", "b-badge--surcommande");
-        if (p.EstStockFaibleEffectif) return ("Stock faible", "b-badge--faible");
-        return ("Disponible", "b-badge--dispo");
+        return ("En stock", "b-badge--dispo");
     }
 
     private string GetStockClass(CatalogueProduitDto p) =>
@@ -403,8 +565,8 @@
     {
         if (p.EstEnRupture) return "Rupture de stock — non disponible";
         if (p.EstSurCommande) return "Disponible sur commande";
-        if (p.EstStockFaibleEffectif) return $"Stock faible : {p.QuantiteDisponible} unité(s) restante(s)";
-        return $"En stock : {p.QuantiteDisponible} unité(s) disponible(s)";
+        if (p.EstStockFaibleEffectif) return $"⚠️ Il ne reste que {p.QuantiteDisponible} pièce(s)";
+        return "En stock";
     }
 
     public void Dispose()
