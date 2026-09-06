@@ -41,9 +41,9 @@ namespace WicStock_.Controllers
                 .ToListAsync();
         }
 
-        // GET: api/produit/catalogue (Catalogue simplifie pour CLIENT)
+        // GET: api/produit/catalogue (Catalogue public — accessible sans token)
         [HttpGet("catalogue")]
-        [Authorize(Roles = "CLIENT,ADMIN")]
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<object>>> GetCatalogueClient()
         {
             var today = DateTime.Today;
@@ -123,6 +123,80 @@ namespace WicStock_.Controllers
             try { await _context.SaveChangesAsync(); } catch { }
 
             return Ok(result);
+        }
+
+        // GET: api/produit/catalogue/{id} — Fiche détail produit publique (sans token)
+        [HttpGet("catalogue/{id:int}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<object>> GetCatalogueProduit(int id)
+        {
+            var today = DateTime.Today;
+            var p = await _context.Produits
+                .Include(p => p.Stock)
+                .FirstOrDefaultAsync(p => p.Id == id && !p.EstArchive);
+
+            if (p == null)
+                return NotFound(new { message = "Produit introuvable ou archivé." });
+
+            int remise = p.RemisePourcentage ?? 0;
+            DateTime? dateFin = p.DateFinPromotion;
+
+            if (remise == 0)
+            {
+                var lastPromo = await _context.ActionsRecommandees
+                    .Where(a => a.ProduitId == p.Id && a.TypeAction == Enums.TypeAction.PROMOTION_CIBLEE)
+                    .OrderByDescending(a => a.DateGeneration)
+                    .FirstOrDefaultAsync();
+
+                if (lastPromo != null && (DateTime.Now - lastPromo.DateGeneration).TotalDays <= 30)
+                {
+                    remise = 20;
+                    if (!string.IsNullOrEmpty(lastPromo.TexteGenere))
+                    {
+                        var match = System.Text.RegularExpressions.Regex.Match(lastPromo.TexteGenere, @"Promotion de (\d+)%");
+                        if (match.Success && int.TryParse(match.Groups[1].Value, out int parsedRemise))
+                            remise = parsedRemise;
+                    }
+                    dateFin = lastPromo.DateGeneration.AddDays(14);
+                }
+            }
+
+            bool estEnPromo = remise > 0 && dateFin.HasValue && dateFin.Value.Date >= today;
+            decimal prixPromo = estEnPromo ? Math.Round(p.PrixUnitaire * (1 - (decimal)remise / 100m), 2) : p.PrixUnitaire;
+            int quantiteDisponible = p.Stock?.QuantiteActuelle ?? 0;
+            int seuilAlerte = p.Stock?.SeuilAlerte ?? 10;
+            bool estStockFaible = quantiteDisponible > 0 && quantiteDisponible <= seuilAlerte;
+            string statutStock = quantiteDisponible <= 0
+                ? (p.DisponibleSurCommande ? "SUR_COMMANDE" : "RUPTURE")
+                : (estStockFaible ? "STOCK_FAIBLE" : "DISPONIBLE");
+
+            // Notes et avis
+            var avis = await _context.Avis
+                .Where(a => a.ProduitId == id && a.Statut == Enums.StatutAvis.PUBLIE)
+                .ToListAsync();
+            double noteMoyenne = avis.Count > 0 ? avis.Average(a => a.Note) : 0;
+
+            return Ok(new
+            {
+                p.Id,
+                p.Reference,
+                p.Nom,
+                p.TypeTissu,
+                p.Categorie,
+                p.PrixUnitaire,
+                p.ImageUrl,
+                p.DisponibleSurCommande,
+                StatutStock = statutStock,
+                RemisePourcentage = remise,
+                DateFinPromotion = dateFin,
+                EstEnPromotion = estEnPromo,
+                PrixPromo = prixPromo,
+                QuantiteDisponible = quantiteDisponible,
+                SeuilAlerte = seuilAlerte,
+                EstStockFaible = estStockFaible,
+                NoteMoyenne = Math.Round(noteMoyenne, 1),
+                NombreAvis = avis.Count
+            });
         }
 
         // GET: api/produit/5

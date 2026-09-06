@@ -61,6 +61,34 @@ public static class DatabaseSchemaBootstrap
                 END $$;
 
                 ALTER TABLE "Notifications" ADD COLUMN IF NOT EXISTS "UtilisateurDestinataireId" int NULL;
+
+                -- ===== Commandes multi-articles (v2) =====
+                ALTER TABLE "HistoriqueVentes" ADD COLUMN IF NOT EXISTS "MontantTotal" numeric(18,2) NOT NULL DEFAULT 0;
+                ALTER TABLE "HistoriqueVentes" ADD COLUMN IF NOT EXISTS "EstMultiLignes" boolean NOT NULL DEFAULT false;
+
+                -- Table LigneCommandes (créée si absente — idempotent)
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.tables
+                        WHERE table_name = 'LigneCommandes'
+                    ) THEN
+                        CREATE TABLE "LigneCommandes" (
+                            "Id" SERIAL PRIMARY KEY,
+                            "HistoriqueVenteId" int NOT NULL,
+                            "ProduitId" int NOT NULL,
+                            "Quantite" int NOT NULL,
+                            "PrixUnitaire" numeric(18,2) NOT NULL,
+                            "EstSurCommande" boolean NOT NULL DEFAULT false,
+                            CONSTRAINT "FK_LigneCommandes_HistoriqueVentes" FOREIGN KEY ("HistoriqueVenteId")
+                                REFERENCES "HistoriqueVentes"("Id") ON DELETE CASCADE,
+                            CONSTRAINT "FK_LigneCommandes_Produits" FOREIGN KEY ("ProduitId")
+                                REFERENCES "Produits"("Id") ON DELETE RESTRICT
+                        );
+                        CREATE INDEX "IX_LigneCommandes_HistoriqueVenteId" ON "LigneCommandes"("HistoriqueVenteId");
+                        CREATE INDEX "IX_LigneCommandes_ProduitId" ON "LigneCommandes"("ProduitId");
+                    END IF;
+                END $$;
                 """);
 
             logger.LogInformation("Database schema bootstrap (PostgreSQL) completed.");

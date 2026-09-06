@@ -1,0 +1,538 @@
+@page "/panier"
+@layout WicStock.Web.Layout.HomeLayout
+@using WicStock.Web.Models.Dtos
+@using WicStock.Web.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@inject CartService CartService
+@inject BoutiqueService BoutiqueService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@implements IDisposable
+
+<PageTitle>Mon panier — WicStock</PageTitle>
+
+<HeadContent>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</HeadContent>
+
+<div class="boutique-page">
+
+    <!-- NAVBAR -->
+    <header class="b-navbar">
+        <div class="b-nav-inner">
+            <a href="/" class="b-brand">
+                <span class="b-brand-mark">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                        <path d="M3 8 L21 8 M3 12 L21 12 M3 16 L21 16" stroke="#fff" stroke-width="2" stroke-linecap="round" />
+                        <path d="M7 4 L7 20 M12 4 L12 20 M17 4 L17 20" stroke="rgba(255,255,255,0.55)" stroke-width="1.4" stroke-linecap="round" />
+                    </svg>
+                </span>
+                <span class="b-brand-name">WicStock</span>
+            </a>
+            <nav class="b-nav-links">
+                <a href="/">Accueil</a>
+                <a href="/boutique">Boutique</a>
+                <a href="/panier" class="active">Panier</a>
+            </nav>
+            <div class="b-nav-actions">
+                <a href="/panier" class="b-cart-btn" title="Mon panier">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
+                        <path d="M6 2 L3 6 V20 C3 21.1 3.9 22 5 22 H19 C20.1 22 21 21.1 21 20 V6 L18 2 Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M3 6 H21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M16 10 C16 12.2 14.2 14 12 14 C9.8 14 8 12.2 8 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    </svg>
+                    @if (items.Any())
+                    {
+                        <span class="b-cart-badge">@items.Sum(i => i.Quantite)</span>
+                    }
+                </a>
+                <AuthorizeView>
+                    <Authorized>
+                        <a href="/catalogue" class="b-btn b-btn--outline">Mon espace</a>
+                    </Authorized>
+                    <NotAuthorized>
+                        <a href="/login" class="b-btn b-btn--outline">Se connecter</a>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+        </div>
+    </header>
+
+    <!-- BREADCRUMB -->
+    <nav class="b-breadcrumb">
+        <div class="b-breadcrumb-inner">
+            <a href="/boutique">← Retour à la boutique</a>
+        </div>
+    </nav>
+
+    <main class="panier-main">
+        <div class="panier-inner">
+
+            <div class="panier-header">
+                <h1 class="panier-title">Mon panier</h1>
+                @if (items.Any())
+                {
+                    <span class="panier-count">@items.Sum(i => i.Quantite) article(s)</span>
+                }
+            </div>
+
+            <!-- ===== ERREUR DE STOCK 409 ===== -->
+            @if (erreurStock != null)
+            {
+                <div class="panier-alert panier-alert--stock">
+                    <div class="panier-alert-header">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M12 8 V12 M12 16 H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        <strong>@erreurStock.Message</strong>
+                    </div>
+                    <ul class="panier-alert-list">
+                        @foreach (var ligne in erreurStock.LignesEnErreur)
+                        {
+                            <li>
+                                <strong>@ligne.ProduitNom</strong>
+                                @if (ligne.QuantiteDisponible <= 0)
+                                {
+                                    <span>: en rupture totale (retiré de votre panier)</span>
+                                }
+                                else
+                                {
+                                    <span>: @ligne.QuantiteDemandee demandé(es), @ligne.QuantiteDisponible disponible(s) → quantité ajustée</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <!-- ===== SUCCÈS COMMANDE ===== -->
+            @if (commandeSucces != null)
+            {
+                <div class="panier-alert panier-alert--success">
+                    <div class="panier-alert-header">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M8 12 L11 15 L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <strong>Commande #@commandeSucces.CommandeId enregistrée avec succès !</strong>
+                    </div>
+                    <p>@commandeSucces.Message</p>
+                    <p class="panier-alert-total">Total : <strong>@commandeSucces.MontantTotal.ToString("0.00") DH</strong></p>
+                    <div class="panier-alert-actions">
+                        <a href="/catalogue" class="b-btn b-btn-primary-sm">Voir mes commandes</a>
+                        <a href="/boutique" class="b-btn b-btn-ghost-sm">Continuer mes achats</a>
+                    </div>
+                </div>
+            }
+
+            @if (!items.Any() && commandeSucces == null)
+            {
+                <!-- PANIER VIDE -->
+                <div class="panier-vide">
+                    <svg viewBox="0 0 24 24" width="64" height="64" fill="none">
+                        <path d="M6 2 L3 6 V20 C3 21.1 3.9 22 5 22 H19 C20.1 22 21 21.1 21 20 V6 L18 2 Z" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M3 6 H21" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M16 10 C16 12.2 14.2 14 12 14 C9.8 14 8 12.2 8 10" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                    <h2>Votre panier est vide</h2>
+                    <p>Découvrez notre catalogue et ajoutez des articles à votre panier.</p>
+                    <a href="/boutique" class="panier-cta-btn">Découvrir la boutique</a>
+                </div>
+            }
+            else if (items.Any())
+            {
+                <div class="panier-layout">
+
+                    <!-- ===== LISTE DES ARTICLES ===== -->
+                    <div class="panier-articles">
+                        @foreach (var item in items)
+                        {
+                            <div class="panier-item @(suppressionsEnCours.Contains(item.ProduitId) ? "panier-item--removing" : "")">
+
+                                <!-- Image -->
+                                <div class="panier-item-img">
+                                    @if (!string.IsNullOrEmpty(item.ImageUrl))
+                                    {
+                                        <img src="@item.ImageUrl" alt="@item.Nom" />
+                                    }
+                                    else
+                                    {
+                                        <div class="panier-item-img-placeholder">
+                                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
+                                                <rect x="3" y="3" width="18" height="18" rx="3" stroke="#cbd5e1" stroke-width="1.5"/>
+                                            </svg>
+                                        </div>
+                                    }
+                                </div>
+
+                                <!-- Infos -->
+                                <div class="panier-item-info">
+                                    <p class="panier-item-ref">@item.Reference</p>
+                                    <h3 class="panier-item-name">@item.Nom</h3>
+                                    @if (!string.IsNullOrEmpty(item.TypeTissu))
+                                    {
+                                        <p class="panier-item-tissu">@item.TypeTissu</p>
+                                    }
+                                    @if (item.EstEnPromotion)
+                                    {
+                                        <span class="panier-item-promo-badge">Promo -@item.RemisePourcentage%</span>
+                                    }
+                                    @if (item.DisponibleSurCommande && item.QuantiteDisponible <= 0)
+                                    {
+                                        <span class="panier-item-surcommande">Sur commande</span>
+                                    }
+                                </div>
+
+                                <!-- Prix unitaire -->
+                                <div class="panier-item-prix">
+                                    @if (item.EstEnPromotion)
+                                    {
+                                        <span class="panier-prix-promo">@item.PrixEffectif.ToString("0.00") DH</span>
+                                        <span class="panier-prix-barre">@item.PrixUnitaire.ToString("0.00")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="panier-prix">@item.PrixEffectif.ToString("0.00") DH</span>
+                                    }
+                                </div>
+
+                                <!-- Quantité -->
+                                <div class="panier-item-qty">
+                                    <button class="panier-qty-btn" @onclick="() => ChangerQuantite(item, item.Quantite - 1)" disabled="@(item.Quantite <= 1)">−</button>
+                                    <span class="panier-qty-val">@item.Quantite</span>
+                                    <button class="panier-qty-btn"
+                                            @onclick="() => ChangerQuantite(item, item.Quantite + 1)"
+                                            disabled="@(!item.DisponibleSurCommande && item.Quantite >= item.QuantiteDisponible)">+</button>
+                                </div>
+
+                                <!-- Sous-total -->
+                                <div class="panier-item-total">
+                                    @item.SousTotal.ToString("0.00") DH
+                                </div>
+
+                                <!-- Supprimer -->
+                                <button class="panier-suppr-btn" @onclick="() => SupprimerArticle(item.ProduitId)" title="Retirer du panier">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
+                                        <path d="M3 6 H21 M8 6 V4 H16 V6 M19 6 L18 20 H6 L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        }
+
+                        <div class="panier-articles-footer">
+                            <button class="panier-vider-btn" @onclick="ViderPanier">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none">
+                                    <path d="M3 6 H21 M8 6 V4 H16 V6 M19 6 L18 20 H6 L5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                Vider le panier
+                            </button>
+                            <a href="/boutique" class="panier-continuer-btn">← Continuer mes achats</a>
+                        </div>
+                    </div>
+
+                    <!-- ===== RÉCAPITULATIF ===== -->
+                    <div class="panier-recap">
+                        <div class="panier-recap-card">
+                            <h2 class="panier-recap-title">Récapitulatif</h2>
+
+                            <div class="panier-recap-rows">
+                                @foreach (var item in items)
+                                {
+                                    <div class="panier-recap-row">
+                                        <span class="panier-recap-label">@item.Nom × @item.Quantite</span>
+                                        <span class="panier-recap-val">@item.SousTotal.ToString("0.00") DH</span>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="panier-recap-divider"></div>
+
+                            <div class="panier-recap-total">
+                                <span>Total</span>
+                                <span class="panier-recap-total-val">@CartService.GetTotal().ToString("0.00") DH</span>
+                            </div>
+
+                            <p class="panier-recap-note">
+                                Le prix final sera confirmé par le responsable. Le paiement s'effectue à la confirmation.
+                            </p>
+
+                            <!-- Bouton Valider -->
+                            <button class="panier-valider-btn"
+                                    @onclick="ValiderCommande"
+                                    disabled="@commandeEnCours">
+                                @if (commandeEnCours)
+                                {
+                                    <svg class="b-spinner" viewBox="0 0 24 24" width="18" height="18">
+                                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-dasharray="60" stroke-dashoffset="15" fill="none"/>
+                                    </svg>
+                                    <span>Traitement...</span>
+                                }
+                                else
+                                {
+                                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                                        <path d="M9 12 L11 14 L15 10 M21 12 C21 16.97 16.97 21 12 21 C7.03 21 3 16.97 3 12 C3 7.03 7.03 3 12 3 C16.97 3 21 7.03 21 12 Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                    <span>Valider ma commande</span>
+                                }
+                            </button>
+
+                            <AuthorizeView>
+                                <NotAuthorized>
+                                    <p class="panier-auth-note">
+                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none">
+                                            <rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="1.6"/>
+                                            <path d="M7 11 V7 C7 4.79 8.79 3 11 3 H13 C15.21 3 17 4.79 17 7 V11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                                        </svg>
+                                        Une connexion est requise pour valider votre commande.
+                                    </p>
+                                </NotAuthorized>
+                            </AuthorizeView>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </main>
+
+    <footer class="b-footer">
+        <p>© 2026 WicStock — Gestion d'inventaire textile</p>
+    </footer>
+</div>
+
+<style>
+    :root {
+        --b-primary: #2b4c7e; --b-primary-dark: #1e3557; --b-accent: #4f7fcc;
+        --b-bg: #f8fafc; --b-surface: #ffffff; --b-border: #e2e8f0;
+        --b-text: #16233a; --b-muted: #64748b; --b-radius: 14px; --b-radius-sm: 8px;
+        --font-head: 'Sora', 'Inter', sans-serif; --font-body: 'Inter', sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    .boutique-page { font-family: var(--font-body); background: var(--b-bg); min-height: 100vh; color: var(--b-text); }
+
+    /* NAVBAR */
+    .b-navbar { background: var(--b-primary); position: sticky; top: 0; z-index: 100; }
+    .b-nav-inner { max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 24px; }
+    .b-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .b-brand-mark { width: 34px; height: 34px; background: rgba(255,255,255,0.15); border-radius: 9px; display: flex; align-items: center; justify-content: center; }
+    .b-brand-name { font-family: var(--font-head); font-weight: 700; font-size: 1.1rem; color: #fff; }
+    .b-nav-links { display: flex; gap: 20px; margin-left: 24px; flex: 1; }
+    .b-nav-links a { color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.15s; }
+    .b-nav-links a:hover, .b-nav-links a.active { color: #fff; }
+    .b-nav-actions { display: flex; align-items: center; gap: 12px; }
+    .b-cart-btn { position: relative; width: 38px; height: 38px; border-radius: 9px; background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.9); display: flex; align-items: center; justify-content: center; text-decoration: none; transition: background 0.15s; }
+    .b-cart-btn:hover { background: rgba(255,255,255,0.2); }
+    .b-cart-badge { position: absolute; top: -4px; right: -4px; background: #ef4444; color: #fff; font-size: 0.65rem; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 4px; border: 2px solid var(--b-primary); }
+    .b-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: var(--b-radius-sm); font-family: var(--font-body); font-size: 0.875rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: all 0.15s; border: none; }
+    .b-btn--outline { background: rgba(255,255,255,0.1); color: #fff; border: 1.5px solid rgba(255,255,255,0.3); }
+    .b-btn--outline:hover { background: rgba(255,255,255,0.2); }
+    .b-btn-primary-sm { background: var(--b-primary); color: #fff; padding: 8px 16px; border-radius: var(--b-radius-sm); font-size: 0.875rem; font-weight: 600; text-decoration: none; }
+    .b-btn-ghost-sm { background: transparent; color: var(--b-muted); padding: 8px 16px; border-radius: var(--b-radius-sm); font-size: 0.875rem; font-weight: 600; text-decoration: none; border: 1.5px solid var(--b-border); }
+
+    /* BREADCRUMB */
+    .b-breadcrumb { background: var(--b-surface); border-bottom: 1px solid var(--b-border); padding: 12px 24px; }
+    .b-breadcrumb-inner { max-width: 1280px; margin: 0 auto; }
+    .b-breadcrumb a { color: var(--b-muted); text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: color 0.15s; }
+    .b-breadcrumb a:hover { color: var(--b-primary); }
+
+    /* MAIN */
+    .panier-main { padding: 40px 24px 80px; }
+    .panier-inner { max-width: 1180px; margin: 0 auto; }
+    .panier-header { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
+    .panier-title { font-family: var(--font-head); font-size: 1.8rem; font-weight: 800; color: var(--b-text); letter-spacing: -0.02em; }
+    .panier-count { background: var(--b-primary); color: #fff; font-size: 0.78rem; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+
+    /* ALERTES */
+    .panier-alert { border-radius: var(--b-radius-sm); padding: 18px 20px; margin-bottom: 24px; }
+    .panier-alert--stock { background: #fef2f2; border: 1.5px solid #fecaca; color: #991b1b; }
+    .panier-alert--success { background: #f0fdf4; border: 1.5px solid #bbf7d0; color: #15803d; }
+    .panier-alert-header { display: flex; align-items: center; gap: 10px; font-size: 0.95rem; margin-bottom: 10px; }
+    .panier-alert-list { padding-left: 20px; font-size: 0.875rem; line-height: 1.8; }
+    .panier-alert-total { font-size: 1rem; font-weight: 700; margin: 10px 0; }
+    .panier-alert-actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+
+    /* PANIER VIDE */
+    .panier-vide { text-align: center; padding: 80px 20px; color: var(--b-muted); }
+    .panier-vide svg { margin-bottom: 20px; }
+    .panier-vide h2 { font-family: var(--font-head); font-size: 1.4rem; font-weight: 700; color: var(--b-text); margin-bottom: 8px; }
+    .panier-vide p { font-size: 0.95rem; margin-bottom: 28px; }
+    .panier-cta-btn { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; background: var(--b-primary); color: #fff; border-radius: var(--b-radius-sm); font-weight: 700; font-size: 1rem; text-decoration: none; transition: background 0.15s; }
+    .panier-cta-btn:hover { background: var(--b-primary-dark); }
+
+    /* LAYOUT */
+    .panier-layout { display: grid; grid-template-columns: 1fr 360px; gap: 32px; align-items: start; }
+    @@media (max-width: 900px) { .panier-layout { grid-template-columns: 1fr; } }
+
+    /* ARTICLES */
+    .panier-articles { background: var(--b-surface); border: 1.5px solid var(--b-border); border-radius: var(--b-radius); overflow: hidden; }
+    .panier-item { display: grid; grid-template-columns: 80px 1fr 120px 120px 120px 40px; gap: 16px; align-items: center; padding: 20px 20px; border-bottom: 1px solid var(--b-border); transition: opacity 0.3s; }
+    .panier-item--removing { opacity: 0.4; pointer-events: none; }
+    @@media (max-width: 768px) { .panier-item { grid-template-columns: 60px 1fr; grid-template-rows: auto auto; gap: 10px; } }
+
+    .panier-item-img { width: 80px; height: 80px; border-radius: var(--b-radius-sm); overflow: hidden; background: #f1f5f9; flex-shrink: 0; }
+    .panier-item-img img { width: 100%; height: 100%; object-fit: cover; }
+    .panier-item-img-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+
+    .panier-item-ref { font-size: 0.7rem; font-weight: 600; color: var(--b-muted); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 2px; }
+    .panier-item-name { font-family: var(--font-head); font-size: 0.95rem; font-weight: 700; color: var(--b-text); margin-bottom: 4px; }
+    .panier-item-tissu { font-size: 0.8rem; color: var(--b-muted); }
+    .panier-item-promo-badge { font-size: 0.7rem; font-weight: 700; padding: 2px 7px; background: #fef3c7; color: #92400e; border-radius: 20px; display: inline-block; margin-top: 4px; }
+    .panier-item-surcommande { font-size: 0.7rem; font-weight: 700; padding: 2px 7px; background: #ede9fe; color: #5b21b6; border-radius: 20px; display: inline-block; margin-top: 4px; }
+
+    .panier-item-prix { text-align: center; }
+    .panier-prix { font-weight: 700; color: var(--b-primary); }
+    .panier-prix-promo { font-weight: 700; color: #16a34a; display: block; }
+    .panier-prix-barre { font-size: 0.78rem; color: var(--b-muted); text-decoration: line-through; }
+
+    .panier-item-qty { display: flex; align-items: center; gap: 0; border: 1.5px solid var(--b-border); border-radius: var(--b-radius-sm); overflow: hidden; justify-self: center; }
+    .panier-qty-btn { width: 34px; height: 34px; background: var(--b-bg); border: none; font-size: 1rem; cursor: pointer; color: var(--b-text); transition: background 0.15s; }
+    .panier-qty-btn:hover:not(:disabled) { background: #e2e8f0; }
+    .panier-qty-btn:disabled { color: var(--b-muted); cursor: not-allowed; }
+    .panier-qty-val { padding: 0 12px; font-weight: 700; font-size: 0.9rem; background: var(--b-surface); }
+
+    .panier-item-total { font-weight: 800; font-size: 1rem; color: var(--b-text); text-align: right; }
+
+    .panier-suppr-btn { width: 34px; height: 34px; border: none; background: none; color: #94a3b8; cursor: pointer; border-radius: var(--b-radius-sm); display: flex; align-items: center; justify-content: center; transition: color 0.15s, background 0.15s; }
+    .panier-suppr-btn:hover { color: #ef4444; background: #fee2e2; }
+
+    .panier-articles-footer { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: var(--b-bg); }
+    .panier-vider-btn { display: flex; align-items: center; gap: 6px; background: none; border: none; color: #94a3b8; font-size: 0.8rem; cursor: pointer; font-family: var(--font-body); transition: color 0.15s; padding: 0; }
+    .panier-vider-btn:hover { color: #ef4444; }
+    .panier-continuer-btn { font-size: 0.85rem; font-weight: 600; color: var(--b-accent); text-decoration: none; }
+    .panier-continuer-btn:hover { text-decoration: underline; }
+
+    /* RÉCAPITULATIF */
+    .panier-recap { position: sticky; top: 80px; }
+    .panier-recap-card { background: var(--b-surface); border: 1.5px solid var(--b-border); border-radius: var(--b-radius); padding: 24px; }
+    .panier-recap-title { font-family: var(--font-head); font-size: 1.1rem; font-weight: 700; color: var(--b-text); margin-bottom: 18px; }
+    .panier-recap-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .panier-recap-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .panier-recap-label { font-size: 0.82rem; color: var(--b-muted); line-height: 1.3; flex: 1; }
+    .panier-recap-val { font-size: 0.875rem; font-weight: 600; color: var(--b-text); white-space: nowrap; }
+    .panier-recap-divider { height: 1px; background: var(--b-border); margin: 16px 0; }
+    .panier-recap-total { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 1rem; color: var(--b-text); margin-bottom: 12px; }
+    .panier-recap-total-val { font-size: 1.3rem; color: var(--b-primary); font-family: var(--font-head); }
+    .panier-recap-note { font-size: 0.75rem; color: var(--b-muted); line-height: 1.5; margin-bottom: 20px; }
+
+    .panier-valider-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px; background: linear-gradient(135deg, #2b4c7e, #1e3557); color: #fff; border: none; border-radius: var(--b-radius-sm); font-family: var(--font-body); font-size: 1rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s, transform 0.1s; box-shadow: 0 6px 20px -6px rgba(43,76,126,0.4); }
+    .panier-valider-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 24px -6px rgba(43,76,126,0.5); }
+    .panier-valider-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+
+    .panier-auth-note { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--b-muted); margin-top: 12px; line-height: 1.4; }
+
+    .b-footer { text-align: center; padding: 24px; background: var(--b-surface); border-top: 1px solid var(--b-border); color: var(--b-muted); font-size: 0.8rem; margin-top: 40px; }
+    .b-spinner { animation: spin 0.8s linear infinite; }
+    @@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+@code {
+    private List<CartItemDto> items = new();
+    private bool commandeEnCours = false;
+    private CommandeStockErrorClientDto? erreurStock = null;
+    private CommandeMultiResultClientDto? commandeSucces = null;
+    private HashSet<int> suppressionsEnCours = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        items = await CartService.GetItemsAsync();
+        CartService.OnCartChanged += async () => await RechercherItems();
+    }
+
+    private async Task RechercherItems()
+    {
+        items = await CartService.GetItemsAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ChangerQuantite(CartItemDto item, int nouvelleQty)
+    {
+        await CartService.UpdateQuantityAsync(item.ProduitId, nouvelleQty);
+        items = await CartService.GetItemsAsync();
+        StateHasChanged();
+    }
+
+    private async Task SupprimerArticle(int produitId)
+    {
+        suppressionsEnCours.Add(produitId);
+        StateHasChanged();
+        await Task.Delay(250);
+        await CartService.RemoveFromCartAsync(produitId);
+        suppressionsEnCours.Remove(produitId);
+        items = await CartService.GetItemsAsync();
+        StateHasChanged();
+    }
+
+    private async Task ViderPanier()
+    {
+        await CartService.ClearCartAsync();
+        items = new List<CartItemDto>();
+        erreurStock = null;
+        StateHasChanged();
+    }
+
+    private async Task ValiderCommande()
+    {
+        // Vérifier si l'utilisateur est authentifié
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var estConnecte = authState.User.Identity?.IsAuthenticated ?? false;
+
+        if (!estConnecte)
+        {
+            // Sauvegarder l'intention de checkout en sessionStorage
+            await JS.InvokeVoidAsync("sessionStorage.setItem", "checkout_intent", "true");
+            // Rediriger vers login avec paramètre redirect
+            Navigation.NavigateTo("/login?redirect=/panier");
+            return;
+        }
+
+        // Utilisateur connecté → soumettre la commande
+        commandeEnCours = true;
+        erreurStock = null;
+        StateHasChanged();
+
+        var dto = new CommandeMultiCreateClientDto
+        {
+            Lignes = items.Select(i => new LigneCommandeClientDto
+            {
+                ProduitId = i.ProduitId,
+                Quantite = i.Quantite
+            }).ToList()
+        };
+
+        var (succes, resultat, erreur, msgErreur) = await BoutiqueService.PasserCommandeMulti(Http, dto);
+
+        commandeEnCours = false;
+
+        if (succes && resultat != null)
+        {
+            commandeSucces = resultat;
+            await CartService.ClearCartAsync();
+            items = new List<CartItemDto>();
+            // Nettoyer l'intention de checkout si elle était là
+            await JS.InvokeVoidAsync("sessionStorage.removeItem", "checkout_intent");
+        }
+        else if (erreur != null)
+        {
+            erreurStock = erreur;
+            // Ajuster les quantités dans le panier
+            await CartService.AppliquerCorrectionsStockAsync(erreur.LignesEnErreur);
+            items = await CartService.GetItemsAsync();
+            Snackbar.Add("Certains articles ont été ajustés en raison d'un stock insuffisant.", Severity.Warning,
+                config => { config.VisibleStateDuration = 4000; });
+        }
+        else
+        {
+            Snackbar.Add($"Erreur : {msgErreur}", Severity.Error);
+        }
+
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        CartService.OnCartChanged -= async () => await RechercherItems();
+    }
+}

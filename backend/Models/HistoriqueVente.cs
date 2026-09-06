@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using static WicStock_.Models.Enums;
 
 namespace WicStock_.Models
@@ -40,8 +41,24 @@ namespace WicStock_.Models
 
         public bool EstSurCommande { get; set; } = false;
 
+        /// <summary>
+        /// Montant total de la commande, calculé côté serveur à partir des lignes.
+        /// Pour les anciennes commandes mono-produit : PrixUnitaire × QuantiteVendue.
+        /// </summary>
+        public decimal MontantTotal { get; set; } = 0;
+
+        /// <summary>
+        /// True si cette commande utilise le nouveau modèle multi-lignes (LigneCommandes).
+        /// False pour les anciennes commandes mono-produit conservées pour la rétro-compatibilité.
+        /// </summary>
+        public bool EstMultiLignes { get; set; } = false;
+
+        // Legacy mono-produit — conservé pour rétro-compatibilité avec les anciennes commandes
         public int ProduitId { get; set; }
         public Produit? Produit { get; set; }
+
+        /// <summary>Lignes de commande pour les commandes multi-articles (EstMultiLignes = true).</summary>
+        public List<LigneCommande> LigneCommandes { get; set; } = new();
 
         // Lien vers le client qui a passé la commande
         public int? UtilisateurId { get; set; }

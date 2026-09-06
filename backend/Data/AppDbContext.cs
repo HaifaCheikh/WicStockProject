@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<Avis> Avis { get; set; }
     public DbSet<Reclamation> Reclamations { get; set; }
+    public DbSet<LigneCommande> LigneCommandes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -108,6 +109,27 @@ public class AppDbContext : DbContext
         // Précision des décimales pour HistoriqueVente
         modelBuilder.Entity<HistoriqueVente>()
             .Property(h => h.PrixUnitaire)
+            .HasPrecision(18, 2);
+
+        modelBuilder.Entity<HistoriqueVente>()
+            .Property(h => h.MontantTotal)
+            .HasPrecision(18, 2);
+
+        // LigneCommande — relation avec HistoriqueVente (cascade delete : supprimer la commande supprime ses lignes)
+        modelBuilder.Entity<LigneCommande>()
+            .HasOne(l => l.HistoriqueVente)
+            .WithMany(h => h.LigneCommandes)
+            .HasForeignKey(l => l.HistoriqueVenteId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<LigneCommande>()
+            .HasOne(l => l.Produit)
+            .WithMany()
+            .HasForeignKey(l => l.ProduitId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<LigneCommande>()
+            .Property(l => l.PrixUnitaire)
             .HasPrecision(18, 2);
 
         // Configuration Avis

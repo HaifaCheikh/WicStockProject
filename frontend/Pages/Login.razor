@@ -370,6 +370,16 @@
 
         if (succes)
         {
+            // Lire le paramètre ?redirect= dans l'URL pour revenir au panier après connexion
+            var redirectTo = ObtenirParametreRedirect();
+            if (!string.IsNullOrWhiteSpace(redirectTo))
+            {
+                await JS.InvokeVoidAsync("sessionStorage.removeItem", "checkout_intent");
+                Navigation.NavigateTo(redirectTo);
+                return;
+            }
+
+            // Pas de redirect paramètre — comportement par défaut selon le rôle
             var role = await AuthService.ObtenirRole();
             if (role == "CLIENT")
                 Navigation.NavigateTo("/catalogue");
@@ -381,10 +391,39 @@
         else
         {
             message = msg;
-            // Le token Turnstile est à usage unique : on réinitialise le widget après un échec
             captchaToken = null;
             await JS.InvokeVoidAsync("turnstileInterop.reset");
         }
+    }
+
+    /// <summary>
+    /// Extrait le paramètre ?redirect= de l'URL actuelle.
+    /// Accepte seulement les routes internes (/...) pour éviter les open redirects.
+    /// </summary>
+    private string? ObtenirParametreRedirect()
+    {
+        try
+        {
+            var uri = new Uri(Navigation.Uri);
+            var query = uri.Query;
+            if (string.IsNullOrEmpty(query)) return null;
+
+            // Parser manuellement la query string (pas besoin de WebUtilities)
+            var pairs = query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var pair in pairs)
+            {
+                var kv = pair.Split('=', 2);
+                if (kv.Length == 2 && kv[0] == "redirect")
+                {
+                    var val = Uri.UnescapeDataString(kv[1]);
+                    // Sécurité : n'accepter que les routes internes
+                    if (val.StartsWith("/") && !val.StartsWith("//"))
+                        return val;
+                }
+            }
+        }
+        catch { }
+        return null;
     }
 
     public async ValueTask DisposeAsync()

@@ -32,6 +32,10 @@ if (!iaBaseUrl.EndsWith("/")) iaBaseUrl += "/";
 builder.Services.AddHttpClient("WicStockIA", client =>
     client.BaseAddress = new Uri(iaBaseUrl));
 
+// Client HTTP PUBLIC (sans token) — pour le catalogue boutique
+builder.Services.AddHttpClient("WicStockPublic", client =>
+    client.BaseAddress = new Uri(apiBaseUrl));
+
 builder.Services.AddScoped<AssistantIAService>(sp =>
 {
     var factory = sp.GetRequiredService<IHttpClientFactory>();
@@ -60,5 +64,11 @@ builder.Services.AddScoped<CommandeBadgeService>(sp =>
 builder.Services.AddScoped<PaymentService>();
 builder.Services.AddScoped<LivraisonService>();
 builder.Services.AddScoped<FeedbackService>();
+builder.Services.AddScoped<CartService>();
+builder.Services.AddScoped<BoutiqueService>(sp =>
+{
+    var factory = sp.GetRequiredService<IHttpClientFactory>();
+    return new BoutiqueService(factory.CreateClient("WicStockPublic"));
+});
 
 await builder.Build().RunAsync();

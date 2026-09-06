@@ -179,6 +179,7 @@ namespace WicStock_.Controllers
                 );
             }
 
+
             return CreatedAtAction(nameof(GetMesCommandes), new { }, new
             {
                 vente.Id,
@@ -198,6 +199,188 @@ namespace WicStock_.Controllers
                         : "Commande enregistrée en attente de validation."
             });
         }
+
+        // POST: api/historiquevente/multi — Commande multi-articles (Boutique publique)
+        // Nécessite un token JWT CLIENT ou ADMIN.
+        // Transaction atomique : si UNE ligne a un stock insuffisant, toute la commande est annulée.
+        // Le prix est TOUJOURS recalculé côté serveur — jamais reçu du frontend.
+        [HttpPost("multi")]
+        [Authorize(Roles = "CLIENT,ADMIN")]
+        public async Task<ActionResult<object>> CreerCommandeMulti([FromBody] CommandeMultiCreateDto dto)
+        {
+            if (dto.Lignes == null || !dto.Lignes.Any())
+                return BadRequest(new { message = "La commande doit contenir au moins une ligne." });
+
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int utilisateurId))
+                return Unauthorized();
+
+            // — Charger tous les produits concernés en une seule requête —
+            var produitIds = dto.Lignes.Select(l => l.ProduitId).Distinct().ToList();
+            var produits = await _context.Produits
+                .Include(p => p.Stock)
+                .Where(p => produitIds.Contains(p.Id) && !p.EstArchive)
+                .ToDictionaryAsync(p => p.Id);
+
+            // — Vérifier que tous les produits existent —
+            var produitsManquants = produitIds.Where(id => !produits.ContainsKey(id)).ToList();
+            if (produitsManquants.Any())
+                return NotFound(new { message = $"Produit(s) introuvable(s) : {string.Join(", ", produitsManquants)}" });
+
+            // — Vérifier le stock pour chaque ligne — collecter toutes les erreurs avant de rejeter —
+            var lignesEnErreur = new List<LigneStockErrorDto>();
+            foreach (var ligne in dto.Lignes)
+            {
+                if (ligne.Quantite <= 0)
+                {
+                    return BadRequest(new { message = $"La quantité doit être supérieure à 0 pour le produit {ligne.ProduitId}." });
+                }
+
+                var produit = produits[ligne.ProduitId];
+                var stockQty = produit.Stock?.QuantiteActuelle ?? 0;
+
+                // Stock insuffisant ET non commandable sur commande → erreur
+                if (!produit.DisponibleSurCommande && stockQty < ligne.Quantite)
+                {
+                    lignesEnErreur.Add(new LigneStockErrorDto
+                    {
+                        ProduitId = produit.Id,
+                        ProduitNom = produit.Nom,
+                        ProduitReference = produit.Reference,
+                        QuantiteDemandee = ligne.Quantite,
+                        QuantiteDisponible = stockQty,
+                        EstSurCommande = false
+                    });
+                }
+            }
+
+            // Si des erreurs de stock → 409 Conflict avec le détail des lignes problématiques
+            if (lignesEnErreur.Any())
+            {
+                return Conflict(new CommandeStockErrorDto
+                {
+                    Message = "Commande impossible : stock insuffisant pour certains articles.",
+                    LignesEnErreur = lignesEnErreur
+                });
+            }
+
+            // — Transaction atomique : tout ou rien —
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                bool touteSurCommande = false;
+                bool auMoinsUneSurCommande = false;
+                decimal montantTotal = 0;
+                var lignesResult = new List<LigneCommandeResultDto>();
+
+                // Créer la commande parente
+                var commande = new HistoriqueVente
+                {
+                    DateVente = DateTime.Now,
+                    StatutCommande = "EN_ATTENTE",
+                    Statut = StatutCommandeDetaille.EN_ATTENTE_CONFIRMATION,
+                    EstMultiLignes = true,
+                    UtilisateurId = utilisateurId,
+                    DateSouhaitee = dto.DateSouhaitee?.Date,
+                    AdresseLivraison = dto.AdresseLivraison,
+                    CodePostal = dto.CodePostal,
+                    Ville = dto.Ville,
+                    Pays = dto.Pays,
+                    // Legacy champs requis (non-null en base) : utiliser le premier produit comme référence
+                    ProduitId = dto.Lignes.First().ProduitId,
+                    QuantiteVendue = dto.Lignes.Sum(l => l.Quantite),
+                    PrixUnitaire = 0, // sera mis à jour après calcul
+                };
+
+                _context.HistoriqueVentes.Add(commande);
+                await _context.SaveChangesAsync(); // pour obtenir l'Id
+
+                // Traiter chaque ligne
+                foreach (var ligneDto in dto.Lignes)
+                {
+                    var produit = produits[ligneDto.ProduitId];
+                    var stockQty = produit.Stock?.QuantiteActuelle ?? 0;
+
+                    // Prix recalculé serveur — utiliser le prix promo si applicable
+                    var today = DateTime.Today;
+                    int remise = produit.RemisePourcentage ?? 0;
+                    DateTime? dateFin = produit.DateFinPromotion;
+                    bool estEnPromo = remise > 0 && dateFin.HasValue && dateFin.Value.Date >= today;
+                    decimal prixEffectif = estEnPromo
+                        ? Math.Round(produit.PrixUnitaire * (1 - (decimal)remise / 100m), 2)
+                        : produit.PrixUnitaire;
+
+                    bool estSurCommande = produit.DisponibleSurCommande && stockQty < ligneDto.Quantite;
+                    if (estSurCommande) auMoinsUneSurCommande = true;
+
+                    // Décrémenter le stock seulement si disponible
+                    if (!estSurCommande && produit.Stock != null)
+                    {
+                        produit.Stock.QuantiteActuelle -= ligneDto.Quantite;
+                        produit.Stock.DateMiseAJour = DateTime.Now;
+                    }
+
+                    var ligne = new LigneCommande
+                    {
+                        HistoriqueVenteId = commande.Id,
+                        ProduitId = produit.Id,
+                        Quantite = ligneDto.Quantite,
+                        PrixUnitaire = prixEffectif,
+                        EstSurCommande = estSurCommande
+                    };
+                    _context.LigneCommandes.Add(ligne);
+
+                    montantTotal += prixEffectif * ligneDto.Quantite;
+                    lignesResult.Add(new LigneCommandeResultDto
+                    {
+                        ProduitId = produit.Id,
+                        ProduitNom = produit.Nom,
+                        ProduitReference = produit.Reference,
+                        Quantite = ligneDto.Quantite,
+                        PrixUnitaire = prixEffectif,
+                        EstSurCommande = estSurCommande
+                    });
+                }
+
+                // Mettre à jour les champs de la commande parente
+                commande.MontantTotal = Math.Round(montantTotal, 2);
+                commande.PrixUnitaire = lignesResult.Count == 1 ? lignesResult[0].PrixUnitaire : Math.Round(montantTotal / dto.Lignes.Sum(l => l.Quantite), 2);
+                commande.EstSurCommande = auMoinsUneSurCommande;
+                commande.StatutCommande = "EN_ATTENTE";
+                commande.Statut = StatutCommandeDetaille.EN_ATTENTE_CONFIRMATION;
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                // — Notification au responsable —
+                var nomsProduits = string.Join(", ", lignesResult.Select(l => $"« {l.ProduitNom} »"));
+                await _notificationService.NotifierNouvelEvenementAsync(
+                    TypeNotification.COMMANDE_EN_ATTENTE,
+                    $"Nouvelle commande multi-articles : {dto.Lignes.Count} article(s) ({nomsProduits}) — Total : {commande.MontantTotal:C}",
+                    "/commandes",
+                    RoleUtilisateur.RESPONSABLE_STOCK_PRODUCTION
+                );
+
+                return CreatedAtAction(nameof(GetMesCommandes), new { }, new CommandeMultiResultDto
+                {
+                    CommandeId = commande.Id,
+                    MontantTotal = commande.MontantTotal,
+                    NombreLignes = lignesResult.Count,
+                    EstSurCommande = auMoinsUneSurCommande,
+                    Message = auMoinsUneSurCommande
+                        ? "Commande enregistrée. Certains articles seront produits sur commande."
+                        : "Commande enregistrée avec succès, en attente de confirmation.",
+                    Lignes = lignesResult
+                });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                Console.WriteLine($"[COMMANDE MULTI ERROR] {ex}");
+                return StatusCode(500, new { message = "Erreur lors de la création de la commande. Veuillez réessayer." });
+            }
+        }
+
 
         // PUT: api/historiquevente/5/accepter (Manager accepte la commande)
         [HttpPut("{id}/accepter")]
