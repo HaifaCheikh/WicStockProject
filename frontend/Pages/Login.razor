@@ -62,6 +62,11 @@
 
                 <div id="turnstile-widget" class="mb-4"></div>
 
+                @if (!string.IsNullOrEmpty(captchaError))
+                {
+                    <div class="error-alert my-2">@captchaError</div>
+                }
+
                 @if (!string.IsNullOrEmpty(message))
                 {
                     <div class="error-alert my-4">@message</div>

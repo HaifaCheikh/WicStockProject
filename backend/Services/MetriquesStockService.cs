@@ -133,7 +133,7 @@ namespace WicStock_.Services
             var autresProduitsCat = produitsCategorie.Where(p => p.Id != produitId).ToList();
             int totalProdsCat = autresProduitsCat.Count;
             int nbProdsSurstockCat = autresProduitsCat
-                .Count(p => (p.Stock?.QuantiteActuelle ?? 0) > ((p.Stock?.SeuilSurstock > 0) ? p.Stock.SeuilSurstock.Value : 100));
+                .Count(p => (p.Stock?.QuantiteActuelle ?? 0) > ((p.Stock?.SeuilAlerte > 50) ? p.Stock.SeuilAlerte : 100));
 
             bool estTendanceCategorie = totalProdsCat > 0 && (nbProdsSurstockCat >= 2 || ((double)nbProdsSurstockCat / totalProdsCat) >= 0.3);
 
