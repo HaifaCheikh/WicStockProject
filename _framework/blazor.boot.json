@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "WicStock.Web",
   "resources": {
-    "hash": "sha256-7owokXDAjLLIyrBet2pLtwGpvzhYV5S+GPmpCfinYyM=",
+    "hash": "sha256-5LIMXZMlQg93Puy4VkJQjeMFfi4NgdYKfqoa+Qal8zo=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-dexsp+9ih2C28zVhNnPXUbkz2QCq7lHpkyDcmaLl7NQ="
     },
@@ -70,7 +70,7 @@
       "System.Formats.Asn1.wasm": "sha256-7e+aJGfKeRXuQ0wGJ8fNTTlc/ZSzuKHxyxHZVTy4m7U=",
       "System.IO.Compression.wasm": "sha256-VAoTHJ50RQvcpbcmbQTNDnW6tP6hwB/8HMZD+KTq8Oc=",
       "System.Linq.Expressions.wasm": "sha256-ipl9WMO/K23z5K+Bkbv6TJBcUIhtiSz+k59WBOme8aY=",
-      "System.Linq.wasm": "sha256-nZNFfbqt7plqREqC5zPrNIZ2Y0D732EKkqyxjfmO3uw=",
+      "System.Linq.wasm": "sha256-2vBNME2CQGkeaEHuy22mohahQ1s2559yXnxvEp+AGIk=",
       "System.Memory.wasm": "sha256-wJfAsE2wTA2OOXaesEF5yqWA6AMziisBOcmaXIqt0cw=",
       "System.Net.Http.Json.wasm": "sha256-+xOm1PlvFggQNe8CryyGiwtqMZdprP9hUOYj4TvFoEw=",
       "System.Net.Http.wasm": "sha256-xr8zpAE8kWFA79iSxhjfRnvUu0G220GZyV2/fNSYCWU=",
@@ -99,7 +99,7 @@
       "System.Xml.ReaderWriter.wasm": "sha256-QhuHFx3yfIZDctT/IzBBh18LRXBU4OIcvXmtx1o2DFI=",
       "System.wasm": "sha256-0h/E837RjMJjMLndiTv3gCaXstmfreX9Ui/wJVYpzwg=",
       "System.Private.CoreLib.wasm": "sha256-OMQlMCxi0sbcFxmAkTHtzmFWMcaaLkm39agfd4/bjLI=",
-      "WicStock.Web.wasm": "sha256-duZZIWV78ydFa0Q2tL0DGOKylmIv/sfMutub9mj9Y9o="
+      "WicStock.Web.wasm": "sha256-1CCDeGkqZXCN3UNowxuua0PO9B8LCG7tJ3+vTuSgPPI="
     }
   },
   "cacheBootResources": true,
