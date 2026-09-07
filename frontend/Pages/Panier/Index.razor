@@ -231,7 +231,7 @@
                         }
 
                         <div class="panier-articles-footer">
-                            <button class="panier-vider-btn" @onclick="ViderPanier">
+                            <button class="panier-vider-btn" @onclick="() => showConfirmVider = true">
                                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none">
                                     <path d="M3 6 H21 M8 6 V4 H16 V6 M19 6 L18 20 H6 L5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
                                 </svg>
@@ -245,6 +245,32 @@
                             </a>
                         </div>
                     </div>
+
+                    <!-- ===== MODALE CONFIRMATION VIDER ===== -->
+                    @if (showConfirmVider)
+                    {
+                        <div class="confirm-overlay" @onclick="AnnulerVider">
+                            <div class="confirm-modal" @onclick:stopPropagation="true">
+                                <div class="confirm-icon">
+                                    <svg viewBox="0 0 24 24" width="32" height="32" fill="none">
+                                        <path d="M3 6 H21 M8 6 V4 H16 V6 M19 6 L18 20 H6 L5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M10 11 V17 M14 11 V17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                                    </svg>
+                                </div>
+                                <h3 class="confirm-title">Vider le panier ?</h3>
+                                <p class="confirm-body">Tous les articles de votre panier seront supprimés. Cette action est irréversible.</p>
+                                <div class="confirm-actions">
+                                    <button class="confirm-btn-cancel" @onclick="AnnulerVider">Annuler</button>
+                                    <button class="confirm-btn-ok" @onclick="ConfirmerVider">
+                                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none">
+                                            <path d="M3 6 H21 M8 6 V4 H16 V6 M19 6 L18 20 H6 L5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                        Oui, vider
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
 
                     <!-- ===== RÉCAPITULATIF ===== -->
                     <div class="panier-recap">
@@ -465,7 +491,74 @@
     }
     .panier-continuer-btn:hover svg { transform: translateX(-3px); }
 
-    /* RÉCAPITULATIF */
+    /* MODALE CONFIRMATION */
+    .confirm-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+        backdrop-filter: blur(4px);
+        z-index: 999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: fadeInOverlay 0.18s ease;
+    }
+    @@keyframes fadeInOverlay { from { opacity: 0; } to { opacity: 1; } }
+    .confirm-modal {
+        background: var(--b-paper);
+        border: 1px solid var(--b-border);
+        border-radius: 16px;
+        padding: 32px 28px 24px;
+        max-width: 360px;
+        width: 90%;
+        box-shadow: 0 24px 60px -12px rgba(0,0,0,0.25);
+        text-align: center;
+        animation: slideInModal 0.22s cubic-bezier(.34,1.56,.64,1);
+    }
+    @@keyframes slideInModal { from { opacity: 0; transform: scale(0.88) translateY(16px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    .confirm-icon {
+        width: 56px; height: 56px;
+        background: var(--b-rust-soft, #fef2f2);
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 16px;
+        color: var(--b-rust, #e05252);
+    }
+    .confirm-title { font-family: var(--font-head); font-size: 1.1rem; font-weight: 700; color: var(--b-ink); margin: 0 0 8px; }
+    .confirm-body { font-size: 0.85rem; color: var(--b-ink-muted); line-height: 1.55; margin: 0 0 24px; }
+    .confirm-actions { display: flex; gap: 10px; justify-content: center; }
+    .confirm-btn-cancel {
+        flex: 1;
+        padding: 10px 16px;
+        background: var(--b-sand);
+        border: 1.5px solid var(--b-border);
+        border-radius: 999px;
+        font-family: var(--font-body);
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--b-ink);
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .confirm-btn-cancel:hover { background: var(--b-border); }
+    .confirm-btn-ok {
+        flex: 1;
+        display: flex; align-items: center; justify-content: center; gap: 6px;
+        padding: 10px 16px;
+        background: var(--b-rust, #e05252);
+        border: none;
+        border-radius: 999px;
+        font-family: var(--font-body);
+        font-size: 0.875rem;
+        font-weight: 700;
+        color: #fff;
+        cursor: pointer;
+        transition: all 0.15s;
+        box-shadow: 0 4px 12px -4px rgba(224,82,82,0.45);
+    }
+    .confirm-btn-ok:hover { background: #c94343; box-shadow: 0 6px 16px -4px rgba(224,82,82,0.55); transform: translateY(-1px); }
+
+
     .panier-recap { position: sticky; top: 80px; }
     .panier-recap-card { background: var(--b-paper); border: 1px solid var(--b-border); border-radius: var(--b-radius); padding: 24px; }
     .panier-recap-title { font-family: var(--font-head); font-size: 1.05rem; font-weight: 700; color: var(--b-ink); margin-bottom: 18px; }
@@ -528,8 +621,16 @@
         StateHasChanged();
     }
 
-    private async Task ViderPanier()
+    private bool showConfirmVider = false;
+
+    private void AnnulerVider()
     {
+        showConfirmVider = false;
+    }
+
+    private async Task ConfirmerVider()
+    {
+        showConfirmVider = false;
         await CartService.ClearCartAsync();
         items = new List<CartItemDto>();
         erreurStock = null;
