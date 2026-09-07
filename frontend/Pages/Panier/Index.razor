@@ -66,7 +66,12 @@
     <!-- BREADCRUMB -->
     <nav class="b-breadcrumb">
         <div class="b-breadcrumb-inner">
-            <a href="/boutique">← Retour à la boutique</a>
+            <a href="/boutique" class="b-btn-back">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
+                    <path d="M19 12 H5 M11 18 L5 12 L11 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Retour à la boutique</span>
+            </a>
         </div>
     </nav>
 
@@ -232,7 +237,12 @@
                                 </svg>
                                 Vider le panier
                             </button>
-                            <a href="/boutique" class="panier-continuer-btn">← Continuer mes achats</a>
+                            <a href="/boutique" class="panier-continuer-btn">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
+                                    <path d="M19 12 H5 M11 18 L5 12 L11 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                <span>Continuer mes achats</span>
+                            </a>
                         </div>
                     </div>
 
@@ -341,9 +351,31 @@
 
     /* BREADCRUMB */
     .b-breadcrumb { background: var(--b-paper); border-bottom: 1px solid var(--b-border); padding: 12px 24px; }
-    .b-breadcrumb-inner { max-width: 1160px; margin: 0 auto; }
-    .b-breadcrumb a { color: var(--b-ink-muted); text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: color 0.15s; }
-    .b-breadcrumb a:hover { color: var(--b-denim); }
+    .b-breadcrumb-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; }
+    .b-btn-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: var(--b-paper);
+        border: 1.5px solid var(--b-border);
+        border-radius: 999px;
+        color: var(--b-ink);
+        font-family: var(--font-body);
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        transition: all 0.2s ease;
+    }
+    .b-btn-back svg { transition: transform 0.2s ease; color: var(--b-denim); }
+    .b-btn-back:hover {
+        background: var(--b-denim-soft);
+        border-color: #B2C4DC;
+        color: var(--b-denim);
+        box-shadow: 0 4px 12px -4px rgba(43,76,126,0.2);
+    }
+    .b-btn-back:hover svg { transform: translateX(-3px); }
 
     /* MAIN */
     .panier-main { padding: 36px 24px 80px; }
@@ -408,8 +440,30 @@
     .panier-articles-footer { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: var(--b-sand); }
     .panier-vider-btn { display: flex; align-items: center; gap: 6px; background: none; border: none; color: #94a3b8; font-size: 0.8rem; cursor: pointer; font-family: var(--font-body); transition: color 0.15s; padding: 0; }
     .panier-vider-btn:hover { color: var(--b-rust); }
-    .panier-continuer-btn { font-size: 0.85rem; font-weight: 600; color: var(--b-denim); text-decoration: none; }
-    .panier-continuer-btn:hover { text-decoration: underline; }
+    .panier-continuer-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: var(--b-paper);
+        border: 1.5px solid var(--b-border);
+        border-radius: 999px;
+        color: var(--b-ink);
+        font-family: var(--font-body);
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        transition: all 0.2s ease;
+    }
+    .panier-continuer-btn svg { transition: transform 0.2s ease; color: var(--b-denim); }
+    .panier-continuer-btn:hover {
+        background: var(--b-denim-soft);
+        border-color: #B2C4DC;
+        color: var(--b-denim);
+        box-shadow: 0 4px 12px -4px rgba(43,76,126,0.2);
+    }
+    .panier-continuer-btn:hover svg { transform: translateX(-3px); }
 
     /* RÉCAPITULATIF */
     .panier-recap { position: sticky; top: 80px; }
