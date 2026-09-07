@@ -379,7 +379,7 @@
     private bool isSubmitting = false;
     private string? errorMessage;
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         if (Lignes != null && Lignes.Count > 0)
         {
@@ -397,25 +397,41 @@
             activeProduitImgUrl = ProduitImgUrl ?? string.Empty;
         }
 
-        if (AvisExistant != null)
-        {
-            currentNote = AvisExistant.Note;
-            commentaire = AvisExistant.Commentaire;
-        }
-        else
-        {
-            currentNote = 0;
-            commentaire = string.Empty;
-        }
+        await ChargerAvisPourProduit(activeProduitId);
         errorMessage = null;
     }
 
-    private void ChangerProduit(LigneCommandeDisplayDto item)
+    private async Task ChangerProduit(LigneCommandeDisplayDto item)
     {
         activeProduitId = item.ProduitId;
         activeProduitNom = item.ProduitNom;
         activeProduitRef = item.ProduitReference;
         activeProduitImgUrl = item.ProduitImageUrl ?? string.Empty;
+        await ChargerAvisPourProduit(activeProduitId);
+    }
+
+    private async Task ChargerAvisPourProduit(int targetProdId)
+    {
+        if (CommandeId <= 0 || targetProdId <= 0) return;
+        try
+        {
+            var avis = await FeedbackService.ObtenirAvisCommande(CommandeId, targetProdId);
+            if (avis != null)
+            {
+                currentNote = avis.Note;
+                commentaire = avis.Commentaire;
+            }
+            else
+            {
+                currentNote = 0;
+                commentaire = string.Empty;
+            }
+        }
+        catch
+        {
+            currentNote = 0;
+            commentaire = string.Empty;
+        }
     }
 
     private async Task Fermer()
