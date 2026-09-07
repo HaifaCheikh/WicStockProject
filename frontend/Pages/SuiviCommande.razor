@@ -63,13 +63,11 @@
                     <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Small" />
                 </button>
                 <div class="header-titles">
-                    <span class="header-eyebrow">Commande #@suivi.Id</span>
                     <MudText Typo="Typo.h4" Class="page-title">Suivi de commande</MudText>
                     <MudText Typo="Typo.body2" Class="page-subtitle">Commandée le @suivi.DateVente.ToString("dd MMMM yyyy à HH:mm")</MudText>
                 </div>
-                <span class="status-pill @GetStatusPillClass()">
-                    <span class="status-pill-dot"></span>
-                    <MudIcon Icon="@GetStatusIcon()" Size="Size.Small" />
+                <span class="status-tag @GetStatusPillClass()">
+                    <span class="status-tag-dot"></span>
                     @GetStatusLabel()
                 </span>
             </div>
@@ -79,18 +77,6 @@
                 @if (suivi.EstMultiLignes && suivi.Lignes.Count > 0)
                 {
                     <!-- Commande multi-articles -->
-                    <div class="order-card-head">
-                        <div class="order-card-head-left">
-                            <div class="order-thumb-stack">
-                                <MudIcon Icon="@Icons.Material.Filled.Layers" Size="Size.Medium" />
-                            </div>
-                            <div>
-                                <h2 class="order-card-title">Commande multi-articles</h2>
-                                <span class="article-count-chip">@suivi.Lignes.Count article@(suivi.Lignes.Count > 1 ? "s" : "")</span>
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="order-lines">
                         @foreach (var ligne in suivi.Lignes)
                         {
@@ -115,39 +101,29 @@
                                 </div>
                             </div>
                         }
+                        <div class="order-total-row">
+                            <span>Montant total</span>
+                            <span class="order-total-value">@suivi.MontantAffiche.ToString("0.00") DT</span>
+                        </div>
                     </div>
 
-                    <div class="order-total-row">
-                        <span>Montant total</span>
-                        <span class="order-total-value">@suivi.MontantAffiche.ToString("0.00") DT</span>
-                    </div>
-
-                    <div class="info-chips">
-                        <div class="info-chip">
-                            <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Small" />
-                            <div>
-                                <span class="info-chip-label">Quantité totale</span>
-                                <span class="info-chip-value">@suivi.QuantiteVendue pièce(s)</span>
-                            </div>
+                    <div class="meta-strip">
+                        <div class="meta-strip-item">
+                            <span class="meta-strip-label">Quantité totale</span>
+                            <span class="meta-strip-value">@suivi.QuantiteVendue pièce(s)</span>
                         </div>
                         @if (suivi.DateSouhaitee.HasValue)
                         {
-                            <div class="info-chip">
-                                <MudIcon Icon="@Icons.Material.Filled.EventAvailable" Size="Size.Small" />
-                                <div>
-                                    <span class="info-chip-label">Date souhaitée</span>
-                                    <span class="info-chip-value">@suivi.DateSouhaitee.Value.ToString("dd/MM/yyyy")</span>
-                                </div>
+                            <div class="meta-strip-item">
+                                <span class="meta-strip-label">Date souhaitée</span>
+                                <span class="meta-strip-value">@suivi.DateSouhaitee.Value.ToString("dd/MM/yyyy")</span>
                             </div>
                         }
                         @if (suivi.DateEstimeePreparation.HasValue)
                         {
-                            <div class="info-chip">
-                                <MudIcon Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" />
-                                <div>
-                                    <span class="info-chip-label">Préparation estimée</span>
-                                    <span class="info-chip-value">@suivi.DateEstimeePreparation.Value.ToString("dd/MM/yyyy")</span>
-                                </div>
+                            <div class="meta-strip-item">
+                                <span class="meta-strip-label">Préparation estimée</span>
+                                <span class="meta-strip-value">@suivi.DateEstimeePreparation.Value.ToString("dd/MM/yyyy")</span>
                             </div>
                         }
                     </div>
@@ -172,57 +148,45 @@
                         </div>
                     </div>
 
-                    <div class="info-chips">
-                        <div class="info-chip">
-                            <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Small" />
-                            <div>
-                                <span class="info-chip-label">Quantité commandée</span>
-                                <span class="info-chip-value">@suivi.QuantiteVendue pièce(s)</span>
-                            </div>
+                    <div class="meta-strip">
+                        <div class="meta-strip-item">
+                            <span class="meta-strip-label">Quantité commandée</span>
+                            <span class="meta-strip-value">@suivi.QuantiteVendue pièce(s)</span>
                         </div>
                         @if (suivi.DateSouhaitee.HasValue)
                         {
-                            <div class="info-chip">
-                                <MudIcon Icon="@Icons.Material.Filled.EventAvailable" Size="Size.Small" />
-                                <div>
-                                    <span class="info-chip-label">Date souhaitée</span>
-                                    <span class="info-chip-value">@suivi.DateSouhaitee.Value.ToString("dd/MM/yyyy")</span>
-                                </div>
+                            <div class="meta-strip-item">
+                                <span class="meta-strip-label">Date souhaitée</span>
+                                <span class="meta-strip-value">@suivi.DateSouhaitee.Value.ToString("dd/MM/yyyy")</span>
                             </div>
                         }
                         @if (suivi.DateEstimeePreparation.HasValue)
                         {
-                            <div class="info-chip">
-                                <MudIcon Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" />
-                                <div>
-                                    <span class="info-chip-label">Préparation estimée</span>
-                                    <span class="info-chip-value">@suivi.DateEstimeePreparation.Value.ToString("dd/MM/yyyy")</span>
-                                </div>
+                            <div class="meta-strip-item">
+                                <span class="meta-strip-label">Préparation estimée</span>
+                                <span class="meta-strip-value">@suivi.DateEstimeePreparation.Value.ToString("dd/MM/yyyy")</span>
                             </div>
                         }
                         @if (!string.IsNullOrWhiteSpace(suivi.AdresseLivraison) || !string.IsNullOrWhiteSpace(suivi.CodePostal))
                         {
-                            <div class="info-chip info-chip--wide">
-                                <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Small" />
-                                <div>
-                                    <span class="info-chip-label">Adresse de livraison</span>
-                                    <span class="info-chip-value">
-                                        @suivi.AdresseLivraison
-                                        @if (!string.IsNullOrWhiteSpace(suivi.Ville))
-                                        {
-                                            <span>, @suivi.Ville</span>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(suivi.CodePostal))
-                                        {
-                                            <span class="cp-badge">CP @suivi.CodePostal</span>
-                                        }
-                                    </span>
-                                </div>
+                            <div class="meta-strip-item meta-strip-item--wide">
+                                <span class="meta-strip-label">Adresse de livraison</span>
+                                <span class="meta-strip-value">
+                                    @suivi.AdresseLivraison
+                                    @if (!string.IsNullOrWhiteSpace(suivi.Ville))
+                                    {
+                                        <span>, @suivi.Ville</span>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(suivi.CodePostal))
+                                    {
+                                        <span class="cp-badge">CP @suivi.CodePostal</span>
+                                    }
+                                </span>
                             </div>
                         }
                     </div>
 
-                    <div class="order-total-row">
+                    <div class="order-total-row order-total-row--standalone">
                         <span>Montant total</span>
                         <span class="order-total-value">@GetTotalAmount().ToString("0.00") DT</span>
                     </div>
@@ -429,17 +393,17 @@
         --amber-tint: #FEF3C7;
         --rust: #B5563A;
         --rust-tint: #F9ECE8;
-        --radius-sm: 8px;
-        --radius-md: 12px;
-        --radius-lg: 18px;
+        --radius-sm: 6px;
+        --radius-md: 10px;
+        --radius-lg: 12px;
         --font-display: "Sora", "Inter", sans-serif;
         --font-body: "Inter", sans-serif;
         --font-mono: "JetBrains Mono", monospace;
         font-family: var(--font-body);
         color: var(--ink);
-        background: linear-gradient(180deg, var(--sand) 0%, #FAFBFD 320px);
+        background: transparent;
         min-height: 100%;
-        padding: 4px 4px 40px;
+        padding: 0 0 32px;
     }
 
     .suivi-shell {
@@ -529,58 +493,74 @@
         color: var(--ink-muted) !important;
     }
 
-    .status-pill {
+    .status-tag {
         display: inline-flex;
         align-items: center;
-        gap: 7px;
+        gap: 8px;
         font-size: 0.8125rem;
-        font-weight: 700;
-        padding: 9px 16px;
-        border-radius: 999px;
+        font-weight: 600;
+        padding: 8px 14px;
+        border-radius: var(--radius-sm);
         white-space: nowrap;
         flex-shrink: 0;
-        margin-top: 4px;
-        border: 1px solid transparent;
+        margin-top: 6px;
+        background: var(--paper);
+        border: 1px solid var(--border);
+        color: var(--ink-muted);
     }
 
-    .status-pill-dot {
-        display: none;
+    .status-tag-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+        flex-shrink: 0;
     }
 
     .status-pill--pending {
-        background: var(--amber-tint);
         color: var(--amber);
-        border-color: #FDE68A;
+        border-color: #F3D9A8;
     }
 
     .status-pill--progress {
-        background: var(--denim-tint);
         color: var(--denim);
-        border-color: rgba(43, 76, 126, 0.15);
+        border-color: rgba(43, 76, 126, 0.25);
     }
 
     .status-pill--done {
-        background: var(--pine-tint);
         color: var(--pine);
-        border-color: rgba(30, 107, 76, 0.15);
+        border-color: rgba(30, 107, 76, 0.25);
     }
 
     .status-pill--ready {
-        background: var(--denim-tint);
         color: var(--denim);
-        border-color: rgba(43, 76, 126, 0.15);
+        border-color: rgba(43, 76, 126, 0.25);
     }
 
     .status-pill--paid {
-        background: #EEF2FF;
         color: #4F46E5;
-        border-color: #C7D2FE;
+        border-color: #C9CDF5;
     }
 
     .status-pill--refused {
-        background: var(--rust-tint);
         color: var(--rust);
-        border-color: #F0C7BB;
+        border-color: #E7C3B4;
+    }
+
+    /* Petit badge de statut réutilisé pour l'avis (fond teinté, plus discret que le tag d'en-tête) */
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: var(--radius-sm);
+        white-space: nowrap;
+    }
+
+    .status-pill.status-pill--done {
+        background: var(--pine-tint);
     }
 
     /* ===== Carte Commande Refusée ===== */
@@ -625,73 +605,45 @@
         border: 1px solid var(--border);
         border-radius: var(--radius-lg);
         padding: 26px 28px;
-        box-shadow: 0 1px 2px rgba(22, 35, 58, 0.04), 0 8px 24px -16px rgba(22, 35, 58, 0.15);
+        box-shadow: 0 1px 2px rgba(22, 35, 58, 0.03);
     }
 
     .order-card-head {
         display: flex;
-        align-items: center;
-        gap: 14px;
-        margin-bottom: 18px;
-    }
-
-    .order-thumb-stack {
-        width: 44px;
-        height: 44px;
-        border-radius: var(--radius-sm);
-        background: var(--denim-tint);
-        color: var(--denim);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 16px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--border);
     }
 
     .order-card-title {
         font-family: var(--font-display);
         font-weight: 700;
-        font-size: 1.15rem;
+        font-size: 1.05rem;
         color: var(--ink);
-        margin: 0 0 4px 0;
+        margin: 0;
         letter-spacing: -0.01em;
     }
 
-    .article-count-chip {
-        display: inline-block;
-        background: var(--denim-tint);
-        color: var(--denim);
-        border: 1px solid rgba(43, 76, 126, 0.15);
-        border-radius: 999px;
-        font-size: 0.75rem;
-        font-weight: 700;
-        padding: 3px 12px;
+    .order-card-count {
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+        font-weight: 500;
     }
 
-    /* Ligne d'articles */
+    /* Ligne d'articles — pas de cadre imbriqué, juste des séparateurs fins pour rester léger */
     .order-lines {
-        border: 1px solid var(--border);
-        border-radius: var(--radius-md);
-        overflow: hidden;
-        margin-bottom: 18px;
+        margin-bottom: 0;
     }
 
     .order-line {
         display: flex;
         align-items: center;
         gap: 14px;
-        padding: 12px 16px;
-        background: var(--paper);
+        padding: 13px 0;
         border-bottom: 1px solid var(--border);
-        transition: background 0.12s ease;
     }
-
-        .order-line:hover {
-            background: var(--sand);
-        }
-
-        .order-line:last-child {
-            border-bottom: none;
-        }
 
     .order-line-img {
         width: 52px;
@@ -737,23 +689,23 @@
     .order-line-qty {
         color: var(--ink-muted);
         font-weight: 500;
-        background: var(--sand);
-        border-radius: 6px;
-        padding: 3px 10px;
         font-size: 0.8125rem;
+        font-family: var(--font-mono);
     }
 
     .order-line-price {
         font-weight: 700;
-        color: var(--denim);
+        color: var(--ink);
         font-size: 0.9375rem;
         min-width: 78px;
         text-align: right;
+        font-family: var(--font-display);
     }
 
     /* Commande mono-article */
     .order-card-head--single {
         align-items: flex-start;
+        gap: 20px;
     }
 
     .order-single-img {
@@ -800,65 +752,66 @@
         width: fit-content;
     }
 
-    /* Total récap */
+    /* Total récap — intégré dans la liste (comme la ligne finale d'un ticket) quand présent,
+       ou en pied de carte autonome pour les commandes mono-article */
     .order-total-row {
         display: flex;
-        align-items: center;
+        align-items: baseline;
         justify-content: space-between;
-        padding-top: 16px;
-        margin-top: 4px;
-        border-top: 1px dashed var(--border);
+        padding: 14px 0 2px;
         font-weight: 600;
         color: var(--ink-muted);
-        font-size: 0.9rem;
+        font-size: 0.875rem;
+    }
+
+    .order-total-row--standalone {
+        margin-top: 4px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
     }
 
     .order-total-value {
         font-family: var(--font-display);
-        font-weight: 800;
-        font-size: 1.25rem;
-        color: var(--denim);
+        font-weight: 700;
+        font-size: 1.2rem;
+        color: var(--ink);
     }
 
-    /* Chips d'infos */
-    .info-chips {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 10px;
-        margin: 18px 0;
-    }
-
-    .info-chip {
+    /* Bande d'infos — ligne compacte séparée par des filets, pas de cartes empilées */
+    .meta-strip {
         display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        background: var(--sand);
-        border-radius: var(--radius-sm);
-        padding: 12px 14px;
+        flex-wrap: wrap;
+        margin-top: 18px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
     }
 
-        .info-chip .mud-icon-root {
-            color: var(--denim);
-            margin-top: 2px;
-            flex-shrink: 0;
+    .meta-strip-item {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 0 22px;
+        border-left: 1px solid var(--border);
+    }
+
+        .meta-strip-item:first-child {
+            padding-left: 0;
+            border-left: none;
         }
 
-    .info-chip--wide {
-        grid-column: 1 / -1;
+    .meta-strip-item--wide {
+        flex: 1 1 260px;
     }
 
-    .info-chip-label {
-        display: block;
+    .meta-strip-label {
         font-size: 0.6875rem;
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.03em;
+        letter-spacing: 0.04em;
         color: var(--ink-muted);
-        margin-bottom: 2px;
     }
 
-    .info-chip-value {
-        display: block;
+    .meta-strip-value {
         font-family: var(--font-display);
         font-weight: 600;
         font-size: 0.9rem;
@@ -879,10 +832,11 @@
 
     /* ===== Payment Action Card ===== */
     .payment-action-card {
-        background: linear-gradient(135deg, var(--denim-tint) 0%, var(--paper) 65%);
+        background: var(--paper);
         border: 1px solid var(--border);
+        border-left: 3px solid var(--denim);
         border-radius: var(--radius-lg);
-        padding: 24px 28px;
+        padding: 22px 28px;
     }
 
     .payment-action-content {
@@ -902,11 +856,10 @@
     }
 
     .payment-action-icon-wrap {
-        width: 52px;
-        height: 52px;
-        border-radius: 50%;
-        background: var(--paper);
-        border: 1px solid var(--border);
+        width: 48px;
+        height: 48px;
+        border-radius: var(--radius-sm);
+        background: var(--sand);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -1097,12 +1050,6 @@
         }
     }
 
-    @@media (prefers-reduced-motion: reduce) {
-        .step-icon-dot {
-            animation: none;
-        }
-    }
-
     /* ===== Boutons ===== */
     .btn {
         display: inline-flex;
@@ -1190,8 +1137,14 @@
             align-items: center;
         }
 
-        .info-chips {
-            width: 100%;
+        .meta-strip {
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .meta-strip-item {
+            padding: 0 0 0 12px;
+            border-left: 2px solid var(--denim-tint);
         }
 
         .suivi-header {
@@ -1202,7 +1155,7 @@
             order: 1;
         }
 
-        .status-pill {
+        .status-tag {
             order: 2;
             margin-left: 60px;
         }
@@ -1210,10 +1163,11 @@
 
     /* ===== Feedback Action & Expired Cards ===== */
     .feedback-action-card {
-        background: linear-gradient(135deg, var(--sand) 0%, var(--paper) 60%);
+        background: var(--paper);
         border: 1px solid var(--border);
+        border-left: 3px solid var(--rust);
         border-radius: var(--radius-lg);
-        padding: 24px 28px;
+        padding: 22px 28px;
     }
 
     .feedback-action-header {
