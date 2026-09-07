@@ -1,4 +1,5 @@
 @page "/mes-commandes/suivi/{Id:int}"
+@page "/suivi-commande/{Id:int}"
 @using WicStock.Web.Models.Dtos
 @using WicStock.Web.Services
 @using WicStock.Web.Pages.Feedback
@@ -373,6 +374,7 @@
                            ProduitNom="@suivi.ProduitNom"
                            ProduitRef="@suivi.ProduitReference"
                            ProduitImgUrl="@GetFullImageUrl(suivi.ProduitImageUrl)"
+                           Lignes="@suivi.Lignes"
                            AvisExistant="@avisExistant"
                            OnAvisEnregistre="ChargerAvisExistant" />
 
@@ -381,7 +383,8 @@
                                   ProduitId="@suivi.ProduitId"
                                   ProduitNom="@suivi.ProduitNom"
                                   ProduitRef="@suivi.ProduitReference"
-                                  ProduitImgUrl="@GetFullImageUrl(suivi.ProduitImageUrl)" />
+                                  ProduitImgUrl="@GetFullImageUrl(suivi.ProduitImageUrl)"
+                                  Lignes="@suivi.Lignes" />
             }
 
         </div>
@@ -1430,6 +1433,21 @@
             if (suivi != null && IsLivree())
             {
                 avisExistant = await FeedbackService.ObtenirAvisCommande(suivi.Id);
+            }
+
+            var uri = new Uri(Navigation.Uri);
+            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            var payStatus = query["payment"];
+            if (!string.IsNullOrEmpty(payStatus))
+            {
+                if (payStatus == "success")
+                {
+                    Snackbar.Add("Votre paiement a été confirmé avec succès ! Merci.", Severity.Success);
+                }
+                else if (payStatus == "cancelled")
+                {
+                    Snackbar.Add("Le paiement a été annulé.", Severity.Info);
+                }
             }
         }
         catch { suivi = null; }

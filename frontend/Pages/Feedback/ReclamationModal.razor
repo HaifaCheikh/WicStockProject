@@ -18,12 +18,29 @@
             </div>
 
             <div class="wic-modal-body">
+                @if (Lignes != null && Lignes.Count > 1)
+                {
+                    <div class="mb-4">
+                        <label class="form-label mb-2" style="font-size:0.8125rem; font-weight:600; color:var(--ink-muted, #64748b);">Choisir le produit concerné :</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var line in Lignes)
+                            {
+                                var item = line;
+                                bool isSelected = activeProduitId == item.ProduitId;
+                                <button type="button" class="btn" style="@(isSelected ? "background:#c2410c; color:#fff; font-weight:600;" : "background:#f1f5f9; color:#475569; font-weight:500;") border-radius:18px; padding:4px 14px; font-size:0.8125rem; border:none; cursor:pointer;" @onclick="() => ChangerProduit(item)">
+                                    @item.ProduitNom
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+
                 <!-- Produit concerné -->
                 <div class="product-summary">
                     <div class="product-thumb">
-                        @if (!string.IsNullOrEmpty(ProduitImgUrl))
+                        @if (!string.IsNullOrEmpty(activeProduitImgUrl))
                         {
-                            <img src="@ProduitImgUrl" alt="@ProduitNom" />
+                            <img src="@activeProduitImgUrl" alt="@activeProduitNom" />
                         }
                         else
                         {
@@ -31,8 +48,8 @@
                         }
                     </div>
                     <div>
-                        <span class="ref-code">@ProduitRef</span>
-                        <h4 class="product-title mt-1">@ProduitNom</h4>
+                        <span class="ref-code">@activeProduitRef</span>
+                        <h4 class="product-title mt-1">@activeProduitNom</h4>
                     </div>
                 </div>
 
@@ -383,7 +400,13 @@
     [Parameter] public string? ProduitNom { get; set; }
     [Parameter] public string? ProduitRef { get; set; }
     [Parameter] public string? ProduitImgUrl { get; set; }
+    [Parameter] public List<LigneCommandeDisplayDto>? Lignes { get; set; }
     [Parameter] public EventCallback OnReclamationEnregistree { get; set; }
+
+    private int activeProduitId;
+    private string activeProduitNom = string.Empty;
+    private string activeProduitRef = string.Empty;
+    private string activeProduitImgUrl = string.Empty;
 
     private string motif = string.Empty;
     private string description = string.Empty;
@@ -394,10 +417,34 @@
 
     protected override void OnParametersSet()
     {
+        if (Lignes != null && Lignes.Count > 0)
+        {
+            var first = Lignes.FirstOrDefault(l => l.ProduitId == activeProduitId) ?? Lignes[0];
+            activeProduitId = first.ProduitId;
+            activeProduitNom = first.ProduitNom;
+            activeProduitRef = first.ProduitReference;
+            activeProduitImgUrl = first.ProduitImageUrl ?? ProduitImgUrl ?? string.Empty;
+        }
+        else
+        {
+            activeProduitId = ProduitId;
+            activeProduitNom = ProduitNom ?? string.Empty;
+            activeProduitRef = ProduitRef ?? string.Empty;
+            activeProduitImgUrl = ProduitImgUrl ?? string.Empty;
+        }
+
         motif = string.Empty;
         description = string.Empty;
         uploadedPhotos.Clear();
         errorMessage = null;
+    }
+
+    private void ChangerProduit(LigneCommandeDisplayDto item)
+    {
+        activeProduitId = item.ProduitId;
+        activeProduitNom = item.ProduitNom;
+        activeProduitRef = item.ProduitReference;
+        activeProduitImgUrl = item.ProduitImageUrl ?? string.Empty;
     }
 
     private async Task Fermer()
@@ -458,6 +505,7 @@
         var dto = new CreerReclamationDto
         {
             CommandeId = CommandeId,
+            ProduitId = activeProduitId > 0 ? activeProduitId : ProduitId,
             Motif = motif,
             Description = description,
             PhotosUrls = uploadedPhotos.Any() ? string.Join(",", uploadedPhotos) : null

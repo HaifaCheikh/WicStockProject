@@ -18,12 +18,29 @@
             </div>
 
             <div class="wic-modal-body">
+                @if (Lignes != null && Lignes.Count > 1)
+                {
+                    <div class="mb-4">
+                        <label class="form-label mb-2" style="font-size:0.8125rem; font-weight:600; color:var(--ink-muted, #64748b);">Choisir le produit à évaluer :</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var line in Lignes)
+                            {
+                                var item = line;
+                                bool isSelected = activeProduitId == item.ProduitId;
+                                <button type="button" class="btn" style="@(isSelected ? "background:#2563eb; color:#fff; font-weight:600;" : "background:#f1f5f9; color:#475569; font-weight:500;") border-radius:18px; padding:4px 14px; font-size:0.8125rem; border:none; cursor:pointer;" @onclick="() => ChangerProduit(item)">
+                                    @item.ProduitNom
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+
                 <!-- Produit concerné -->
                 <div class="product-summary">
                     <div class="product-thumb">
-                        @if (!string.IsNullOrEmpty(ProduitImgUrl))
+                        @if (!string.IsNullOrEmpty(activeProduitImgUrl))
                         {
-                            <img src="@ProduitImgUrl" alt="@ProduitNom" />
+                            <img src="@activeProduitImgUrl" alt="@activeProduitNom" />
                         }
                         else
                         {
@@ -31,8 +48,8 @@
                         }
                     </div>
                     <div>
-                        <span class="ref-code">@ProduitRef</span>
-                        <h4 class="product-title mt-1">@ProduitNom</h4>
+                        <span class="ref-code">@activeProduitRef</span>
+                        <h4 class="product-title mt-1">@activeProduitNom</h4>
                     </div>
                 </div>
 
@@ -44,7 +61,7 @@
                         {
                             int starValue = i;
                             <button type="button" class="star-btn @(starValue <= currentNote ? "active" : "")"
-                                    @onclick="() => currentNote = starValue">
+                                     @onclick="() => currentNote = starValue">
                                 <MudIcon Icon="@(starValue <= currentNote ? Icons.Material.Filled.Star : Icons.Material.Filled.StarBorder)" Size="Size.Large" />
                             </button>
                         }
@@ -62,24 +79,26 @@
                 @if (!string.IsNullOrEmpty(errorMessage))
                 {
                     <div class="alert alert--danger mb-4">
-                        <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Size="Size.Small" />
+                        <MudIcon Icon="@Icons.Material.Filled.Error" Size="Size.Small" />
                         <span>@errorMessage</span>
                     </div>
                 }
             </div>
 
             <div class="wic-modal-footer">
-                <button class="btn btn--outline" @onclick="Fermer" disabled="@isSubmitting">Annuler</button>
+                <button class="btn btn--outline" @onclick="Fermer" disabled="@isSubmitting">
+                    Annuler
+                </button>
                 <button class="btn btn--primary" @onclick="SoumettreAvis" disabled="@isSubmitting">
                     @if (isSubmitting)
                     {
-                        <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
-                        <span>Envoi en cours...</span>
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Inherit" Class="mr-2" />
+                        <span>Enregistrement...</span>
                     }
                     else
                     {
                         <MudIcon Icon="@Icons.Material.Filled.Send" Size="Size.Small" />
-                        <span>@(AvisExistant != null ? "Mettre à jour mon avis" : "Envoyer mon avis")</span>
+                        <span>Enregistrer l'avis</span>
                     }
                 </button>
             </div>
@@ -94,26 +113,28 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(22, 35, 58, 0.6);
+        background: rgba(15, 23, 42, 0.55);
         backdrop-filter: blur(4px);
-        z-index: 9999;
         display: flex;
         align-items: center;
         justify-content: center;
+        z-index: 9999;
         padding: 16px;
     }
 
     .wic-modal-card {
-        background: var(--paper, #ffffff);
-        border: 1px solid var(--border, #e1e7ef);
-        border-radius: var(--radius-lg, 16px);
+        background: #ffffff;
+        border-radius: 16px;
         width: 100%;
         max-width: 520px;
-        box-shadow: 0 20px 40px rgba(0,0,0,0.15);
-        display: flex;
-        flex-direction: column;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         overflow: hidden;
-        animation: fadeIn 0.2s ease-out;
+        animation: modalSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @@keyframes modalSlideIn {
+        from { opacity: 0; transform: translateY(12px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
     }
 
     .wic-modal-header {
@@ -344,8 +365,14 @@
     [Parameter] public string? ProduitNom { get; set; }
     [Parameter] public string? ProduitRef { get; set; }
     [Parameter] public string? ProduitImgUrl { get; set; }
+    [Parameter] public List<LigneCommandeDisplayDto>? Lignes { get; set; }
     [Parameter] public AvisDto? AvisExistant { get; set; }
     [Parameter] public EventCallback OnAvisEnregistre { get; set; }
+
+    private int activeProduitId;
+    private string activeProduitNom = string.Empty;
+    private string activeProduitRef = string.Empty;
+    private string activeProduitImgUrl = string.Empty;
 
     private int currentNote = 0;
     private string? commentaire;
@@ -354,6 +381,22 @@
 
     protected override void OnParametersSet()
     {
+        if (Lignes != null && Lignes.Count > 0)
+        {
+            var first = Lignes.FirstOrDefault(l => l.ProduitId == activeProduitId) ?? Lignes[0];
+            activeProduitId = first.ProduitId;
+            activeProduitNom = first.ProduitNom;
+            activeProduitRef = first.ProduitReference;
+            activeProduitImgUrl = first.ProduitImageUrl ?? ProduitImgUrl ?? string.Empty;
+        }
+        else
+        {
+            activeProduitId = ProduitId;
+            activeProduitNom = ProduitNom ?? string.Empty;
+            activeProduitRef = ProduitRef ?? string.Empty;
+            activeProduitImgUrl = ProduitImgUrl ?? string.Empty;
+        }
+
         if (AvisExistant != null)
         {
             currentNote = AvisExistant.Note;
@@ -365,6 +408,14 @@
             commentaire = string.Empty;
         }
         errorMessage = null;
+    }
+
+    private void ChangerProduit(LigneCommandeDisplayDto item)
+    {
+        activeProduitId = item.ProduitId;
+        activeProduitNom = item.ProduitNom;
+        activeProduitRef = item.ProduitReference;
+        activeProduitImgUrl = item.ProduitImageUrl ?? string.Empty;
     }
 
     private async Task Fermer()
@@ -387,6 +438,7 @@
         var dto = new CreerModifierAvisDto
         {
             CommandeId = CommandeId,
+            ProduitId = activeProduitId > 0 ? activeProduitId : ProduitId,
             Note = currentNote,
             Commentaire = commentaire
         };

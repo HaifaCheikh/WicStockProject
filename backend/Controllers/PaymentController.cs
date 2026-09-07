@@ -103,10 +103,16 @@ namespace WicStock_.Controllers
 
             try
             {
+                var refererHeader = Request.Headers["Referer"].ToString();
+                string frontendUrl = _configuration["AppSettings:FrontendUrl"] ?? "https://localhost:7121";
+
+                if (!string.IsNullOrWhiteSpace(refererHeader) && Uri.TryCreate(refererHeader, UriKind.Absolute, out var refererUri))
+                {
+                    frontendUrl = $"{refererUri.Scheme}://{refererUri.Authority}";
+                }
+
                 var apiBaseUrl = _configuration["AppSettings:BaseUrl"] ?? "https://localhost:7179";
-                var frontendUrl = _configuration["AppSettings:FrontendUrl"] ?? "https://localhost:7121";
-                // LemonSqueezy redirige vers l'API qui met à jour le statut, puis redirige vers Blazor
-                var successUrl = $"{apiBaseUrl}/api/payment/success/{commande.Id}";
+                var successUrl = $"{apiBaseUrl}/api/payment/success/{commande.Id}?origin={Uri.EscapeDataString(frontendUrl)}";
                 var cancelUrl = $"{frontendUrl}/mes-commandes/suivi/{commande.Id}?payment=cancelled";
 
                 var clientName = commande.Utilisateur != null ? $"{commande.Utilisateur.Prenom} {commande.Utilisateur.Nom}".Trim() : null;
@@ -147,29 +153,17 @@ namespace WicStock_.Controllers
                     Currency = dto.Currency
                 });
             }
-            catch (InvalidOperationException ex)
-            {
-                _logger.LogError("LemonSqueezy checkout error: {Message}", ex.Message);
-                return BadRequest($"Erreur LemonSqueezy : {ex.Message}");
-            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unexpected error creating checkout");
-                return BadRequest($"Erreur lors de la création du checkout: {ex.Message}");
+                _logger.LogError(ex, "Erreur lors de la création du checkout LemonSqueezy.");
+                return StatusCode(500, new { message = "Erreur lors de l'initialisation du paiement." });
             }
         }
 
         // GET: api/payment/success/{commandeId}
-        // Appelé par LemonSqueezy après paiement réussi (redirect_url)
         [HttpGet("success/{commandeId}")]
         [AllowAnonymous]
-        public async Task<IActionResult> PaymentSuccess(
-            int commandeId,
-            [FromQuery(Name = "order_id")] string? orderId = null,
-            [FromQuery(Name = "country")] string? country = null,
-            [FromQuery(Name = "zip")] string? zip = null,
-            [FromQuery(Name = "city")] string? city = null,
-            [FromQuery(Name = "address")] string? address = null)
+        public async Task<IActionResult> PaymentSuccess(int commandeId, [FromQuery] string? origin = null)
         {
             var commande = await _context.HistoriqueVentes
                 .Include(h => h.Produit)
@@ -179,30 +173,10 @@ namespace WicStock_.Controllers
             if (commande == null)
                 return NotFound("Commande introuvable.");
 
-            // Si LemonSqueezy a transmis un order_id, tenter de récupérer l'adresse de facturation/livraison
-            if (!string.IsNullOrEmpty(orderId))
-            {
-                try
-                {
-                    var order = await _lemonSqueezyService.GetOrderAsync(orderId);
-                    if (order?.Attributes != null)
-                    {
-                        if (string.IsNullOrWhiteSpace(country)) country = order.Attributes.CountryFormatted ?? order.Attributes.Country;
-                        if (string.IsNullOrWhiteSpace(zip)) zip = order.Attributes.Zip;
-                        if (string.IsNullOrWhiteSpace(city)) city = order.Attributes.City;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Impossible de récupérer les détails de l'ordre LemonSqueezy {OrderId}", orderId);
-                }
-            }
-
-            // Mettre à jour les informations d'adresse si disponibles
-            if (!string.IsNullOrWhiteSpace(address))
-                commande.AdresseLivraison = address.Trim();
-            else if (string.IsNullOrWhiteSpace(commande.AdresseLivraison) && !string.IsNullOrWhiteSpace(country))
-                commande.AdresseLivraison = country.Trim();
+            // Mettre à jour l'adresse depuis LemonSqueezy order params si disponibles
+            var city = Request.Query["city"].ToString();
+            var country = Request.Query["country"].ToString();
+            var zip = Request.Query["zip"].ToString();
 
             if (!string.IsNullOrWhiteSpace(zip))
                 commande.CodePostal = zip.Trim();
@@ -250,9 +224,41 @@ namespace WicStock_.Controllers
                 await _context.SaveChangesAsync();
             }
 
-            // Rediriger directement vers la page de suivi de commande
-            var frontendUrl = _configuration["AppSettings:FrontendUrl"] ?? "https://localhost:7121";
-            return Redirect($"{frontendUrl}/mes-commandes/suivi/{commandeId}?payment=success");
+            // Déterminer la redirection de manière dynamique
+            string targetFrontend = !string.IsNullOrWhiteSpace(origin)
+                ? origin.TrimEnd('/')
+                : (_configuration["AppSettings:FrontendUrl"]?.TrimEnd('/') ?? "https://localhost:7121");
+
+            return Redirect($"{targetFrontend}/mes-commandes/suivi/{commandeId}?payment=success");
+        }
+
+        // POST: api/payment/simulate/{commandeId} (Paiement direct en 1 clic sans service tiers)
+        [HttpPost("simulate/{commandeId}")]
+        public async Task<IActionResult> SimulatePayment(int commandeId)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var commande = await _context.HistoriqueVentes
+                .FirstOrDefaultAsync(h => h.Id == commandeId && (h.UtilisateurId == userId || User.IsInRole("ADMIN")));
+
+            if (commande == null)
+                return NotFound("Commande introuvable.");
+
+            commande.Statut = StatutCommandeDetaille.PAYEE;
+            commande.DatePaiement = DateTime.Now;
+            await _context.SaveChangesAsync();
+
+            await _notificationService.NotifierNouvelEvenementAsync(
+                TypeNotification.PAIEMENT_RECU,
+                $"Votre paiement pour la commande #{commande.Id} a été validé avec succès !",
+                $"/mes-commandes/suivi/{commande.Id}",
+                RoleUtilisateur.CLIENT,
+                userId
+            );
+
+            return Ok(new { message = "Paiement effectué avec succès !" });
         }
 
         // PUT: api/payment/adresse/{commandeId}

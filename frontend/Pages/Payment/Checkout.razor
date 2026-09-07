@@ -148,7 +148,7 @@
                 </span>
             </div>
 
-            <div class="payment-actions">
+            <div class="payment-actions d-flex flex-column gap-2 mt-4">
                 <button class="btn btn--primary payment-btn" disabled="@isProcessing" @onclick="ProceedToCheckout">
                     @if (isProcessing)
                     {
@@ -158,11 +158,16 @@
                     else
                     {
                         <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" />
-                        <span>Payer @paymentResponse.Montant.ToString("N2") @paymentResponse.Currency</span>
+                        <span>Payer via LemonSqueezy (@paymentResponse.Montant.ToString("N2") @paymentResponse.Currency)</span>
                     }
                 </button>
 
-                <button class="btn btn--outline" @onclick="RetourCommande" disabled="@isProcessing">
+                <button class="btn payment-btn mt-1" style="background:#16a34a; color:#fff; font-weight:700; border-radius:8px; padding:10px 18px; display:inline-flex; align-center; justify-content:center; gap:8px;" disabled="@isProcessing" @onclick="ProceedToDirectPayment">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
+                    <span>Payer directement (Confirmation immédiate)</span>
+                </button>
+
+                <button class="btn btn--outline mt-1" @onclick="RetourCommande" disabled="@isProcessing">
                     <span>Annuler</span>
                 </button>
             </div>
@@ -639,6 +644,30 @@
             else
             {
                 Snackbar.Add("URL de paiement introuvable.", Severity.Error);
+                isProcessing = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erreur : {ex.Message}", Severity.Error);
+            isProcessing = false;
+        }
+    }
+
+    private async Task ProceedToDirectPayment()
+    {
+        try
+        {
+            isProcessing = true;
+            var success = await PaymentService.SimulatePayment(CommandeId);
+            if (success)
+            {
+                Snackbar.Add("Paiement effectué et confirmé avec succès !", Severity.Success);
+                Navigation.NavigateTo($"/mes-commandes/suivi/{CommandeId}?payment=success");
+            }
+            else
+            {
+                Snackbar.Add("Erreur lors de la validation du paiement.", Severity.Error);
                 isProcessing = false;
             }
         }

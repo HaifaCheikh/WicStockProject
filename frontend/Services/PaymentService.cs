@@ -50,6 +50,19 @@ namespace WicStock.Web.Services
                 return false;
             }
         }
+
+        public async Task<bool> SimulatePayment(int commandeId)
+        {
+            try
+            {
+                var response = await _http.PostAsync($"api/payment/simulate/{commandeId}", null);
+                return response.IsSuccessStatusCode;
+            }
+            catch
+            {
+                return false;
+            }
+        }
     }
 
     public class PaymentConfigDto

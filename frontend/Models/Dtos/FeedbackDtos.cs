@@ -20,6 +20,7 @@ namespace WicStock.Web.Models.Dtos
     public class CreerModifierAvisDto
     {
         public int CommandeId { get; set; }
+        public int? ProduitId { get; set; }
         public int Note { get; set; }
         public string? Commentaire { get; set; }
     }
@@ -53,6 +54,7 @@ namespace WicStock.Web.Models.Dtos
     public class CreerReclamationDto
     {
         public int CommandeId { get; set; }
+        public int? ProduitId { get; set; }
         public string Motif { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public string? PhotosUrls { get; set; }
