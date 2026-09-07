@@ -531,6 +531,8 @@ namespace WicStock_.Controllers
             if (vente.StatutCommande == "ACCEPTEE" || vente.Statut == StatutCommandeDetaille.ACCEPTEE)
                 return BadRequest(new { message = "Impossible de modifier une commande déjà acceptée." });
 
+            bool auMoinsUneSurCommande = false;
+
             if (vente.EstMultiLignes && vente.LigneCommandes != null && vente.LigneCommandes.Any())
             {
                 if (dto.Lignes != null && dto.Lignes.Any())
@@ -547,12 +549,13 @@ namespace WicStock_.Controllers
                             int diffQte = ligneDto.Quantite - ligne.Quantite;
                             var stockQty = prod?.Stock?.QuantiteActuelle ?? 0;
 
-                            if (diffQte > 0 && prod != null && !prod.DisponibleSurCommande && stockQty < diffQte)
+                            bool estSurCommande = diffQte > 0 && stockQty < diffQte;
+                            if (estSurCommande || ligne.EstSurCommande)
                             {
-                                return BadRequest(new { message = $"Stock insuffisant pour « {prod.Nom} » ({stockQty} disponible(s))." });
+                                ligne.EstSurCommande = true;
+                                auMoinsUneSurCommande = true;
                             }
-
-                            if (prod?.Stock != null && !ligne.EstSurCommande)
+                            else if (diffQte != 0 && prod?.Stock != null && !ligne.EstSurCommande)
                             {
                                 prod.Stock.QuantiteActuelle -= diffQte;
                                 prod.Stock.DateMiseAJour = DateTime.Now;
@@ -575,12 +578,13 @@ namespace WicStock_.Controllers
                     var prod = ligne.Produit;
                     var stockQty = prod?.Stock?.QuantiteActuelle ?? 0;
 
-                    if (diffQte > 0 && prod != null && !prod.DisponibleSurCommande && stockQty < diffQte)
+                    bool estSurCommande = diffQte > 0 && stockQty < diffQte;
+                    if (estSurCommande || ligne.EstSurCommande)
                     {
-                        return BadRequest(new { message = $"Stock insuffisant ({stockQty} disponible(s))." });
+                        ligne.EstSurCommande = true;
+                        auMoinsUneSurCommande = true;
                     }
-
-                    if (prod?.Stock != null && !ligne.EstSurCommande)
+                    else if (diffQte != 0 && prod?.Stock != null && !ligne.EstSurCommande)
                     {
                         prod.Stock.QuantiteActuelle -= diffQte;
                         prod.Stock.DateMiseAJour = DateTime.Now;
@@ -600,10 +604,13 @@ namespace WicStock_.Controllers
                 int diffQte = dto.QuantiteVendue - vente.QuantiteVendue;
                 var stockQty = produit.Stock?.QuantiteActuelle ?? 0;
 
-                if (diffQte > 0 && !produit.DisponibleSurCommande && stockQty < diffQte)
-                    return BadRequest(new { message = $"Stock insuffisant ({stockQty} disponible(s))." });
-
-                if (produit.Stock != null && !vente.EstSurCommande)
+                bool estSurCommande = diffQte > 0 && stockQty < diffQte;
+                if (estSurCommande || vente.EstSurCommande)
+                {
+                    vente.EstSurCommande = true;
+                    auMoinsUneSurCommande = true;
+                }
+                else if (diffQte != 0 && produit.Stock != null && !vente.EstSurCommande)
                 {
                     produit.Stock.QuantiteActuelle -= diffQte;
                     produit.Stock.DateMiseAJour = DateTime.Now;
@@ -613,13 +620,27 @@ namespace WicStock_.Controllers
                 if (dto.PrixUnitaire > 0) vente.PrixUnitaire = dto.PrixUnitaire;
             }
 
+            // Toujours passer la commande en EN_ATTENTE après modification pour validation par le responsable
+            vente.EstSurCommande = auMoinsUneSurCommande || vente.EstSurCommande;
+            vente.StatutCommande = "EN_ATTENTE";
+            vente.Statut = StatutCommandeDetaille.EN_ATTENTE_CONFIRMATION;
+
             if (dto.DateSouhaitee.HasValue)
                 vente.DateSouhaitee = dto.DateSouhaitee.Value.Date;
 
             vente.DateEstimeePreparation = null;
 
             await _context.SaveChangesAsync();
-            return Ok(new { message = "Commande modifiée avec succès." });
+
+            // Notifier le responsable de stock
+            await _notificationService.NotifierNouvelEvenementAsync(
+                TypeNotification.COMMANDE_EN_ATTENTE,
+                $"Commande #{vente.Id} modifiée par le client — En attente de validation.",
+                "/commandes",
+                RoleUtilisateur.RESPONSABLE_STOCK_PRODUCTION
+            );
+
+            return Ok(new { message = "Commande modifiée avec succès. Elle est en attente de validation par le responsable." });
         }
 
         // PUT: api/historiquevente/5/refuser (Manager refuse la commande)
