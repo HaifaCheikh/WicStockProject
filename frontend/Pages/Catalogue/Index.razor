@@ -65,6 +65,12 @@
                     }
                 </select>
 
+                <select class="filter-select" @bind="priceSortFilter">
+                    <option value="">Trier par prix</option>
+                    <option value="asc">Prix : croissant</option>
+                    <option value="desc">Prix : décroissant</option>
+                </select>
+
                 <div class="search-wrap">
                     <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" Class="search-icon" />
                     <input class="search-input" placeholder="Rechercher par référence, nom, type de tissu..." @bind="searchString" @bind:event="oninput" />
@@ -2016,9 +2022,28 @@
         }
     }
 
-    private IEnumerable<CatalogueProduitDto> FilteredProduits => produits == null
-        ? Enumerable.Empty<CatalogueProduitDto>()
-        : produits.Where(p => FilterFunc(p));
+    private string priceSortFilter = "";
+
+    private IEnumerable<CatalogueProduitDto> FilteredProduits
+    {
+        get
+        {
+            if (produits == null) return Enumerable.Empty<CatalogueProduitDto>();
+
+            var list = produits.Where(p => FilterFunc(p));
+
+            if (priceSortFilter == "asc")
+            {
+                list = list.OrderBy(p => p.PrixEffectif);
+            }
+            else if (priceSortFilter == "desc")
+            {
+                list = list.OrderByDescending(p => p.PrixEffectif);
+            }
+
+            return list;
+        }
+    }
 
     // Rôle de l'utilisateur courant (ex: CLIENT). Utilisé pour afficher badges et désactiver commandes.
     private string? userRole;
