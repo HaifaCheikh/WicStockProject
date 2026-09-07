@@ -74,6 +74,8 @@ namespace WicStock_.Controllers
 
             var commandes = await _context.HistoriqueVentes
                 .Include(h => h.Produit)
+                .Include(h => h.LigneCommandes)
+                    .ThenInclude(l => l.Produit)
                 .Where(h => h.UtilisateurId == userId)
                 .OrderByDescending(h => h.DateVente)
                 .ToListAsync();
@@ -87,6 +89,7 @@ namespace WicStock_.Controllers
                 h.StatutCommande,
                 Statut = h.Statut?.ToString(),
                 h.EstSurCommande,
+                h.EstMultiLignes,
                 h.ProduitId,
                 ProduitNom = h.Produit?.Nom,
                 ProduitReference = h.Produit?.Reference,
@@ -94,7 +97,25 @@ namespace WicStock_.Controllers
                 ProduitImageUrl = h.Produit?.ImageUrl,
                 h.DateSouhaitee,
                 h.DateEstimeePreparation,
-                TotalCommande = h.QuantiteVendue * h.PrixUnitaire
+                // Pour les commandes multi-lignes, utiliser MontantTotal ; sinon calculer
+                TotalCommande = h.EstMultiLignes && h.MontantTotal > 0
+                    ? h.MontantTotal
+                    : h.QuantiteVendue * h.PrixUnitaire,
+                MontantTotal = h.MontantTotal,
+                // Lignes de commande (vides pour les commandes mono-article legacy)
+                Lignes = (IEnumerable<object>)(h.LigneCommandes != null && h.LigneCommandes.Any()
+                    ? h.LigneCommandes.Select(l => (object)new
+                    {
+                        l.ProduitId,
+                        ProduitNom = l.Produit?.Nom ?? string.Empty,
+                        ProduitReference = l.Produit?.Reference ?? string.Empty,
+                        ProduitImageUrl = l.Produit?.ImageUrl,
+                        l.Quantite,
+                        l.PrixUnitaire,
+                        SousTotal = l.Quantite * l.PrixUnitaire,
+                        l.EstSurCommande
+                    }).ToList()
+                    : new List<object>())
             });
 
             return Ok(result);
@@ -551,6 +572,8 @@ namespace WicStock_.Controllers
             var vente = await _context.HistoriqueVentes
                 .Include(h => h.Produit)
                 .Include(h => h.Responsable)
+                .Include(h => h.LigneCommandes)
+                    .ThenInclude(l => l.Produit)
                 .FirstOrDefaultAsync(h => h.Id == id);
 
             if (vente == null)
@@ -566,14 +589,31 @@ namespace WicStock_.Controllers
                     return Forbid();
             }
 
+            var lignesDto = vente.LigneCommandes?.Select(l => new LigneCommandeResultDto
+            {
+                ProduitId = l.ProduitId,
+                ProduitNom = l.Produit?.Nom ?? string.Empty,
+                ProduitReference = l.Produit?.Reference ?? string.Empty,
+                Quantite = l.Quantite,
+                PrixUnitaire = l.PrixUnitaire,
+                EstSurCommande = l.EstSurCommande
+            }).ToList() ?? new List<LigneCommandeResultDto>();
+
             return Ok(new SuiviCommandeDto
             {
                 Id = vente.Id,
+                EstMultiLignes = vente.EstMultiLignes,
+                MontantTotal = vente.MontantTotal,
+                Lignes = lignesDto,
                 ProduitId = vente.ProduitId,
-                ProduitNom = vente.Produit?.Nom,
-                ProduitReference = vente.Produit?.Reference,
-                ProduitImageUrl = vente.Produit?.ImageUrl,
-                QuantiteVendue = vente.QuantiteVendue,
+                ProduitNom = vente.EstMultiLignes && lignesDto.Count > 0
+                    ? $"{lignesDto.Count} article{(lignesDto.Count > 1 ? "s" : "")}"
+                    : vente.Produit?.Nom,
+                ProduitReference = vente.EstMultiLignes ? null : vente.Produit?.Reference,
+                ProduitImageUrl = vente.EstMultiLignes ? null : vente.Produit?.ImageUrl,
+                QuantiteVendue = vente.EstMultiLignes && lignesDto.Count > 0
+                    ? lignesDto.Sum(l => l.Quantite)
+                    : vente.QuantiteVendue,
                 PrixUnitaire = vente.PrixUnitaire,
                 Statut = vente.Statut?.ToString() ?? vente.StatutCommande,
                 StatutCommande = vente.StatutCommande,

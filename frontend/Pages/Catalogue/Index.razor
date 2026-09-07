@@ -242,7 +242,7 @@
                     <div class="table-panel">
                         <MudTable Items="@mesCommandes" Hover="true" Elevation="0" Class="commandes-table">
                             <HeaderContent>
-                                <MudTh>Produit</MudTh>
+                                <MudTh>Produit(s)</MudTh>
                                 <MudTh>Référence</MudTh>
                                 <MudTh>Catégorie</MudTh>
                                 <MudTh>Qté</MudTh>
@@ -253,21 +253,47 @@
                                 <MudTh Style="text-align:right;">Action</MudTh>
                             </HeaderContent>
                             <RowTemplate>
-                                <MudTd DataLabel="Produit" Class="cell-name commande-row-clickable" @onclick="() => OuvrirSuivi(context)">@context.ProduitNom</MudTd>
-                                <MudTd DataLabel="Référence" Class="commande-row-clickable" @onclick="() => OuvrirSuivi(context)">
-                                    <span class="ref-code">@context.ProduitReference</span>
-                                </MudTd>
-                                <MudTd DataLabel="Catégorie" Class="commande-row-clickable" @onclick="() => OuvrirSuivi(context)">
-                                    @if (!string.IsNullOrEmpty(context.ProduitCategorie))
-                                    {
-                                        <span class="table-cat-tag" style="background: @GetCategoryColor(context.ProduitCategorie);">
-                                            @context.ProduitCategorie
-                                        </span>
-                                    }
-                                </MudTd>
-                                <MudTd DataLabel="Qté" Style="font-weight: 600;">@context.QuantiteVendue</MudTd>
-                                <MudTd DataLabel="Prix/u">@context.PrixUnitaire.ToString("0.00") DT</MudTd>
-                                <MudTd DataLabel="Total" Style="font-weight: 700; color: #2B4C7E;">@context.TotalCommande.ToString("0.00") DT</MudTd>
+                                @if (context.EstMultiLignes && context.Lignes.Count > 0)
+                                {
+                                    <!-- Commande multi-articles -->
+                                    <MudTd DataLabel="Produit(s)" Class="cell-name commande-row-clickable" @onclick="() => OuvrirSuivi(context)" colspan="3">
+                                        <div class="multi-articles-cell">
+                                            <span class="multi-badge">@context.Lignes.Count article@(context.Lignes.Count > 1 ? "s" : "")</span>
+                                            <div class="multi-lignes-list">
+                                                @foreach (var ligne in context.Lignes)
+                                                {
+                                                    <div class="multi-ligne-item">
+                                                        <span class="multi-ligne-nom">@ligne.ProduitNom</span>
+                                                        <span class="multi-ligne-qty">× @ligne.Quantite</span>
+                                                        <span class="multi-ligne-prix">@ligne.SousTotal.ToString("0.00") DT</span>
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </MudTd>
+                                    <MudTd DataLabel="Qté" Style="font-weight: 600;">@context.QuantiteTotale</MudTd>
+                                    <MudTd DataLabel="Prix/u">—</MudTd>
+                                    <MudTd DataLabel="Total" Style="font-weight: 700; color: #2B4C7E;">@context.MontantAffiche.ToString("0.00") DT</MudTd>
+                                }
+                                else
+                                {
+                                    <!-- Commande mono-article (legacy) -->
+                                    <MudTd DataLabel="Produit(s)" Class="cell-name commande-row-clickable" @onclick="() => OuvrirSuivi(context)">@context.ProduitNom</MudTd>
+                                    <MudTd DataLabel="Référence" Class="commande-row-clickable" @onclick="() => OuvrirSuivi(context)">
+                                        <span class="ref-code">@context.ProduitReference</span>
+                                    </MudTd>
+                                    <MudTd DataLabel="Catégorie" Class="commande-row-clickable" @onclick="() => OuvrirSuivi(context)">
+                                        @if (!string.IsNullOrEmpty(context.ProduitCategorie))
+                                        {
+                                            <span class="table-cat-tag" style="background: @GetCategoryColor(context.ProduitCategorie);">
+                                                @context.ProduitCategorie
+                                            </span>
+                                        }
+                                    </MudTd>
+                                    <MudTd DataLabel="Qté" Style="font-weight: 600;">@context.QuantiteVendue</MudTd>
+                                    <MudTd DataLabel="Prix/u">@context.PrixUnitaire.ToString("0.00") DT</MudTd>
+                                    <MudTd DataLabel="Total" Style="font-weight: 700; color: #2B4C7E;">@context.TotalCommande.ToString("0.00") DT</MudTd>
+                                }
                                 <MudTd DataLabel="Statut" Class="commande-row-clickable" @onclick="() => OuvrirSuivi(context)">
                                     <span class="badge-statut @GetStatutCssClass(context.Statut ?? context.StatutCommande)">
                                         @GetStatutLabel(context.Statut ?? context.StatutCommande)
@@ -287,9 +313,12 @@
                                         </button>
                                         @if (context.StatutCommande != "REFUSEE" && context.Statut != "PAYEE" && context.Statut != "EN_LIVRAISON" && context.Statut != "LIVREE")
                                         {
-                                            <button class="btn-modifier" @onclick="() => OuvrirModification(context)" title="Modifier">
-                                                <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" />
-                                            </button>
+                                            @if (!context.EstMultiLignes)
+                                            {
+                                                <button class="btn-modifier" @onclick="() => OuvrirModification(context)" title="Modifier">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" />
+                                                </button>
+                                            }
                                             <button class="btn-annuler" @onclick="() => DemanderAnnulation(context)" title="Annuler">
                                                 <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" />
                                             </button>
@@ -322,20 +351,33 @@
                 <div class="dialog-body">
                     <div class="annulation-recap">
                         <div class="annulation-row">
-                            <span class="annulation-label">Produit</span>
-                            <span class="annulation-value">@commandeAnnuler.ProduitNom</span>
+                            <span class="annulation-label">Commande</span>
+                            <span class="annulation-value">@commandeAnnuler.LibelleProduit</span>
                         </div>
-                        <div class="annulation-row">
-                            <span class="annulation-label">Référence</span>
-                            <span class="ref-code">@commandeAnnuler.ProduitReference</span>
-                        </div>
+                        @if (commandeAnnuler.EstMultiLignes && commandeAnnuler.Lignes.Count > 0)
+                        {
+                            @foreach (var ligne in commandeAnnuler.Lignes)
+                            {
+                                <div class="annulation-row" style="padding-left:1rem; font-size:0.85rem; color:#666;">
+                                    <span>@ligne.ProduitNom</span>
+                                    <span>× @ligne.Quantite (@ligne.SousTotal.ToString("0.00") DT)</span>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="annulation-row">
+                                <span class="annulation-label">Référence</span>
+                                <span class="ref-code">@commandeAnnuler.ProduitReference</span>
+                            </div>
+                        }
                         <div class="annulation-row">
                             <span class="annulation-label">Quantité</span>
-                            <span class="annulation-value">@commandeAnnuler.QuantiteVendue</span>
+                            <span class="annulation-value">@commandeAnnuler.QuantiteTotale</span>
                         </div>
                         <div class="annulation-row">
                             <span class="annulation-label">Total</span>
-                            <span class="annulation-value" style="font-weight:700; color:#2B4C7E;">@commandeAnnuler.TotalCommande.ToString("0.00") DT</span>
+                            <span class="annulation-value" style="font-weight:700; color:#2B4C7E;">@commandeAnnuler.MontantAffiche.ToString("0.00") DT</span>
                         </div>
                         <div class="annulation-row">
                             <span class="annulation-label">Date</span>
@@ -1203,6 +1245,60 @@
         color: #fff;
         padding: 3px 9px;
         border-radius: 6px;
+    }
+
+    /* ===== Commandes multi-articles ===== */
+    .multi-articles-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .multi-badge {
+        display: inline-block;
+        background: #eff6ff;
+        color: #2563eb;
+        border: 1px solid #bfdbfe;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 2px 10px;
+        width: fit-content;
+        margin-bottom: 4px;
+    }
+
+    .multi-lignes-list {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .multi-ligne-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.8rem;
+    }
+
+    .multi-ligne-nom {
+        font-weight: 600;
+        color: #1e293b;
+        flex: 1;
+    }
+
+    .multi-ligne-qty {
+        color: #64748b;
+        font-weight: 500;
+        background: #f1f5f9;
+        border-radius: 4px;
+        padding: 1px 6px;
+        font-size: 0.75rem;
+    }
+
+    .multi-ligne-prix {
+        color: #2B4C7E;
+        font-weight: 700;
+        font-size: 0.8rem;
     }
 
     /* ===== Bouton Annuler commande ===== */

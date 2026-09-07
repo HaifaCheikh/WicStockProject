@@ -3,6 +3,9 @@ namespace WicStock_.Models.Dtos
     public class SuiviCommandeDto
     {
         public int Id { get; set; }
+        public bool EstMultiLignes { get; set; }
+        public decimal MontantTotal { get; set; }
+        public List<LigneCommandeResultDto> Lignes { get; set; } = new();
         public int ProduitId { get; set; }
         public string? ProduitNom { get; set; }
         public string? ProduitReference { get; set; }

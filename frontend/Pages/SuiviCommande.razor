@@ -75,58 +75,114 @@
             <!-- ===== CARTE PRODUIT ===== -->
             <div class="info-card">
                 <div class="product-block">
-                    <div class="product-img">
-                        @if (!string.IsNullOrEmpty(suivi.ProduitImageUrl))
-                        {
-                            <img src="@GetFullImageUrl(suivi.ProduitImageUrl)" alt="@suivi.ProduitNom" @onclick="() => OuvrirImageAgrandie(GetFullImageUrl(suivi.ProduitImageUrl), suivi.ProduitNom)" style="cursor: zoom-in;" title="Cliquer pour agrandir l'image" />
-                        }
-                        else
-                        {
-                            <MudIcon Icon="@Icons.Material.Filled.Layers" Size="Size.Large" />
-                        }
-                    </div>
-                    <div class="product-details">
-                        <span class="ref-code">@suivi.ProduitReference</span>
-                        <h2 class="product-name">@suivi.ProduitNom</h2>
-
-                        <div class="meta-grid">
-                            <div class="meta-item">
-                                <span class="meta-label">Quantité commandée</span>
-                                <span class="meta-value">@suivi.QuantiteVendue pièce(s)</span>
+                    @if (suivi.EstMultiLignes && suivi.Lignes.Count > 0)
+                    {
+                        <!-- Commande multi-articles -->
+                        <div class="product-details" style="width:100%;">
+                            <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+                                <span style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:20px; font-size:0.8rem; font-weight:700; padding:4px 14px;">
+                                    @suivi.Lignes.Count article@(suivi.Lignes.Count > 1 ? "s" : "")
+                                </span>
+                                <h2 class="product-name" style="margin:0;">Commande multi-articles</h2>
                             </div>
-                            @if (suivi.DateSouhaitee.HasValue)
-                            {
+                            <div class="multi-lignes-suivi">
+                                @foreach (var ligne in suivi.Lignes)
+                                {
+                                    <div class="multi-ligne-suivi-item">
+                                        <div class="multi-ligne-suivi-info">
+                                            <span class="ref-code" style="font-size:0.75rem;">@ligne.ProduitReference</span>
+                                            <span class="multi-ligne-suivi-nom">@ligne.ProduitNom</span>
+                                        </div>
+                                        <div class="multi-ligne-suivi-right">
+                                            <span class="multi-ligne-suivi-qty">× @ligne.Quantite</span>
+                                            <span class="multi-ligne-suivi-prix">@(ligne.PrixUnitaire * ligne.Quantite).ToString("0.00") DT</span>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                            <div class="meta-grid" style="margin-top:16px;">
                                 <div class="meta-item">
-                                    <span class="meta-label">Date souhaitée</span>
-                                    <span class="meta-value">@suivi.DateSouhaitee.Value.ToString("dd/MM/yyyy")</span>
+                                    <span class="meta-label">Quantité totale</span>
+                                    <span class="meta-value">@suivi.QuantiteVendue pièce(s)</span>
                                 </div>
+                                <div class="meta-item">
+                                    <span class="meta-label">Montant total</span>
+                                    <span class="meta-value" style="font-weight:700; color:#2B4C7E;">@suivi.MontantAffiche.ToString("0.00") DT</span>
+                                </div>
+                                @if (suivi.DateSouhaitee.HasValue)
+                                {
+                                    <div class="meta-item">
+                                        <span class="meta-label">Date souhaitée</span>
+                                        <span class="meta-value">@suivi.DateSouhaitee.Value.ToString("dd/MM/yyyy")</span>
+                                    </div>
+                                }
+                                @if (suivi.DateEstimeePreparation.HasValue)
+                                {
+                                    <div class="meta-item">
+                                        <span class="meta-label">Préparation estimée</span>
+                                        <span class="meta-value">@suivi.DateEstimeePreparation.Value.ToString("dd/MM/yyyy")</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- Commande mono-article (legacy) -->
+                        <div class="product-img">
+                            @if (!string.IsNullOrEmpty(suivi.ProduitImageUrl))
+                            {
+                                <img src="@GetFullImageUrl(suivi.ProduitImageUrl)" alt="@suivi.ProduitNom" @onclick="() => OuvrirImageAgrandie(GetFullImageUrl(suivi.ProduitImageUrl), suivi.ProduitNom)" style="cursor: zoom-in;" title="Cliquer pour agrandir l'image" />
                             }
-                            @if (suivi.DateEstimeePreparation.HasValue)
+                            else
                             {
-                                <div class="meta-item">
-                                    <span class="meta-label">Préparation estimée</span>
-                                    <span class="meta-value">@suivi.DateEstimeePreparation.Value.ToString("dd/MM/yyyy")</span>
-                                </div>
-                            }
-                            @if (!string.IsNullOrWhiteSpace(suivi.AdresseLivraison) || !string.IsNullOrWhiteSpace(suivi.CodePostal))
-                            {
-                                <div class="meta-item">
-                                    <span class="meta-label">Adresse de livraison</span>
-                                    <span class="meta-value">
-                                        @suivi.AdresseLivraison
-                                        @if (!string.IsNullOrWhiteSpace(suivi.CodePostal))
-                                        {
-                                            <span style="display: inline-block; font-size: 0.75rem; background: #DCFCE7; color: #15803D; padding: 2px 6px; border-radius: 4px; font-weight: 700; margin-left: 4px;">CP: @suivi.CodePostal</span>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(suivi.Ville))
-                                        {
-                                            <span>, @suivi.Ville</span>
-                                        }
-                                    </span>
-                                </div>
+                                <MudIcon Icon="@Icons.Material.Filled.Layers" Size="Size.Large" />
                             }
                         </div>
-                    </div>
+                        <div class="product-details">
+                            <span class="ref-code">@suivi.ProduitReference</span>
+                            <h2 class="product-name">@suivi.ProduitNom</h2>
+
+                            <div class="meta-grid">
+                                <div class="meta-item">
+                                    <span class="meta-label">Quantité commandée</span>
+                                    <span class="meta-value">@suivi.QuantiteVendue pièce(s)</span>
+                                </div>
+                                @if (suivi.DateSouhaitee.HasValue)
+                                {
+                                    <div class="meta-item">
+                                        <span class="meta-label">Date souhaitée</span>
+                                        <span class="meta-value">@suivi.DateSouhaitee.Value.ToString("dd/MM/yyyy")</span>
+                                    </div>
+                                }
+                                @if (suivi.DateEstimeePreparation.HasValue)
+                                {
+                                    <div class="meta-item">
+                                        <span class="meta-label">Préparation estimée</span>
+                                        <span class="meta-value">@suivi.DateEstimeePreparation.Value.ToString("dd/MM/yyyy")</span>
+                                    </div>
+                                }
+
+                                @if (!string.IsNullOrWhiteSpace(suivi.AdresseLivraison) || !string.IsNullOrWhiteSpace(suivi.CodePostal))
+                                {
+                                    <div class="meta-item">
+                                        <span class="meta-label">Adresse de livraison</span>
+                                        <span class="meta-value">
+                                            @suivi.AdresseLivraison
+                                            @if (!string.IsNullOrWhiteSpace(suivi.CodePostal))
+                                            {
+                                                <span style="display: inline-block; font-size: 0.75rem; background: #DCFCE7; color: #15803D; padding: 2px 6px; border-radius: 4px; font-weight: 700; margin-left: 4px;">CP: @suivi.CodePostal</span>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(suivi.Ville))
+                                            {
+                                                <span>, @suivi.Ville</span>
+                                            }
+                                        </span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
                 </div>
             </div>
 
@@ -598,6 +654,67 @@
     .product-details {
         flex: 1;
         min-width: 220px;
+    }
+
+    /* ===== Commandes multi-articles (SuiviCommande) ===== */
+    .multi-lignes-suivi {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+    }
+
+    .multi-ligne-suivi-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        background: var(--paper);
+        border-bottom: 1px solid var(--border);
+        gap: 16px;
+    }
+
+    .multi-ligne-suivi-item:last-child {
+        border-bottom: none;
+    }
+
+    .multi-ligne-suivi-info {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        flex: 1;
+    }
+
+    .multi-ligne-suivi-nom {
+        font-weight: 600;
+        color: var(--ink);
+        font-size: 0.9rem;
+    }
+
+    .multi-ligne-suivi-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-shrink: 0;
+    }
+
+    .multi-ligne-suivi-qty {
+        color: var(--ink-muted);
+        font-weight: 500;
+        background: var(--sand);
+        border-radius: 6px;
+        padding: 3px 10px;
+        font-size: 0.85rem;
+    }
+
+    .multi-ligne-suivi-prix {
+        font-weight: 700;
+        color: #2B4C7E;
+        font-size: 0.9rem;
+        min-width: 80px;
+        text-align: right;
     }
 
     .ref-code {

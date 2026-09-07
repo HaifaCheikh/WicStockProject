@@ -60,6 +60,7 @@ namespace WicStock.Web.Models.Dtos
         public string StatutCommande { get; set; } = "ACCEPTEE";
         public string? Statut { get; set; }
         public bool EstSurCommande { get; set; }
+        public bool EstMultiLignes { get; set; }
         public int ProduitId { get; set; }
         public string? ProduitNom { get; set; }
         public string? ProduitReference { get; set; }
@@ -68,7 +69,37 @@ namespace WicStock.Web.Models.Dtos
         public DateTime? DateSouhaitee { get; set; }
         public DateTime? DateEstimeePreparation { get; set; }
         public decimal TotalCommande { get; set; }
+        public decimal MontantTotal { get; set; }
+        public List<LigneCommandeDisplayDto> Lignes { get; set; } = new();
+
+        /// <summary>Résumé affiché dans le tableau (nom produit ou "X articles").</summary>
+        public string LibelleProduit => EstMultiLignes && Lignes.Count > 0
+            ? $"{Lignes.Count} article{(Lignes.Count > 1 ? "s" : "")}"
+            : ProduitNom ?? "—";
+
+        /// <summary>Quantité totale affichée.</summary>
+        public int QuantiteTotale => EstMultiLignes && Lignes.Count > 0
+            ? Lignes.Sum(l => l.Quantite)
+            : QuantiteVendue;
+
+        /// <summary>Montant total affiché.</summary>
+        public decimal MontantAffiche => EstMultiLignes && MontantTotal > 0
+            ? MontantTotal
+            : TotalCommande;
     }
+
+    public class LigneCommandeDisplayDto
+    {
+        public int ProduitId { get; set; }
+        public string ProduitNom { get; set; } = string.Empty;
+        public string ProduitReference { get; set; } = string.Empty;
+        public string? ProduitImageUrl { get; set; }
+        public int Quantite { get; set; }
+        public decimal PrixUnitaire { get; set; }
+        public decimal SousTotal { get; set; }
+        public bool EstSurCommande { get; set; }
+    }
+
 
     public class CommandeManagerDto
     {
@@ -111,6 +142,9 @@ namespace WicStock.Web.Models.Dtos
     public class SuiviCommandeDto
     {
         public int Id { get; set; }
+        public bool EstMultiLignes { get; set; }
+        public decimal MontantTotal { get; set; }
+        public List<LigneCommandeDisplayDto> Lignes { get; set; } = new();
         public int ProduitId { get; set; }
         public string? ProduitNom { get; set; }
         public string? ProduitReference { get; set; }
@@ -135,6 +169,10 @@ namespace WicStock.Web.Models.Dtos
         public string? Pays { get; set; }
         public int? ResponsableId { get; set; }
         public string? ResponsableNom { get; set; }
+
+        public decimal MontantAffiche => EstMultiLignes && MontantTotal > 0
+            ? MontantTotal
+            : QuantiteVendue * PrixUnitaire;
     }
 }
 
