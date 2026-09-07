@@ -194,10 +194,6 @@
                                 <button class="bp-qty-btn" @onclick="IncrementerQty"
                                         disabled="@(!produit.DisponibleSurCommande && quantite >= produit.QuantiteDisponible)">+</button>
                             </div>
-                            @if (!produit.DisponibleSurCommande && produit.QuantiteDisponible > 0)
-                            {
-                                <span class="bp-qty-max">Max : @produit.QuantiteDisponible</span>
-                            }
                         </div>
 
                         <button class="bp-add-btn @(ajoutEnCours ? "bp-add-btn--loading" : "")"
