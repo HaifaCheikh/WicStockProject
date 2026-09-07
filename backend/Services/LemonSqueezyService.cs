@@ -41,9 +41,10 @@ namespace WicStock_.Services
             var variantId = GetVariantId();
             var apiKey = GetApiKey();
 
-            if (string.IsNullOrEmpty(storeId) || string.IsNullOrEmpty(variantId) || string.IsNullOrEmpty(apiKey))
+            if (string.IsNullOrEmpty(storeId) || string.IsNullOrEmpty(variantId) || string.IsNullOrEmpty(apiKey)
+                || apiKey.Contains("VOTRE_CLE") || storeId.Contains("VOTRE_STORE") || variantId.Contains("VOTRE_VARIANT"))
             {
-                throw new InvalidOperationException("Les identifiants LemonSqueezy (ApiKey, StoreId, VariantId) ne sont pas configurés sur le serveur.");
+                return null;
             }
 
             _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);

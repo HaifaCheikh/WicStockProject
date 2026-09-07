@@ -165,6 +165,13 @@
                 <button class="btn btn--outline mt-1" @onclick="RetourCommande" disabled="@isProcessing">
                     <span>Annuler</span>
                 </button>
+
+                @if (paymentResponse?.CheckoutId?.StartsWith("LEMON-TEST-") == true)
+                {
+                    <p class="text-center mt-2" style="font-size: 0.78rem; color: #64748B;">
+                        ℹ Mode démonstration LemonSqueezy (clés API `LemonSqueezy:ApiKey` non configurées sur le serveur)
+                    </p>
+                }
             </div>
         </div>
     }
