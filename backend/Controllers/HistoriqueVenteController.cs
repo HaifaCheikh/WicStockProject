@@ -490,7 +490,7 @@ namespace WicStock_.Controllers
         // PUT: api/historiquevente/modifier/{id} (Modifier une commande client)
         [HttpPut("modifier/{id}")]
         [Authorize(Roles = "CLIENT,ADMIN")]
-        public async Task<IActionResult> ModifierCommande(int id, CommandeDto dto)
+        public async Task<IActionResult> ModifierCommande(int id, [FromBody] CommandeUpdateDto dto)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!int.TryParse(userIdClaim, out int userId))
@@ -498,7 +498,10 @@ namespace WicStock_.Controllers
 
             var vente = await _context.HistoriqueVentes
                 .Include(h => h.Produit)
-                .ThenInclude(p => p!.Stock)
+                    .ThenInclude(p => p!.Stock)
+                .Include(h => h.LigneCommandes)
+                    .ThenInclude(l => l.Produit)
+                        .ThenInclude(p => p!.Stock)
                 .FirstOrDefaultAsync(h => h.Id == id);
 
             if (vente == null)
@@ -507,24 +510,94 @@ namespace WicStock_.Controllers
             if (vente.UtilisateurId != userId && !User.IsInRole("ADMIN"))
                 return Forbid();
 
-            if (vente.StatutCommande == "ACCEPTEE")
+            if (vente.StatutCommande == "ACCEPTEE" || vente.Statut == StatutCommandeDetaille.ACCEPTEE)
                 return BadRequest(new { message = "Impossible de modifier une commande déjà acceptée." });
 
-            var produit = vente.Produit;
-            if (produit == null)
-                return BadRequest(new { message = "Produit introuvable." });
+            if (vente.EstMultiLignes && vente.LigneCommandes != null && vente.LigneCommandes.Any())
+            {
+                if (dto.Lignes != null && dto.Lignes.Any())
+                {
+                    decimal nouveauMontantTotal = 0;
+                    int nouvelleQuantiteTotale = 0;
 
-            var stockQty = produit.Stock?.QuantiteActuelle ?? 0;
+                    foreach (var ligneDto in dto.Lignes)
+                    {
+                        var ligne = vente.LigneCommandes.FirstOrDefault(l => l.ProduitId == ligneDto.ProduitId);
+                        if (ligne != null)
+                        {
+                            var prod = ligne.Produit;
+                            int diffQte = ligneDto.Quantite - ligne.Quantite;
+                            var stockQty = prod?.Stock?.QuantiteActuelle ?? 0;
 
-            if (stockQty <= 0 && !produit.DisponibleSurCommande)
-                return BadRequest(new { message = "Produit en rupture de stock." });
+                            if (diffQte > 0 && prod != null && !prod.DisponibleSurCommande && stockQty < diffQte)
+                            {
+                                return BadRequest(new { message = $"Stock insuffisant pour « {prod.Nom} » ({stockQty} disponible(s))." });
+                            }
 
-            if (stockQty < dto.QuantiteVendue && !produit.DisponibleSurCommande)
-                return BadRequest(new { message = $"Stock insuffisant ({stockQty} disponible(s))." });
+                            if (prod?.Stock != null && !ligne.EstSurCommande)
+                            {
+                                prod.Stock.QuantiteActuelle -= diffQte;
+                                prod.Stock.DateMiseAJour = DateTime.Now;
+                            }
 
-            vente.QuantiteVendue = dto.QuantiteVendue;
-            vente.PrixUnitaire = dto.PrixUnitaire;
-            vente.DateSouhaitee = dto.DateSouhaitee?.Date;
+                            ligne.Quantite = ligneDto.Quantite;
+                            nouveauMontantTotal += ligne.Quantite * ligne.PrixUnitaire;
+                            nouvelleQuantiteTotale += ligne.Quantite;
+                        }
+                    }
+
+                    vente.QuantiteVendue = nouvelleQuantiteTotale;
+                    vente.MontantTotal = Math.Round(nouveauMontantTotal, 2);
+                    vente.PrixUnitaire = nouvelleQuantiteTotale > 0 ? Math.Round(nouveauMontantTotal / nouvelleQuantiteTotale, 2) : 0;
+                }
+                else if (dto.QuantiteVendue > 0)
+                {
+                    var ligne = vente.LigneCommandes.First();
+                    int diffQte = dto.QuantiteVendue - ligne.Quantite;
+                    var prod = ligne.Produit;
+                    var stockQty = prod?.Stock?.QuantiteActuelle ?? 0;
+
+                    if (diffQte > 0 && prod != null && !prod.DisponibleSurCommande && stockQty < diffQte)
+                    {
+                        return BadRequest(new { message = $"Stock insuffisant ({stockQty} disponible(s))." });
+                    }
+
+                    if (prod?.Stock != null && !ligne.EstSurCommande)
+                    {
+                        prod.Stock.QuantiteActuelle -= diffQte;
+                        prod.Stock.DateMiseAJour = DateTime.Now;
+                    }
+
+                    ligne.Quantite = dto.QuantiteVendue;
+                    vente.QuantiteVendue = dto.QuantiteVendue;
+                    vente.MontantTotal = Math.Round(dto.QuantiteVendue * ligne.PrixUnitaire, 2);
+                }
+            }
+            else
+            {
+                var produit = vente.Produit;
+                if (produit == null)
+                    return BadRequest(new { message = "Produit introuvable." });
+
+                int diffQte = dto.QuantiteVendue - vente.QuantiteVendue;
+                var stockQty = produit.Stock?.QuantiteActuelle ?? 0;
+
+                if (diffQte > 0 && !produit.DisponibleSurCommande && stockQty < diffQte)
+                    return BadRequest(new { message = $"Stock insuffisant ({stockQty} disponible(s))." });
+
+                if (produit.Stock != null && !vente.EstSurCommande)
+                {
+                    produit.Stock.QuantiteActuelle -= diffQte;
+                    produit.Stock.DateMiseAJour = DateTime.Now;
+                }
+
+                vente.QuantiteVendue = dto.QuantiteVendue;
+                if (dto.PrixUnitaire > 0) vente.PrixUnitaire = dto.PrixUnitaire;
+            }
+
+            if (dto.DateSouhaitee.HasValue)
+                vente.DateSouhaitee = dto.DateSouhaitee.Value.Date;
+
             vente.DateEstimeePreparation = null;
 
             await _context.SaveChangesAsync();

@@ -419,11 +419,18 @@
     @if (commandeModifier != null)
     {
         <div class="dialog-overlay" @onclick="FermerModification">
-            <div class="dialog-card" @onclick:stopPropagation="true">
+            <div class="dialog-card" style="max-width: 520px;" @onclick:stopPropagation="true">
                 <div class="dialog-header">
                     <div>
                         <div class="dialog-title">Modifier la commande</div>
-                        <div class="dialog-subtitle">@commandeModifier.ProduitNom</div>
+                        @if (commandeModifier.EstMultiLignes && commandeModifierLignes.Count > 1)
+                        {
+                            <div class="dialog-subtitle">@commandeModifierLignes.Count article(s) dans cette commande</div>
+                        }
+                        else
+                        {
+                            <div class="dialog-subtitle">@commandeModifier.ProduitNom</div>
+                        }
                     </div>
                     <button class="dialog-close" @onclick="FermerModification">
                         <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
@@ -431,36 +438,76 @@
                 </div>
 
                 <div class="dialog-body">
-                    <!-- Résumé produit -->
-                    <div class="order-summary-product">
-                        <span class="ref-code">@commandeModifier.ProduitReference</span>
-                        @if (!string.IsNullOrEmpty(commandeModifier.ProduitCategorie))
-                        {
-                            <span class="table-cat-tag" style="background: @GetCategoryColor(commandeModifier.ProduitCategorie); margin-left: 8px;">
-                                @commandeModifier.ProduitCategorie
-                            </span>
-                        }
-                    </div>
-
-                    <!-- Quantité -->
-                    <div class="dialog-field">
-                        <label class="field-label">Nouvelle quantité (articles)</label>
-                        <input type="number" class="field-input" min="1" @bind="commandeModifierQuantite" placeholder="ex : 5" />
-                    </div>
-
-                    <!-- Prix unitaire -->
-                    <div class="dialog-field">
-                        <label class="field-label">Prix unitaire (DT)</label>
-                        <input type="number" class="field-input" readonly value="@commandeModifier.PrixUnitaire" style="background:#F8FAFC; color:#64748B; cursor:not-allowed;" />
-                    </div>
-
-                    <!-- Récapitulatif -->
-                    @if (commandeModifierQuantite > 0 && commandeModifier.PrixUnitaire > 0)
+                    @if (commandeModifier.EstMultiLignes && commandeModifierLignes.Count > 0)
                     {
-                        <div class="order-total">
-                            <span>Nouveau total estimé</span>
-                            <strong>@((commandeModifierQuantite * commandeModifier.PrixUnitaire).ToString("0.00")) DT</strong>
+                        <div class="d-flex flex-column gap-3">
+                            <label class="field-label" style="font-weight:700; color:#1E293B; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.03em;">Articles de la commande</label>
+                            @foreach (var item in commandeModifierLignes)
+                            {
+                                <div class="d-flex align-center justify-space-between gap-3 pa-3" style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px;">
+                                    <div class="d-flex align-center gap-3" style="flex:1;">
+                                        <div style="width:44px; height:44px; border-radius:8px; overflow:hidden; background:#FFF; border:1px solid #CBD5E1; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
+                                            @if (!string.IsNullOrEmpty(item.ProduitImageUrl))
+                                            {
+                                                <img src="@GetFullImageUrl(item.ProduitImageUrl)" alt="@item.ProduitNom" style="width:100%; height:100%; object-fit:cover;" />
+                                            }
+                                            else
+                                            {
+                                                <MudIcon Icon="@Icons.Material.Filled.Layers" Size="Size.Small" Style="color:#94A3B8;" />
+                                            }
+                                        </div>
+                                        <div>
+                                            <span class="ref-code" style="font-size:0.75rem;">@item.ProduitReference</span>
+                                            <span style="font-weight:600; font-size:0.875rem; color:#1E293B; display:block; margin-top:2px;">@item.ProduitNom</span>
+                                            <span style="font-size:0.78rem; color:#64748B;">@item.PrixUnitaire.ToString("0.00") DT / u</span>
+                                        </div>
+                                    </div>
+                                    <div style="width:90px; flex-shrink:0;">
+                                        <label class="field-label" style="font-size:0.7rem; margin-bottom:2px;">Quantité</label>
+                                        <input type="number" class="field-input" min="1" @bind="item.Quantite" style="text-align:center; padding:6px; font-weight:600;" />
+                                    </div>
+                                </div>
+                            }
                         </div>
+
+                        <div class="order-total mt-4" style="background:#EFF6FF; border:1px solid #BFDBFE; padding:14px; border-radius:10px; display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-weight:600; color:#1E40AF;">Nouveau total estimé</span>
+                            <strong style="font-size:1.15rem; color:#1E3A8A;">@commandeModifierLignes.Sum(l => l.Quantite * l.PrixUnitaire).ToString("0.00") DT</strong>
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- Résumé produit mono-article -->
+                        <div class="order-summary-product">
+                            <span class="ref-code">@commandeModifier.ProduitReference</span>
+                            @if (!string.IsNullOrEmpty(commandeModifier.ProduitCategorie))
+                            {
+                                <span class="table-cat-tag" style="background: @GetCategoryColor(commandeModifier.ProduitCategorie); margin-left: 8px;">
+                                    @commandeModifier.ProduitCategorie
+                                </span>
+                            }
+                        </div>
+
+                        <!-- Quantité -->
+                        <div class="dialog-field mt-3">
+                            <label class="field-label">Nouvelle quantité (articles)</label>
+                            <input type="number" class="field-input" min="1" @bind="commandeModifierQuantite" placeholder="ex : 5" />
+                        </div>
+
+                        <!-- Prix unitaire -->
+                        <div class="dialog-field">
+                            <label class="field-label">Prix unitaire (DT)</label>
+                            <input type="number" class="field-input" readonly value="@commandeModifier.PrixUnitaire" style="background:#F8FAFC; color:#64748B; cursor:not-allowed;" />
+                        </div>
+
+                        <!-- Récapitulatif -->
+                        @if (commandeModifierQuantite > 0 && commandeModifier.PrixUnitaire > 0)
+                        {
+                            <div class="order-total">
+                                <span>Nouveau total estimé</span>
+                                <strong>@((commandeModifierQuantite * commandeModifier.PrixUnitaire).ToString("0.00")) DT</strong>
+                            </div>
+                        }
                     }
                 </div>
 
@@ -2283,61 +2330,110 @@
     // ===== Modification de commande =====
     private MaCommandeDto? commandeModifier;
     private int commandeModifierQuantite = 1;
+    private List<LigneCommandeDisplayDto> commandeModifierLignes = new();
     private bool modificationEnCours = false;
 
     private void OuvrirModification(MaCommandeDto commande)
     {
         commandeModifier = commande;
-        if (commande.EstMultiLignes && commande.Lignes.Count > 0)
+        commandeModifierLignes = commande.Lignes?.Select(l => new LigneCommandeDisplayDto
         {
-            if (string.IsNullOrEmpty(commandeModifier.ProduitNom))
-                commandeModifier.ProduitNom = string.Join(", ", commande.Lignes.Select(l => l.ProduitNom));
-            if (string.IsNullOrEmpty(commandeModifier.ProduitReference))
-                commandeModifier.ProduitReference = string.Join(", ", commande.Lignes.Select(l => l.ProduitReference));
-            if (commandeModifier.ProduitId == 0)
-                commandeModifier.ProduitId = commande.Lignes[0].ProduitId;
-            if (commandeModifier.PrixUnitaire == 0)
-                commandeModifier.PrixUnitaire = commande.PrixUnitaireEffectif ?? (commande.MontantTotal / Math.Max(1, commande.QuantiteTotale));
-            commandeModifierQuantite = commande.QuantiteTotale;
-        }
-        else
+            ProduitId = l.ProduitId,
+            ProduitNom = l.ProduitNom,
+            ProduitReference = l.ProduitReference,
+            ProduitImageUrl = l.ProduitImageUrl,
+            Quantite = l.Quantite,
+            PrixUnitaire = l.PrixUnitaire,
+            SousTotal = l.SousTotal,
+            EstSurCommande = l.EstSurCommande
+        }).ToList() ?? new List<LigneCommandeDisplayDto>();
+
+        if (!commandeModifierLignes.Any() && !string.IsNullOrEmpty(commande.ProduitNom))
         {
-            if (commandeModifier.PrixUnitaire == 0 && commande.PrixUnitaireEffectif.HasValue)
-                commandeModifier.PrixUnitaire = commande.PrixUnitaireEffectif.Value;
-            commandeModifierQuantite = commande.QuantiteVendue;
+            commandeModifierLignes.Add(new LigneCommandeDisplayDto
+            {
+                ProduitId = commande.ProduitId,
+                ProduitNom = commande.ProduitNom,
+                ProduitReference = commande.ProduitReference ?? "",
+                ProduitImageUrl = commande.ProduitImageUrl,
+                Quantite = commande.QuantiteVendue,
+                PrixUnitaire = commande.PrixUnitaire
+            });
         }
+
+        if (commandeModifier.PrixUnitaire == 0 && commande.PrixUnitaireEffectif.HasValue)
+            commandeModifier.PrixUnitaire = commande.PrixUnitaireEffectif.Value;
+
+        commandeModifierQuantite = commande.QuantiteVendue;
     }
 
     private void FermerModification() => commandeModifier = null;
 
     private async Task ConfirmerModification()
     {
-        if (commandeModifier == null || commandeModifierQuantite <= 0)
-        {
-            Snackbar.Add("Veuillez saisir une quantité valide supérieure à 0.", Severity.Warning);
-            return;
-        }
+        if (commandeModifier == null) return;
 
-        modificationEnCours = true;
-        var dto = new CommandeCreateDto
+        if (commandeModifier.EstMultiLignes && commandeModifierLignes.Count > 0)
         {
-            ProduitId = commandeModifier.ProduitId,
-            QuantiteVendue = commandeModifierQuantite,
-            PrixUnitaire = commandeModifier.PrixUnitaire
-        };
+            if (commandeModifierLignes.Any(l => l.Quantite <= 0))
+            {
+                Snackbar.Add("Chaque article doit avoir une quantité supérieure à 0.", Severity.Warning);
+                return;
+            }
 
-        var succes = await CatalogueService.ModifierCommande(commandeModifier.Id, dto);
-        modificationEnCours = false;
+            modificationEnCours = true;
+            var dto = new
+            {
+                Lignes = commandeModifierLignes.Select(l => new
+                {
+                    l.ProduitId,
+                    l.Quantite
+                }).ToList()
+            };
 
-        if (succes)
-        {
-            Snackbar.Add("Commande modifiée avec succès !", Severity.Success);
-            FermerModification();
-            await ChargerMesCommandes();
+            var succes = await CatalogueService.ModifierCommande(commandeModifier.Id, dto);
+            modificationEnCours = false;
+
+            if (succes)
+            {
+                Snackbar.Add("Commande modifiée avec succès !", Severity.Success);
+                FermerModification();
+                await ChargerMesCommandes();
+            }
+            else
+            {
+                Snackbar.Add("Impossible de modifier cette commande (ex: stock insuffisant).", Severity.Error);
+            }
         }
         else
         {
-            Snackbar.Add("Impossible de modifier cette commande (ex: stock insuffisant).", Severity.Error);
+            if (commandeModifierQuantite <= 0)
+            {
+                Snackbar.Add("Veuillez saisir une quantité valide supérieure à 0.", Severity.Warning);
+                return;
+            }
+
+            modificationEnCours = true;
+            var dto = new CommandeCreateDto
+            {
+                ProduitId = commandeModifier.ProduitId,
+                QuantiteVendue = commandeModifierQuantite,
+                PrixUnitaire = commandeModifier.PrixUnitaire
+            };
+
+            var succes = await CatalogueService.ModifierCommande(commandeModifier.Id, dto);
+            modificationEnCours = false;
+
+            if (succes)
+            {
+                Snackbar.Add("Commande modifiée avec succès !", Severity.Success);
+                FermerModification();
+                await ChargerMesCommandes();
+            }
+            else
+            {
+                Snackbar.Add("Impossible de modifier cette commande (ex: stock insuffisant).", Severity.Error);
+            }
         }
     }
 }

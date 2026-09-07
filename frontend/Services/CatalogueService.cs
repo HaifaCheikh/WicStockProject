@@ -55,7 +55,7 @@ namespace WicStock.Web.Services
             return response.IsSuccessStatusCode;
         }
 
-        public async Task<bool> ModifierCommande(int commandeId, CommandeCreateDto dto)
+        public async Task<bool> ModifierCommande(int commandeId, object dto)
         {
             var response = await _http.PutAsJsonAsync($"api/HistoriqueVente/modifier/{commandeId}", dto);
             return response.IsSuccessStatusCode;

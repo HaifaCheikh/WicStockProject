@@ -99,4 +99,18 @@ namespace WicStock_.Models.Dtos
         public int QuantiteVendue { get; set; }
         public decimal PrixUnitaire { get; set; }
     }
+
+    public class CommandeUpdateDto
+    {
+        public int QuantiteVendue { get; set; }
+        public decimal PrixUnitaire { get; set; }
+        public DateTime? DateSouhaitee { get; set; }
+        public List<LigneCommandeUpdateDto>? Lignes { get; set; }
+    }
+
+    public class LigneCommandeUpdateDto
+    {
+        public int ProduitId { get; set; }
+        public int Quantite { get; set; }
+    }
 }
