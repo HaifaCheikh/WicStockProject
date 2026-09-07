@@ -333,7 +333,7 @@
         --font-head: 'Sora', 'Inter', sans-serif; --font-body: 'Inter', sans-serif; --font-mono: 'JetBrains Mono', monospace;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    .boutique-page { font-family: var(--font-body); background: var(--b-sand); min-height: 100vh; color: var(--b-ink); }
+    .boutique-page { font-family: var(--font-body); background: var(--b-sand); min-height: 100vh; color: var(--b-ink); display: flex; flex-direction: column; }
 
     /* NAVBAR */
     .b-navbar { background: var(--b-paper); border-bottom: 1px solid var(--b-border); position: sticky; top: 0; z-index: 100; }
@@ -393,7 +393,7 @@
     .bp-not-found p { margin-bottom: 24px; }
 
     /* MAIN */
-    .bp-main { max-width: 1160px; margin: 0 auto; padding: 44px 24px 80px; }
+    .bp-main { max-width: 1160px; margin: 0 auto; padding: 44px 24px 80px; flex: 1; width: 100%; }
     .bp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 52px; align-items: start; }
     @@media (max-width: 768px) { .bp-grid { grid-template-columns: 1fr; gap: 28px; } }
 
@@ -491,7 +491,9 @@
     .bp-avis-auth-prompt { background: var(--b-paper); border: 1.5px dashed var(--b-border); border-radius: var(--b-radius); padding: 24px; text-align: center; margin-bottom: 32px; }
     .bp-avis-auth-prompt p { font-size: 0.95rem; color: var(--b-ink-muted); margin-bottom: 14px; }
 
-    .bp-avis-empty { color: var(--b-ink-muted); font-size: 0.9rem; font-style: italic; }
+    .bp-avis-empty { color: var(--b-ink-muted); font-size: 0.9rem; text-align: center; margin: 24px 0; }
+
+    .b-footer { text-align: center; padding: 24px; background: var(--b-paper); border-top: 1px solid var(--b-border); color: var(--b-ink-muted); font-size: 0.8125rem; margin-top: 40px; }
     .bp-avis-list { display: flex; flex-direction: column; gap: 16px; }
     .bp-avis-item { background: var(--b-paper); border: 1px solid var(--b-border); border-radius: var(--b-radius-sm); padding: 18px; }
     .bp-avis-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
