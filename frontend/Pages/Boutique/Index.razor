@@ -215,33 +215,18 @@
                                 </p>
                             }
 
-                            <!-- Bouton Ajouter au panier / Commander -->
+                            <!-- Bouton Commander -->
                             <button class="b-add-btn @(p.PeutCommander ? "" : "b-add-btn--disabled")"
-                                    @onclick="() => AjouterAuPanier(p)"
+                                    @onclick="() => VoirDetail(p.Id)"
                                     @onclick:stopPropagation="true"
-                                    disabled="@(!p.PeutCommander || ajoutsEnCours.Contains(p.Id))">
-                                @if (ajoutsEnCours.Contains(p.Id))
-                                {
-                                    <svg class="b-spinner" viewBox="0 0 24 24" width="16" height="16">
-                                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-dasharray="60" stroke-dashoffset="15" fill="none"/>
-                                    </svg>
-                                    <span>Ajout...</span>
-                                }
-                                else if (p.EstEnRupture)
+                                    disabled="@(!p.PeutCommander)">
+                                @if (p.EstEnRupture)
                                 {
                                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none">
                                         <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>
                                         <path d="M5.636 5.636 L18.364 18.364" stroke="currentColor" stroke-width="1.8"/>
                                     </svg>
                                     <span>En rupture</span>
-                                }
-                                else if (p.EstSurCommande)
-                                {
-                                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none">
-                                        <path d="M6 2 L3 6 V20 C3 21.1 3.9 22 5 22 H19 C20.1 22 21 21.1 21 20 V6 L18 2 Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                                        <path d="M12 8 V16 M8 12 H16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                                    </svg>
-                                    <span>Commander</span>
                                 }
                                 else
                                 {
