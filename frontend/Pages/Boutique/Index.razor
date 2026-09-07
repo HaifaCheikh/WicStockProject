@@ -279,7 +279,7 @@
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    .boutique-page { font-family: var(--font-body); background: var(--b-sand); min-height: 100vh; color: var(--b-ink); }
+    .boutique-page { font-family: var(--font-body); background: var(--b-sand); min-height: 100vh; color: var(--b-ink); display: flex; flex-direction: column; }
 
     /* NAVBAR — blanche et sticky, comme la Home (plus de bleu marine plein) */
     .b-navbar { background: var(--b-paper); border-bottom: 1px solid var(--b-border); position: sticky; top: 0; z-index: 100; }
@@ -321,7 +321,7 @@
     .b-filter-count { font-size: 0.8rem; color: var(--b-ink-muted); font-weight: 500; white-space: nowrap; }
 
     /* GRILLE */
-    .b-main { max-width: 1160px; margin: 0 auto; padding: 36px 24px 60px; }
+    .b-main { max-width: 1160px; margin: 0 auto; padding: 36px 24px 60px; flex: 1; width: 100%; }
     .b-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
 
     /* CARTE PRODUIT */
@@ -386,7 +386,7 @@
     .b-empty p { font-size: 1rem; margin-bottom: 20px; }
 
     /* Footer */
-    .b-footer { text-align: center; padding: 24px; background: var(--b-paper); border-top: 1px solid var(--b-border); color: var(--b-ink-muted); font-size: 0.8125rem; }
+    .b-footer { text-align: center; padding: 24px; background: var(--b-sand); color: var(--b-ink-muted); font-size: 0.8125rem; margin-top: 40px; }
 
     @@media (max-width: 640px) {
         .b-nav-links { display: none; }

@@ -66,11 +66,10 @@
     <!-- BREADCRUMB -->
     <nav class="b-breadcrumb">
         <div class="b-breadcrumb-inner">
-            <a href="/boutique" class="b-btn-back">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
-                    <path d="M19 12 H5 M11 18 L5 12 L11 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <a href="/boutique" class="b-btn-back-icon" title="Retour à la boutique">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+                    <path d="M19 12 H5 M11 18 L5 12 L11 6" stroke="var(--b-denim)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                <span>Retour à la boutique</span>
             </a>
         </div>
     </nav>
@@ -222,7 +221,7 @@
                                 </div>
 
                                 <!-- Supprimer -->
-                                <button class="panier-suppr-btn" @onclick="() => SupprimerArticle(item.ProduitId)" title="Retirer du panier">
+                                <button class="panier-suppr-btn" @onclick="() => DemanderSuppressionItem(item.ProduitId, item.Nom)" title="Retirer du panier">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
                                         <path d="M3 6 H21 M8 6 V4 H16 V6 M19 6 L18 20 H6 L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                                     </svg>
@@ -266,6 +265,32 @@
                                             <path d="M3 6 H21 M8 6 V4 H16 V6 M19 6 L18 20 H6 L5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
                                         </svg>
                                         Oui, vider
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <!-- ===== MODALE CONFIRMATION SUPPRESSION ARTICLE ===== -->
+                    @if (itemASupprimerId.HasValue)
+                    {
+                        <div class="confirm-overlay" @onclick="AnnulerSuppressionItem">
+                            <div class="confirm-modal" @onclick:stopPropagation="true">
+                                <div class="confirm-icon">
+                                    <svg viewBox="0 0 24 24" width="32" height="32" fill="none">
+                                        <path d="M3 6 H21 M8 6 V4 H16 V6 M19 6 L18 20 H6 L5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M10 11 V17 M14 11 V17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                                    </svg>
+                                </div>
+                                <h3 class="confirm-title">Retirer du panier ?</h3>
+                                <p class="confirm-body">Voulez-vous vraiment retirer « @itemASupprimerNom » de votre panier ?</p>
+                                <div class="confirm-actions">
+                                    <button class="confirm-btn-cancel" @onclick="AnnulerSuppressionItem">Annuler</button>
+                                    <button class="confirm-btn-ok" @onclick="ConfirmerSuppressionItem">
+                                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none">
+                                            <path d="M3 6 H21 M8 6 V4 H16 V6 M19 6 L18 20 H6 L5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                        Oui, retirer
                                     </button>
                                 </div>
                             </div>
@@ -352,7 +377,7 @@
         --font-head: 'Sora', 'Inter', sans-serif; --font-body: 'Inter', sans-serif; --font-mono: 'JetBrains Mono', monospace;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    .boutique-page { font-family: var(--font-body); background: var(--b-sand); min-height: 100vh; color: var(--b-ink); }
+    .boutique-page { font-family: var(--font-body); background: var(--b-sand); min-height: 100vh; color: var(--b-ink); display: flex; flex-direction: column; }
 
     /* NAVBAR */
     .b-navbar { background: var(--b-paper); border-bottom: 1px solid var(--b-border); position: sticky; top: 0; z-index: 100; }
@@ -378,30 +403,21 @@
     /* BREADCRUMB */
     .b-breadcrumb { background: var(--b-sand); padding: 12px 24px; }
     .b-breadcrumb-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; }
-    .b-btn-back {
+    .b-btn-back-icon {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-        padding: 8px 16px;
-        background: var(--b-paper);
-        border: 1.5px solid var(--b-border);
-        border-radius: var(--b-radius-sm);
-        color: var(--b-ink);
-        font-family: var(--font-body);
-        font-size: 0.85rem;
-        font-weight: 600;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        color: var(--b-denim);
         text-decoration: none;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
         transition: all 0.2s ease;
     }
-    .b-btn-back svg { transition: transform 0.2s ease; color: var(--b-denim); }
-    .b-btn-back:hover {
+    .b-btn-back-icon:hover {
         background: var(--b-denim-soft);
-        border-color: #B2C4DC;
-        color: var(--b-denim);
-        box-shadow: 0 4px 12px -4px rgba(43,76,126,0.2);
+        transform: translateX(-3px);
     }
-    .b-btn-back:hover svg { transform: translateX(-3px); }
 
     /* MAIN */
     .panier-main { padding: 36px 24px 80px; }
@@ -577,7 +593,7 @@
 
     .panier-auth-note { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--b-ink-muted); margin-top: 12px; line-height: 1.4; }
 
-    .b-footer { text-align: center; padding: 24px; background: var(--b-paper); border-top: 1px solid var(--b-border); color: var(--b-ink-muted); font-size: 0.8125rem; margin-top: 40px; }
+    .b-footer { text-align: center; padding: 24px; background: var(--b-sand); color: var(--b-ink-muted); font-size: 0.8125rem; margin-top: 40px; }
     .b-spinner { animation: spin 0.8s linear infinite; }
     @@keyframes spin { to { transform: rotate(360deg); } }
 </style>
@@ -622,6 +638,31 @@
     }
 
     private bool showConfirmVider = false;
+    private int? itemASupprimerId = null;
+    private string? itemASupprimerNom = null;
+
+    private void DemanderSuppressionItem(int produitId, string nom)
+    {
+        itemASupprimerId = produitId;
+        itemASupprimerNom = nom;
+    }
+
+    private void AnnulerSuppressionItem()
+    {
+        itemASupprimerId = null;
+        itemASupprimerNom = null;
+    }
+
+    private async Task ConfirmerSuppressionItem()
+    {
+        if (itemASupprimerId.HasValue)
+        {
+            var id = itemASupprimerId.Value;
+            itemASupprimerId = null;
+            itemASupprimerNom = null;
+            await SupprimerArticle(id);
+        }
+    }
 
     private void AnnulerVider()
     {

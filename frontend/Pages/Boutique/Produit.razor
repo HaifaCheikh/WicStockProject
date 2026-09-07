@@ -61,11 +61,10 @@
     <!-- BREADCRUMB -->
     <nav class="bp-breadcrumb">
         <div class="bp-breadcrumb-inner">
-            <a href="/boutique" class="b-btn-back">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
-                    <path d="M19 12 H5 M11 18 L5 12 L11 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <a href="/boutique" class="b-btn-back-icon" title="Retour à la boutique">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+                    <path d="M19 12 H5 M11 18 L5 12 L11 6" stroke="var(--b-denim)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                <span>Retour au catalogue</span>
             </a>
         </div>
     </nav>
@@ -360,30 +359,21 @@
     /* BREADCRUMB */
     .bp-breadcrumb { background: var(--b-sand); padding: 12px 24px; }
     .bp-breadcrumb-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; }
-    .b-btn-back {
+    .b-btn-back-icon {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-        padding: 8px 16px;
-        background: var(--b-paper);
-        border: 1.5px solid var(--b-border);
-        border-radius: var(--b-radius-sm);
-        color: var(--b-ink);
-        font-family: var(--font-body);
-        font-size: 0.85rem;
-        font-weight: 600;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        color: var(--b-denim);
         text-decoration: none;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
         transition: all 0.2s ease;
     }
-    .b-btn-back svg { transition: transform 0.2s ease; color: var(--b-denim); }
-    .b-btn-back:hover {
+    .b-btn-back-icon:hover {
         background: var(--b-denim-soft);
-        border-color: #B2C4DC;
-        color: var(--b-denim);
-        box-shadow: 0 4px 12px -4px rgba(43,76,126,0.2);
+        transform: translateX(-3px);
     }
-    .b-btn-back:hover svg { transform: translateX(-3px); }
 
     /* LOADING / NOT FOUND */
     .bp-loading, .bp-not-found { text-align: center; padding: 80px 20px; color: var(--b-ink-muted); }
@@ -493,7 +483,7 @@
 
     .bp-avis-empty { color: var(--b-ink-muted); font-size: 0.9rem; text-align: center; margin: 24px 0; }
 
-    .b-footer { text-align: center; padding: 24px; background: var(--b-paper); border-top: 1px solid var(--b-border); color: var(--b-ink-muted); font-size: 0.8125rem; margin-top: 40px; }
+    .b-footer { text-align: center; padding: 24px; background: var(--b-sand); color: var(--b-ink-muted); font-size: 0.8125rem; margin-top: 40px; }
     .bp-avis-list { display: flex; flex-direction: column; gap: 16px; }
     .bp-avis-item { background: var(--b-paper); border: 1px solid var(--b-border); border-radius: var(--b-radius-sm); padding: 18px; }
     .bp-avis-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
