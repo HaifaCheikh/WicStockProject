@@ -289,17 +289,31 @@ namespace WicStock_.Controllers
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                bool touteSurCommande = false;
                 bool auMoinsUneSurCommande = false;
                 decimal montantTotal = 0;
                 var lignesResult = new List<LigneCommandeResultDto>();
 
-                // Créer la commande parente
+                // — Pré-calculer le statut final AVANT de créer la commande —
+                // Règle hybride : si TOUS les articles ont un stock suffisant → ACCEPTEE automatiquement
+                //                 si AU MOINS UN article est sur commande → EN_ATTENTE (validation manuelle)
+                bool tousEnStock = dto.Lignes.All(l =>
+                {
+                    var p = produits[l.ProduitId];
+                    var qte = p.Stock?.QuantiteActuelle ?? 0;
+                    return !p.DisponibleSurCommande && qte >= l.Quantite;
+                });
+
+                string statutFinal = tousEnStock ? "ACCEPTEE" : "EN_ATTENTE";
+                StatutCommandeDetaille statutDetailleFinal = tousEnStock
+                    ? StatutCommandeDetaille.ACCEPTEE
+                    : StatutCommandeDetaille.EN_ATTENTE_CONFIRMATION;
+
+                // Créer la commande parente avec le statut calculé
                 var commande = new HistoriqueVente
                 {
                     DateVente = DateTime.Now,
-                    StatutCommande = "EN_ATTENTE",
-                    Statut = StatutCommandeDetaille.EN_ATTENTE_CONFIRMATION,
+                    StatutCommande = statutFinal,
+                    Statut = statutDetailleFinal,
                     EstMultiLignes = true,
                     UtilisateurId = utilisateurId,
                     DateSouhaitee = dto.DateSouhaitee?.Date,
@@ -334,8 +348,8 @@ namespace WicStock_.Controllers
                     bool estSurCommande = produit.DisponibleSurCommande && stockQty < ligneDto.Quantite;
                     if (estSurCommande) auMoinsUneSurCommande = true;
 
-                    // Décrémenter le stock seulement si disponible
-                    if (!estSurCommande && produit.Stock != null)
+                    // Décrémenter le stock : seulement si la commande est acceptée automatiquement
+                    if (tousEnStock && produit.Stock != null)
                     {
                         produit.Stock.QuantiteActuelle -= ligneDto.Quantite;
                         produit.Stock.DateMiseAJour = DateTime.Now;
@@ -367,20 +381,22 @@ namespace WicStock_.Controllers
                 commande.MontantTotal = Math.Round(montantTotal, 2);
                 commande.PrixUnitaire = lignesResult.Count == 1 ? lignesResult[0].PrixUnitaire : Math.Round(montantTotal / dto.Lignes.Sum(l => l.Quantite), 2);
                 commande.EstSurCommande = auMoinsUneSurCommande;
-                commande.StatutCommande = "EN_ATTENTE";
-                commande.Statut = StatutCommandeDetaille.EN_ATTENTE_CONFIRMATION;
+                // Le statut est déjà positionné correctement lors de la création
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                // — Notification au responsable —
+                // — Notification au responsable (seulement si en attente) —
                 var nomsProduits = string.Join(", ", lignesResult.Select(l => $"« {l.ProduitNom} »"));
-                await _notificationService.NotifierNouvelEvenementAsync(
-                    TypeNotification.COMMANDE_EN_ATTENTE,
-                    $"Nouvelle commande multi-articles : {dto.Lignes.Count} article(s) ({nomsProduits}) — Total : {commande.MontantTotal:C}",
-                    "/commandes",
-                    RoleUtilisateur.RESPONSABLE_STOCK_PRODUCTION
-                );
+                if (!tousEnStock)
+                {
+                    await _notificationService.NotifierNouvelEvenementAsync(
+                        TypeNotification.COMMANDE_EN_ATTENTE,
+                        $"Nouvelle commande multi-articles en attente : {dto.Lignes.Count} article(s) ({nomsProduits}) — Total : {commande.MontantTotal:C}",
+                        "/commandes",
+                        RoleUtilisateur.RESPONSABLE_STOCK_PRODUCTION
+                    );
+                }
 
                 return CreatedAtAction(nameof(GetMesCommandes), new { }, new CommandeMultiResultDto
                 {
@@ -388,9 +404,11 @@ namespace WicStock_.Controllers
                     MontantTotal = commande.MontantTotal,
                     NombreLignes = lignesResult.Count,
                     EstSurCommande = auMoinsUneSurCommande,
-                    Message = auMoinsUneSurCommande
-                        ? "Commande enregistrée. Certains articles seront produits sur commande."
-                        : "Commande enregistrée avec succès, en attente de confirmation.",
+                    Message = tousEnStock
+                        ? "Commande acceptée automatiquement ! Votre stock a été réservé."
+                        : auMoinsUneSurCommande
+                            ? "Commande enregistrée. Certains articles seront produits sur commande et nécessitent une validation."
+                            : "Commande enregistrée en attente de confirmation.",
                     Lignes = lignesResult
                 });
             }
