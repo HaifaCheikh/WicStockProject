@@ -530,23 +530,17 @@ namespace WicStock_.Controllers
                     return Forbid("Seul un administrateur peut refuser une commande sur commande.");
             }
 
-            if (vente.StatutCommande == "REFUSEE")
+            if (vente.StatutCommande == "REFUSEE" || vente.Statut == StatutCommandeDetaille.REFUSEE)
                 return BadRequest("La commande est déjà refusée.");
 
-            if (vente.StatutCommande == "ACCEPTEE")
-            {
-                var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.ProduitId == vente.ProduitId);
-                if (stock != null)
-                {
-                    stock.QuantiteActuelle += vente.QuantiteVendue;
-                    stock.DateMiseAJour = DateTime.Now;
-                }
-            }
+            // Restituer le stock au catalogue
+            await RestituerStockCommandeAsync(vente);
 
-            _context.HistoriqueVentes.Remove(vente);
+            vente.StatutCommande = "REFUSEE";
+            vente.Statut = StatutCommandeDetaille.REFUSEE;
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Commande refusée et supprimée.", statut = "REFUSEE" });
+            return Ok(new { message = "Commande refusée et stock restitué.", statut = "REFUSEE" });
         }
 
         // GET: api/historiquevente/{id}/suivi
@@ -796,20 +790,13 @@ namespace WicStock_.Controllers
             if (vente.UtilisateurId != userId && !User.IsInRole("ADMIN"))
                 return Forbid();
 
-            if (vente.StatutCommande == "ACCEPTEE")
-            {
-                var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.ProduitId == vente.ProduitId);
-                if (stock != null)
-                {
-                    stock.QuantiteActuelle += vente.QuantiteVendue;
-                    stock.DateMiseAJour = DateTime.Now;
-                }
-            }
+            // Restituer le stock au catalogue
+            await RestituerStockCommandeAsync(vente);
 
             _context.HistoriqueVentes.Remove(vente);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Commande annulée avec succès." });
+            return Ok(new { message = "Commande annulée avec succès et stock restitué." });
         }
 
         // GET: api/historiquevente/responsables
@@ -888,9 +875,67 @@ namespace WicStock_.Controllers
             if (vente == null)
                 return NotFound();
 
+            await RestituerStockCommandeAsync(vente);
+
             _context.HistoriqueVentes.Remove(vente);
             await _context.SaveChangesAsync();
             return NoContent();
+        }
+
+        private async Task RestituerStockCommandeAsync(HistoriqueVente vente)
+        {
+            if (vente == null) return;
+
+            // Si la commande a déjà été refusée, ne pas récréditer une seconde fois
+            if (vente.StatutCommande == "REFUSEE" || vente.Statut == StatutCommandeDetaille.REFUSEE)
+                return;
+
+            if (vente.EstMultiLignes)
+            {
+                var lignes = await _context.LigneCommandes
+                    .Where(l => l.HistoriqueVenteId == vente.Id && !l.EstSurCommande)
+                    .ToListAsync();
+
+                foreach (var ligne in lignes)
+                {
+                    var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.ProduitId == ligne.ProduitId);
+                    if (stock != null)
+                    {
+                        stock.QuantiteActuelle += ligne.Quantite;
+                        stock.DateMiseAJour = DateTime.Now;
+
+                        _context.MouvementsStock.Add(new MouvementStock
+                        {
+                            StockId = stock.Id,
+                            Type = TypeMouvement.ENTREE,
+                            Quantite = ligne.Quantite,
+                            Date = DateTime.Now,
+                            Motif = $"Restitution suite annulation/refus commande #{vente.Id}"
+                        });
+                    }
+                }
+            }
+            else
+            {
+                if (!vente.EstSurCommande)
+                {
+                    var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.ProduitId == vente.ProduitId);
+                    if (stock != null)
+                    {
+                        stock.QuantiteActuelle += vente.QuantiteVendue;
+                        stock.DateMiseAJour = DateTime.Now;
+
+                        _context.MouvementsStock.Add(new MouvementStock
+                        {
+                            StockId = stock.Id,
+                            Type = TypeMouvement.ENTREE,
+                            Quantite = vente.QuantiteVendue,
+                            Date = DateTime.Now,
+                            Motif = $"Restitution suite annulation/refus commande #{vente.Id}"
+                        });
+                    }
+                }
+            }
         }
     }
 
