@@ -561,7 +561,7 @@
     {
         if (p.EstEnRupture) return "Rupture de stock — non disponible";
         if (p.EstSurCommande) return "Disponible sur commande";
-        if (p.EstStockFaibleEffectif) return $"⚠️ Il ne reste que {p.QuantiteDisponible} pièce(s)";
+        if (p.EstStockFaibleEffectif) return $"Il ne reste que {p.QuantiteDisponible} pièce(s)";
         return "En stock";
     }
 
