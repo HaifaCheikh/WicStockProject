@@ -46,6 +46,7 @@ namespace WicStock_.Models.Dtos
         public int ProduitId { get; set; }
         public string ProduitNom { get; set; } = string.Empty;
         public string ProduitReference { get; set; } = string.Empty;
+        public string? ProduitImageUrl { get; set; }
         public int Quantite { get; set; }
         public decimal PrixUnitaire { get; set; }
         public decimal SousTotal => PrixUnitaire * Quantite;

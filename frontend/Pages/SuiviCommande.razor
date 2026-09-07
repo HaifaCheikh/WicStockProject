@@ -88,14 +88,24 @@
                             <div class="multi-lignes-suivi">
                                 @foreach (var ligne in suivi.Lignes)
                                 {
-                                    <div class="multi-ligne-suivi-item">
-                                        <div class="multi-ligne-suivi-info">
-                                            <span class="ref-code" style="font-size:0.75rem;">@ligne.ProduitReference</span>
-                                            <span class="multi-ligne-suivi-nom">@ligne.ProduitNom</span>
+                                    <div class="multi-ligne-suivi-item" style="display:flex; align-items:center; gap:14px; padding:10px 0; border-bottom:1px solid #E2E8F0;">
+                                        <div class="product-img-mini" style="width:48px; height:48px; border-radius:8px; overflow:hidden; background:#F8FAFC; flex-shrink:0; display:flex; align-items:center; justify-content:center; border:1px solid #CBD5E1;">
+                                            @if (!string.IsNullOrEmpty(ligne.ProduitImageUrl))
+                                            {
+                                                <img src="@GetFullImageUrl(ligne.ProduitImageUrl)" alt="@ligne.ProduitNom" @onclick="() => OuvrirImageAgrandie(GetFullImageUrl(ligne.ProduitImageUrl), ligne.ProduitNom)" style="width:100%; height:100%; object-fit:cover; cursor:zoom-in;" title="Cliquer pour agrandir l'image" />
+                                            }
+                                            else
+                                            {
+                                                <MudIcon Icon="@Icons.Material.Filled.Layers" Size="Size.Small" Style="color:#94A3B8;" />
+                                            }
                                         </div>
-                                        <div class="multi-ligne-suivi-right">
-                                            <span class="multi-ligne-suivi-qty">× @ligne.Quantite</span>
-                                            <span class="multi-ligne-suivi-prix">@(ligne.PrixUnitaire * ligne.Quantite).ToString("0.00") DT</span>
+                                        <div class="multi-ligne-suivi-info" style="flex:1;">
+                                            <span class="ref-code" style="font-size:0.75rem;">@ligne.ProduitReference</span>
+                                            <span class="multi-ligne-suivi-nom" style="font-weight:600; display:block; color:#1E293B; margin-top:2px;">@ligne.ProduitNom</span>
+                                        </div>
+                                        <div class="multi-ligne-suivi-right" style="text-align:right;">
+                                            <span class="multi-ligne-suivi-qty" style="color:#64748B; font-size:0.875rem; display:block;">× @ligne.Quantite</span>
+                                            <span class="multi-ligne-suivi-prix" style="font-weight:700; color:#2B4C7E; font-size:0.95rem;">@((ligne.PrixUnitaire * ligne.Quantite).ToString("0.00")) DT</span>
                                         </div>
                                     </div>
                                 }
@@ -275,8 +285,7 @@
                     <div class="refusee-content">
                         <h3 class="refusee-title">Commande refusée</h3>
                         <p class="refusee-description">
-                            Cette commande a été refusée par notre équipe et ne fera pas l'objet d'un traitement ni d'une livraison. 
-                            Le stock réservé a été automatiquement réintégré à notre inventaire.
+                            Cette commande a été refusée par notre équipe et ne fera pas l'objet d'un traitement ni d'une livraison.
                         </p>
                     </div>
                 </div>

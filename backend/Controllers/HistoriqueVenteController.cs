@@ -594,6 +594,7 @@ namespace WicStock_.Controllers
                 ProduitId = l.ProduitId,
                 ProduitNom = l.Produit?.Nom ?? string.Empty,
                 ProduitReference = l.Produit?.Reference ?? string.Empty,
+                ProduitImageUrl = l.Produit?.ImageUrl,
                 Quantite = l.Quantite,
                 PrixUnitaire = l.PrixUnitaire,
                 EstSurCommande = l.EstSurCommande
