@@ -86,6 +86,19 @@ namespace WicStock.Web.Models.Dtos
         public decimal MontantAffiche => EstMultiLignes && MontantTotal > 0
             ? MontantTotal
             : TotalCommande;
+
+        /// <summary>Prix unitaire effectif si la commande ne contient qu'un seul article.</summary>
+        public decimal? PrixUnitaireEffectif
+        {
+            get
+            {
+                if (Lignes != null && Lignes.Count == 1)
+                    return Lignes[0].PrixUnitaire;
+                if (!EstMultiLignes && PrixUnitaire > 0)
+                    return PrixUnitaire;
+                return null;
+            }
+        }
     }
 
     public class LigneCommandeDisplayDto

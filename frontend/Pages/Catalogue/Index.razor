@@ -269,7 +269,16 @@
                                         <span class="table-cat-tag" style="background: #2B4C7E;">Multi-catégories</span>
                                     </MudTd>
                                     <MudTd DataLabel="Qté" Style="font-weight: 600;">@context.QuantiteTotale</MudTd>
-                                    <MudTd DataLabel="Prix/u">—</MudTd>
+                                    <MudTd DataLabel="Prix/u">
+                                        @if (context.PrixUnitaireEffectif.HasValue)
+                                        {
+                                            <span>@context.PrixUnitaireEffectif.Value.ToString("0.00") DT</span>
+                                        }
+                                        else
+                                        {
+                                            <span>—</span>
+                                        }
+                                    </MudTd>
                                     <MudTd DataLabel="Total" Style="font-weight: 700; color: #2B4C7E;">@context.MontantAffiche.ToString("0.00") DT</MudTd>
                                 }
                                 else
@@ -308,14 +317,14 @@
                                         <button class="btn-suivi" @onclick="() => OuvrirSuivi(context)" title="Suivre cette commande">
                                             <MudIcon Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" />
                                         </button>
-                                        @if (context.StatutCommande != "REFUSEE" && context.Statut != "PAYEE" && context.Statut != "EN_LIVRAISON" && context.Statut != "LIVREE")
+                                        @if (CanEdit(context))
                                         {
-                                            @if (!context.EstMultiLignes)
-                                            {
-                                                <button class="btn-modifier" @onclick="() => OuvrirModification(context)" title="Modifier">
-                                                    <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" />
-                                                </button>
-                                            }
+                                            <button class="btn-modifier" @onclick="() => OuvrirModification(context)" title="Modifier la commande">
+                                                <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" />
+                                            </button>
+                                        }
+                                        @if (CanCancel(context))
+                                        {
                                             <button class="btn-annuler" @onclick="() => DemanderAnnulation(context)" title="Annuler">
                                                 <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" />
                                             </button>
@@ -2165,6 +2174,31 @@
         return false;
     }
 
+    private bool CanEdit(MaCommandeDto context)
+    {
+        if (context == null) return false;
+        var statutCmd = (context.StatutCommande ?? "").ToUpperInvariant();
+        var statut = (context.Statut ?? "").ToUpperInvariant();
+
+        // Le bouton edit ne se cache que lorsque la commande est acceptée, confirmée, refusée, payée ou en livraison
+        if (statutCmd == "ACCEPTEE" || statut == "ACCEPTEE" || statut == "CONFIRMEE" || statutCmd == "REFUSEE" || statut == "REFUSEE" || statut == "PAYEE" || statut == "EN_LIVRAISON" || statut == "LIVREE" || statut == "PRETE")
+            return false;
+
+        return true;
+    }
+
+    private bool CanCancel(MaCommandeDto context)
+    {
+        if (context == null) return false;
+        var statutCmd = (context.StatutCommande ?? "").ToUpperInvariant();
+        var statut = (context.Statut ?? "").ToUpperInvariant();
+
+        if (statutCmd == "REFUSEE" || statut == "REFUSEE" || statut == "PAYEE" || statut == "EN_LIVRAISON" || statut == "LIVREE")
+            return false;
+
+        return true;
+    }
+
     private void OuvrirSuivi(MaCommandeDto commande)
     {
         if (commande != null)
@@ -2229,7 +2263,24 @@
     private void OuvrirModification(MaCommandeDto commande)
     {
         commandeModifier = commande;
-        commandeModifierQuantite = commande.QuantiteVendue;
+        if (commande.EstMultiLignes && commande.Lignes.Count > 0)
+        {
+            if (string.IsNullOrEmpty(commandeModifier.ProduitNom))
+                commandeModifier.ProduitNom = string.Join(", ", commande.Lignes.Select(l => l.ProduitNom));
+            if (string.IsNullOrEmpty(commandeModifier.ProduitReference))
+                commandeModifier.ProduitReference = string.Join(", ", commande.Lignes.Select(l => l.ProduitReference));
+            if (commandeModifier.ProduitId == 0)
+                commandeModifier.ProduitId = commande.Lignes[0].ProduitId;
+            if (commandeModifier.PrixUnitaire == 0)
+                commandeModifier.PrixUnitaire = commande.PrixUnitaireEffectif ?? (commande.MontantTotal / Math.Max(1, commande.QuantiteTotale));
+            commandeModifierQuantite = commande.QuantiteTotale;
+        }
+        else
+        {
+            if (commandeModifier.PrixUnitaire == 0 && commande.PrixUnitaireEffectif.HasValue)
+                commandeModifier.PrixUnitaire = commande.PrixUnitaireEffectif.Value;
+            commandeModifierQuantite = commande.QuantiteVendue;
+        }
     }
 
     private void FermerModification() => commandeModifier = null;
