@@ -209,53 +209,72 @@
                 </div>
             }
 
-            <!-- ===== TIMELINE DE PROGRESSION ===== -->
-            <div class="timeline-card">
-                <div class="timeline-card-head">
-                    <h3 class="timeline-title">Progression de la commande</h3>
-                    <span class="timeline-subtitle">Étape @(GetCurrentStepIndex() + 1) sur @GetEtapes().Count()</span>
+            <!-- ===== PROGRESSION OU ALERTE REFUSÉE ===== -->
+            @if (IsRefusee())
+            {
+                <div class="commande-refusee-card">
+                    <div class="refusee-icon-badge">
+                        <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Medium" />
+                    </div>
+                    <div class="refusee-content">
+                        <h3 class="refusee-title">Commande refusée</h3>
+                        <p class="refusee-description">
+                            Cette commande a été refusée par notre équipe et ne fera pas l'objet d'un traitement ni d'une livraison. 
+                            Le stock réservé a été automatiquement réintégré à notre inventaire.
+                        </p>
+                    </div>
                 </div>
+            }
+            else
+            {
+                <!-- ===== TIMELINE DE PROGRESSION ===== -->
+                <div class="timeline-card">
+                    <div class="timeline-card-head">
+                        <h3 class="timeline-title">Progression de la commande</h3>
+                        <span class="timeline-subtitle">Étape @(GetCurrentStepIndex() + 1) sur @GetEtapes().Count()</span>
+                    </div>
 
-                <div class="timeline-horizontal">
-                    @{
-                        var etapesList = GetEtapes().ToList();
-                        for (int i = 0; i < etapesList.Count; i++)
-                        {
-                            var step = etapesList[i];
-                            var state = GetStepState(step.Key);
-                            <div class="timeline-step @state">
-                                <div class="step-icon">
-                                    @if (state == "done")
+                    <div class="timeline-horizontal">
+                        @{
+                            var etapesList = GetEtapes().ToList();
+                            for (int i = 0; i < etapesList.Count; i++)
+                            {
+                                var step = etapesList[i];
+                                var state = GetStepState(step.Key);
+                                <div class="timeline-step @state">
+                                    <div class="step-icon">
+                                        @if (state == "done")
+                                        {
+                                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Medium" />
+                                        }
+                                        else if (state == "current")
+                                        {
+                                            <MudIcon Icon="@Icons.Material.Filled.RadioButtonChecked" Size="Size.Medium" />
+                                        }
+                                        else
+                                        {
+                                            <MudIcon Icon="@Icons.Material.Filled.RadioButtonUnchecked" Size="Size.Medium" />
+                                        }
+                                    </div>
+                                    <div class="step-label">@step.Label</div>
+                                    @if (GetStepDate(step.Key) is DateTime date)
                                     {
-                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Medium" />
+                                        <div class="step-date">@date.ToString("dd/MM/yyyy")</div>
                                     }
                                     else if (state == "current")
                                     {
-                                        <MudIcon Icon="@Icons.Material.Filled.RadioButtonChecked" Size="Size.Medium" />
-                                    }
-                                    else
-                                    {
-                                        <MudIcon Icon="@Icons.Material.Filled.RadioButtonUnchecked" Size="Size.Medium" />
+                                        <div class="step-date step-date--pending">En cours</div>
                                     }
                                 </div>
-                                <div class="step-label">@step.Label</div>
-                                @if (GetStepDate(step.Key) is DateTime date)
+                                @if (i < etapesList.Count - 1)
                                 {
-                                    <div class="step-date">@date.ToString("dd/MM/yyyy")</div>
+                                    <div class="timeline-connector @(IsConnectorDone(step.Key) ? "done" : "")"></div>
                                 }
-                                else if (state == "current")
-                                {
-                                    <div class="step-date step-date--pending">En cours</div>
-                                }
-                            </div>
-                            @if (i < etapesList.Count - 1)
-                            {
-                                <div class="timeline-connector @(IsConnectorDone(step.Key) ? "done" : "")"></div>
                             }
                         }
-                    }
+                    </div>
                 </div>
-            </div>
+            }
 
             <!-- Modales Avis & Réclamation -->
             @if (suivi != null)
@@ -502,6 +521,42 @@
     .status-pill--rejected {
         background: var(--rust-tint);
         color: var(--rust);
+    }
+
+    /* ===== Carte Commande Refusée ===== */
+    .commande-refusee-card {
+        background: var(--rust-tint);
+        border: 1.5px solid #F0C7BB;
+        border-radius: var(--radius-lg);
+        padding: 24px 28px;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        box-shadow: 0 2px 10px rgba(181, 86, 58, 0.06);
+    }
+    .refusee-icon-badge {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: #F8D7DA;
+        color: var(--rust);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .refusee-title {
+        font-family: var(--font-head);
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--rust);
+        margin-bottom: 4px;
+    }
+    .refusee-description {
+        font-size: 0.9rem;
+        color: #7A3320;
+        line-height: 1.5;
+        margin: 0;
     }
 
     /* ===== Cartes ===== */
@@ -1189,6 +1244,13 @@
     {
         if (suivi == null) return;
         Navigation.NavigateTo($"/payment/checkout/{suivi.Id}");
+    }
+
+    private bool IsRefusee()
+    {
+        if (suivi == null) return false;
+        var s = suivi.Statut?.ToUpperInvariant() ?? suivi.StatutCommande?.ToUpperInvariant() ?? "";
+        return s == "REFUSEE" || s == "ANNULEE";
     }
 
     private string GetStatusLabel()
