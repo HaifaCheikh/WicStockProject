@@ -704,10 +704,40 @@
     private CommandeMultiResultClientDto? commandeSucces = null;
     private HashSet<int> suppressionsEnCours = new();
 
+    private bool hasCheckedCheckoutIntent = false;
+
     protected override async Task OnInitializedAsync()
     {
         items = await CartService.GetItemsAsync();
         CartService.OnCartChanged += HandleCartChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !hasCheckedCheckoutIntent)
+        {
+            hasCheckedCheckoutIntent = true;
+            try
+            {
+                var intent = await JS.InvokeAsync<string>("sessionStorage.getItem", "checkout_intent");
+                if (intent == "true")
+                {
+                    await JS.InvokeVoidAsync("sessionStorage.removeItem", "checkout_intent");
+                    var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+                    if (authState.User.Identity?.IsAuthenticated ?? false)
+                    {
+                        if (items.Any())
+                        {
+                            await ValiderCommande();
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Ignorer les erreurs d'interop JS durant le pre-rendering
+            }
+        }
     }
 
     private async void HandleCartChanged() => await RechercherItems();
