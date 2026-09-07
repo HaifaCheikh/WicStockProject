@@ -133,16 +133,9 @@ namespace WicStock_.Controllers
                     zip
                 );
 
-                if (checkout == null)
+                if (checkout == null || string.IsNullOrWhiteSpace(checkout.Attributes?.Url))
                 {
-                    Console.WriteLine($"[PAYMENT FALLBACK] LemonSqueezy keys not configured. Direct payment confirmation for order {commande.Id}");
-                    return Ok(new PaymentResponseDto
-                    {
-                        CheckoutUrl = successUrl,
-                        CheckoutId = $"DEMO-{commande.Id}-{Guid.NewGuid().ToString()[..6]}",
-                        Montant = montant,
-                        Currency = dto.Currency
-                    });
+                    return BadRequest(new { message = "L'API LemonSqueezy n'a pas pu créer la session de paiement." });
                 }
 
                 return Ok(new PaymentResponseDto
@@ -156,7 +149,7 @@ namespace WicStock_.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Erreur lors de la création du checkout LemonSqueezy.");
-                return StatusCode(500, new { message = "Erreur lors de l'initialisation du paiement." });
+                return BadRequest(new { message = $"Erreur LemonSqueezy : {ex.Message}" });
             }
         }
 
