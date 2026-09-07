@@ -25,14 +25,32 @@
         <div class="d-flex justify-space-between align-center flex-wrap gap-4">
             <div>
                 <div class="d-flex align-center gap-3">
-                    <MudText Typo="Typo.h4" Class="page-title">Catalogue produits</MudText>
-                    @if (produits != null)
+                    @if (showCommandes)
                     {
-                        <span class="count-badge">@FilteredProduits.Count() articles</span>
+                        <MudText Typo="Typo.h4" Class="page-title">Mes commandes</MudText>
+                        @if (mesCommandes != null)
+                        {
+                            <span class="count-badge">@mesCommandes.Count commande@(mesCommandes.Count > 1 ? "s" : "")</span>
+                        }
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.h4" Class="page-title">Catalogue produits</MudText>
+                        @if (produits != null)
+                        {
+                            <span class="count-badge">@FilteredProduits.Count() articles</span>
+                        }
                     }
                 </div>
                 <MudText Typo="Typo.body2" Class="page-subtitle mt-1">
-                    Consultez nos références de tissus et passez vos commandes en ligne
+                    @if (showCommandes)
+                    {
+                        <span>Suivez l'état de vos commandes et gérez-les en un coup d'œil</span>
+                    }
+                    else
+                    {
+                        <span>Consultez nos références de tissus et passez vos commandes en ligne</span>
+                    }
                 </MudText>
             </div>
 
@@ -46,6 +64,7 @@
                 }
             </button>
         </div>
+
 
         @if (!showCommandes)
         {
