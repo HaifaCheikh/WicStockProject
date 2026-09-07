@@ -52,10 +52,15 @@ namespace WicStock_.Controllers
                 .Where(p => !p.EstArchive)
                 .ToListAsync();
 
-            // RÃƒÂ©cupÃƒÂ©rer les actions de promotion confirmÃƒÂ©es
+            // Récupérer les actions de promotion confirmées
             var promoActions = await _context.ActionsRecommandees
                 .Where(a => a.TypeAction == Enums.TypeAction.PROMOTION_CIBLEE)
                 .OrderByDescending(a => a.DateGeneration)
+                .ToListAsync();
+
+            // Récupérer tous les avis publiés pour calculer les notes moyennes
+            var allAvis = await _context.Avis
+                .Where(a => a.Statut == Enums.StatutAvis.PUBLIE)
                 .ToListAsync();
 
             var result = new List<object>();
@@ -65,13 +70,13 @@ namespace WicStock_.Controllers
                 int remise = p.RemisePourcentage ?? 0;
                 DateTime? dateFin = p.DateFinPromotion;
 
-                // Si pas de remise enregistrÃƒÂ©e directement sur le produit, chercher dans les ActionsRecommandees (backfill)
+                // Si pas de remise enregistrée directement sur le produit, chercher dans les ActionsRecommandees (backfill)
                 if (remise == 0)
                 {
                     var lastPromo = promoActions.FirstOrDefault(a => a.ProduitId == p.Id);
                     if (lastPromo != null && (DateTime.Now - lastPromo.DateGeneration).TotalDays <= 30)
                     {
-                        remise = 20; // valeur par dÃƒÂ©faut
+                        remise = 20; // valeur par défaut
                         if (!string.IsNullOrEmpty(lastPromo.TexteGenere))
                         {
                             var match = System.Text.RegularExpressions.Regex.Match(lastPromo.TexteGenere, @"Promotion de (\d+)%");
@@ -82,7 +87,7 @@ namespace WicStock_.Controllers
                         }
                         dateFin = lastPromo.DateGeneration.AddDays(14);
 
-                        // Synchroniser les valeurs sur l'entitÃƒÂ© Produit en base
+                        // Synchroniser les valeurs sur l'entité Produit en base
                         p.RemisePourcentage = remise;
                         p.DateFinPromotion = dateFin;
                     }
@@ -96,6 +101,9 @@ namespace WicStock_.Controllers
                 string statutStock = quantiteDisponible <= 0
                     ? (p.DisponibleSurCommande ? "SUR_COMMANDE" : "RUPTURE")
                     : (estStockFaible ? "STOCK_FAIBLE" : "DISPONIBLE");
+
+                var productAvis = allAvis.Where(a => a.ProduitId == p.Id).ToList();
+                double noteMoyenne = productAvis.Count > 0 ? productAvis.Average(a => a.Note) : 0;
 
                 result.Add(new
                 {
@@ -116,7 +124,9 @@ namespace WicStock_.Controllers
                     QuantiteActuelle = quantiteDisponible,
                     SeuilAlerte = seuilAlerte,
                     EstStockFaible = estStockFaible,
-                    p.DisponibleSurCommande
+                    p.DisponibleSurCommande,
+                    NoteMoyenne = Math.Round(noteMoyenne, 1),
+                    NombreAvis = productAvis.Count
                 });
             }
 
