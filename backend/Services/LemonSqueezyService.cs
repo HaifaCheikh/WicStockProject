@@ -16,9 +16,9 @@ namespace WicStock_.Services
             // pour pouvoir utiliser la clé la plus à jour (config ou env var)
         }
 
-        public string? GetStoreId() => _configuration["LemonSqueezy:StoreId"] ?? Environment.GetEnvironmentVariable("LEMONSQUEEZY_STORE_ID");
-        public string? GetVariantId() => _configuration["LemonSqueezy:VariantId"] ?? Environment.GetEnvironmentVariable("LEMONSQUEEZY_VARIANT_ID");
-        public string? GetApiKey() => _configuration["LemonSqueezy:ApiKey"] ?? Environment.GetEnvironmentVariable("LEMONSQUEEZY_API_KEY");
+        public string? GetStoreId() => (_configuration["LemonSqueezy:StoreId"] ?? Environment.GetEnvironmentVariable("LEMONSQUEEZY_STORE_ID"))?.Trim();
+        public string? GetVariantId() => (_configuration["LemonSqueezy:VariantId"] ?? Environment.GetEnvironmentVariable("LEMONSQUEEZY_VARIANT_ID"))?.Trim();
+        public string? GetApiKey() => (_configuration["LemonSqueezy:ApiKey"] ?? Environment.GetEnvironmentVariable("LEMONSQUEEZY_API_KEY"))?.Trim();
 
         public async Task<CheckoutResponse?> CreateCheckoutAsync(
             decimal amount,
@@ -43,13 +43,6 @@ namespace WicStock_.Services
             {
                 return null;
             }
-
-            // Utiliser TryAddWithoutValidation pour les JWT LemonSqueezy
-            // (AuthenticationHeaderValue fait une validation stricte qui rejette certains tokens JWT)
-            _httpClient.DefaultRequestHeaders.Remove("Authorization");
-            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {apiKey}");
-            _httpClient.DefaultRequestHeaders.Remove("Accept");
-            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/vnd.api+json");
 
             // custom_price = prix unitaire en centimes (ex: 160 TND = 16000 centimes)
             var prixUnitaireCentimes = (long)Math.Round((amount / (quantite > 0 ? quantite : 1)) * 100);
@@ -77,7 +70,7 @@ namespace WicStock_.Services
                 }
             };
 
-            var request = new CheckoutRequest
+            var requestData = new CheckoutRequest
             {
                 Data = new CheckoutData
                 {
@@ -119,10 +112,16 @@ namespace WicStock_.Services
                 PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
             };
 
-            var json = JsonSerializer.Serialize(request, jsonOptions);
-            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/vnd.api+json");
+            var json = JsonSerializer.Serialize(requestData, jsonOptions);
 
-            var response = await _httpClient.PostAsync("https://api.lemonsqueezy.com/v1/checkouts", content);
+            var reqMsg = new HttpRequestMessage(HttpMethod.Post, "https://api.lemonsqueezy.com/v1/checkouts")
+            {
+                Content = new StringContent(json, System.Text.Encoding.UTF8, "application/vnd.api+json")
+            };
+            reqMsg.Headers.TryAddWithoutValidation("Authorization", $"Bearer {apiKey}");
+            reqMsg.Headers.TryAddWithoutValidation("Accept", "application/vnd.api+json");
+
+            var response = await _httpClient.SendAsync(reqMsg);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -136,7 +135,15 @@ namespace WicStock_.Services
 
         public async Task<OrderResponse?> GetOrderAsync(string orderId)
         {
-            var response = await _httpClient.GetAsync($"https://api.lemonsqueezy.com/v1/orders/{orderId}");
+            var apiKey = GetApiKey();
+            var reqMsg = new HttpRequestMessage(HttpMethod.Get, $"https://api.lemonsqueezy.com/v1/orders/{orderId}");
+            if (!string.IsNullOrEmpty(apiKey))
+            {
+                reqMsg.Headers.TryAddWithoutValidation("Authorization", $"Bearer {apiKey}");
+            }
+            reqMsg.Headers.TryAddWithoutValidation("Accept", "application/vnd.api+json");
+
+            var response = await _httpClient.SendAsync(reqMsg);
             if (!response.IsSuccessStatusCode)
                 return null;
 
