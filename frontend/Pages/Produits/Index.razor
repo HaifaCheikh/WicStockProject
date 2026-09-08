@@ -199,9 +199,16 @@
                             <span class="product-price">@prod.PrixUnitaire.ToString("0.00") DT</span>
                         </div>
 
-                        <div class="d-flex align-center gap-1 mt-1">
-                            <MudIcon Icon="@Icons.Material.Filled.Texture" Size="Size.Small" Class="text-muted" />
-                            <span class="product-detail">@(string.IsNullOrEmpty(prod.TypeTissu) ? "Non spécifié" : prod.TypeTissu)</span>
+                        <div class="d-flex align-center gap-2 mt-1 flex-wrap">
+                            <div class="d-flex align-center gap-1">
+                                <MudIcon Icon="@Icons.Material.Filled.Texture" Size="Size.Small" Class="text-muted" />
+                                <span class="product-detail">@(string.IsNullOrEmpty(prod.TypeTissu) ? "Non spécifié" : prod.TypeTissu)</span>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(prod.Genre) || !string.IsNullOrWhiteSpace(prod.Taille) || !string.IsNullOrWhiteSpace(prod.Couleur))
+                            {
+                                <span class="text-muted" style="font-size:0.75rem;">•</span>
+                                <span class="product-detail" style="font-weight:600; color:var(--denim);">@WicStock.Web.Models.AttributsProduit.FormatLigneDescription(prod.Genre, prod.Taille, prod.Couleur)</span>
+                            }
                         </div>
 
                         <div class="meta-footer mt-3">
@@ -273,6 +280,7 @@
                     <MudTh>Référence</MudTh>
                     <MudTh>Nom</MudTh>
                     <MudTh>Type</MudTh>
+                    <MudTh>Attributs</MudTh>
                     <MudTh>Catégorie</MudTh>
                     <MudTh>Stock disponible</MudTh>
                     <MudTh>État de stock</MudTh>
@@ -305,6 +313,13 @@
                     </MudTd>
                     <MudTd DataLabel="Nom" Class="cell-name">@context.Nom</MudTd>
                     <MudTd DataLabel="Type">@context.TypeTissu</MudTd>
+                    <MudTd DataLabel="Attributs">
+                        <span style="font-size:0.8rem; color: var(--ink-muted);">
+                            @(string.IsNullOrWhiteSpace(WicStock.Web.Models.AttributsProduit.FormatLigneDescription(context.Genre, context.Taille, context.Couleur))
+                                ? "—"
+                                : WicStock.Web.Models.AttributsProduit.FormatLigneDescription(context.Genre, context.Taille, context.Couleur))
+                        </span>
+                    </MudTd>
                     <MudTd DataLabel="Catégorie">
                         <span class="table-cat-tag" style="background:@GetCategoryColor(context.Categorie)">@context.Categorie</span>
                     </MudTd>
@@ -1568,6 +1583,9 @@
         if (p.Reference?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
         if (p.TypeTissu?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
         if (p.Categorie?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (p.Genre?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (p.Taille?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (p.Couleur?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
         if (p.StatutIABadgeText?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
 
         return false;

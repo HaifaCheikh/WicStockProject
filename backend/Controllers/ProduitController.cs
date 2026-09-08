@@ -112,6 +112,10 @@ namespace WicStock_.Controllers
                     p.Nom,
                     p.TypeTissu,
                     p.Categorie,
+                    p.Genre,
+                    p.Taille,
+                    p.Couleur,
+                    p.CodeHexCouleur,
                     p.PrixUnitaire,
                     p.ImageUrl,
                     StatutStock = statutStock,
@@ -193,6 +197,10 @@ namespace WicStock_.Controllers
                 p.Nom,
                 p.TypeTissu,
                 p.Categorie,
+                p.Genre,
+                p.Taille,
+                p.Couleur,
+                p.CodeHexCouleur,
                 p.PrixUnitaire,
                 p.ImageUrl,
                 p.DisponibleSurCommande,
@@ -230,6 +238,13 @@ namespace WicStock_.Controllers
         [Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
         public async Task<ActionResult<Produit>> CreerProduit(Produit produit)
         {
+            if (!AttributsProduit.EstGenreValide(produit.Genre))
+                return BadRequest($"Le genre '{produit.Genre}' n'est pas valide.");
+            if (!AttributsProduit.EstTailleValide(produit.Taille))
+                return BadRequest($"La taille '{produit.Taille}' n'est pas valide.");
+            if (!AttributsProduit.EstCouleurValide(produit.Couleur))
+                return BadRequest($"La couleur '{produit.Couleur}' n'est pas valide.");
+
             if (!string.IsNullOrEmpty(produit.ImageBase64))
             {
                 produit.ImageUrl = SaveUploadedImage(produit.ImageBase64);
@@ -308,6 +323,13 @@ namespace WicStock_.Controllers
         {
             if (id != produit.Id)
                 return BadRequest();
+
+            if (!AttributsProduit.EstGenreValide(produit.Genre))
+                return BadRequest($"Le genre '{produit.Genre}' n'est pas valide.");
+            if (!AttributsProduit.EstTailleValide(produit.Taille))
+                return BadRequest($"La taille '{produit.Taille}' n'est pas valide.");
+            if (!AttributsProduit.EstCouleurValide(produit.Couleur))
+                return BadRequest($"La couleur '{produit.Couleur}' n'est pas valide.");
 
             if (!string.IsNullOrEmpty(produit.ImageBase64))
             {

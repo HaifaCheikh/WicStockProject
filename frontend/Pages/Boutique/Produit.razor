@@ -160,6 +160,27 @@
                             <span class="bp-label">Catégorie :</span> @produit.Categorie
                         </p>
                     }
+                    @if (!string.IsNullOrEmpty(produit.Genre))
+                    {
+                        <p class="bp-tissu">
+                            <span class="bp-label">Genre :</span> @produit.Genre
+                        </p>
+                    }
+                    @if (!string.IsNullOrEmpty(produit.Taille))
+                    {
+                        <p class="bp-tissu">
+                            <span class="bp-label">Taille / Pointure :</span> <span class="bp-attr-tag">@produit.Taille</span>
+                        </p>
+                    }
+                    @if (!string.IsNullOrEmpty(produit.Couleur))
+                    {
+                        var hex = WicStock.Web.Models.AttributsProduit.GetHex(produit.Couleur);
+                        <p class="bp-tissu" style="display: flex; align-items: center; gap: 8px;">
+                            <span class="bp-label">Couleur :</span>
+                            <span class="bp-color-dot" style="background-color: @hex;" title="@produit.Couleur"></span>
+                            <span>@produit.Couleur</span>
+                        </p>
+                    }
 
                     <!-- Prix -->
                     <div class="bp-prix-block">
@@ -456,6 +477,9 @@
         box-shadow: 0 4px 12px -4px rgba(43,76,126,0.15);
     }
 
+    .bp-attr-tag { display: inline-block; padding: 2px 10px; background: var(--b-denim-tint); color: var(--b-denim); font-weight: 700; border-radius: 6px; font-size: 0.85rem; }
+    .bp-color-dot { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.2); display: inline-block; flex-shrink: 0; }
+
     .bp-rupture-msg { background: var(--b-rust-soft); border: 1.5px solid #F0C7BB; border-radius: var(--b-radius-sm); padding: 20px; text-align: center; }
     .bp-rupture-msg p { color: var(--b-rust); font-size: 0.9rem; margin-bottom: 16px; }
 
@@ -555,7 +579,7 @@
         if (produit == null || !produit.PeutCommander) return;
         ajoutEnCours = true;
 
-        await CartService.AddToCartAsync(produit, quantite);
+        await CartService.AddToCartAsync(produit, quantite, produit.Genre, produit.Taille, produit.Couleur);
 
         Snackbar.Add($"« {produit.Nom} » × {quantite} ajouté(s) au panier ✓", Severity.Success,
             config => { config.VisibleStateDuration = 2500; });

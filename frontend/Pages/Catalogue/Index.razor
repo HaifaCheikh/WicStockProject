@@ -84,6 +84,30 @@
                     }
                 </select>
 
+                <select class="filter-select" @bind="genreFilter">
+                    <option value="">Tous les genres</option>
+                    @foreach (var g in WicStock.Web.Models.AttributsProduit.Genres)
+                    {
+                        <option value="@g">@g</option>
+                    }
+                </select>
+
+                <select class="filter-select" @bind="tailleFilter">
+                    <option value="">Toutes les tailles</option>
+                    @foreach (var t in WicStock.Web.Models.AttributsProduit.ToutesLesTailles)
+                    {
+                        <option value="@t">Taille @t</option>
+                    }
+                </select>
+
+                <select class="filter-select" @bind="couleurFilter">
+                    <option value="">Toutes les couleurs</option>
+                    @foreach (var c in WicStock.Web.Models.AttributsProduit.Couleurs)
+                    {
+                        <option value="@c">@c</option>
+                    }
+                </select>
+
                 <select class="filter-select" @bind="priceSortFilter">
                     <option value="">Trier par prix</option>
                     <option value="asc">Prix : croissant</option>
@@ -194,6 +218,25 @@
                                                 <span>@produit.TypeTissu</span>
                                             </div>
                                         }
+
+                                        <!-- Badges Genre / Taille / Couleur -->
+                                        <div class="product-attrs d-flex align-center gap-1 flex-wrap mt-2">
+                                            @if (!string.IsNullOrEmpty(produit.Genre))
+                                            {
+                                                <span class="attr-badge" style="font-size: 0.72rem; padding: 2px 7px; border-radius: 999px; background: #F1F5F9; color: #475569; font-weight: 600;">@produit.Genre</span>
+                                            }
+                                            @if (!string.IsNullOrEmpty(produit.Taille))
+                                            {
+                                                <span class="attr-badge" style="font-size: 0.72rem; padding: 2px 7px; border-radius: 999px; background: #F1F5F9; color: #475569; font-weight: 600;">Taille @produit.Taille</span>
+                                            }
+                                            @if (!string.IsNullOrEmpty(produit.Couleur))
+                                            {
+                                                <span class="attr-badge" style="font-size: 0.72rem; padding: 2px 7px; border-radius: 999px; background: #F1F5F9; color: #475569; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+                                                    <span style="width: 8px; height: 8px; border-radius: 50%; background-color: @(produit.CodeHexCouleur ?? WicStock.Web.Models.AttributsProduit.GetHex(produit.Couleur)); border: 1px solid rgba(0,0,0,0.15); display: inline-block;"></span>
+                                                    @produit.Couleur
+                                                </span>
+                                            }
+                                        </div>
                                     </div>
 
                                     <!-- Action Prix & Commander -->
@@ -2139,9 +2182,22 @@
     // Rôle de l'utilisateur courant (ex: CLIENT). Utilisé pour afficher badges et désactiver commandes.
     private string? userRole;
 
+    private string genreFilter = string.Empty;
+    private string tailleFilter = string.Empty;
+    private string couleurFilter = string.Empty;
+
     private bool FilterFunc(CatalogueProduitDto p)
     {
         if (!string.IsNullOrEmpty(categoryFilter) && !string.Equals(p.Categorie, categoryFilter, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (!string.IsNullOrEmpty(genreFilter) && !string.Equals(p.Genre, genreFilter, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (!string.IsNullOrEmpty(tailleFilter) && !string.Equals(p.Taille, tailleFilter, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (!string.IsNullOrEmpty(couleurFilter) && !string.Equals(p.Couleur, couleurFilter, StringComparison.OrdinalIgnoreCase))
             return false;
 
         if (string.IsNullOrWhiteSpace(searchString)) return true;
@@ -2150,6 +2206,9 @@
         if (p.Reference?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
         if (p.TypeTissu?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
         if (p.Categorie?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (p.Genre?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (p.Taille?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (p.Couleur?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
 
         return false;
     }

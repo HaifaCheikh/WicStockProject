@@ -21,6 +21,18 @@ namespace WicStock_.Models
         [MaxLength(100)]
         public string Categorie { get; set; } = string.Empty;
 
+        [MaxLength(50)]
+        public string? Genre { get; set; }
+
+        [MaxLength(50)]
+        public string? Taille { get; set; }
+
+        [MaxLength(50)]
+        public string? Couleur { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public string CodeHexCouleur => AttributsProduit.GetHex(Couleur);
+
         [MaxLength(100)]
         public string CycleDeVie { get; set; } = string.Empty;
 

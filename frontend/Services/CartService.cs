@@ -60,11 +60,16 @@ namespace WicStock.Web.Services
         /// Ajoute un produit au panier ou incrémente sa quantité s'il y est déjà.
         /// Respecte la quantité disponible (sauf pour les produits sur commande).
         /// </summary>
-        public async Task AddToCartAsync(CatalogueProduitDto produit, int quantite = 1)
+        public async Task AddToCartAsync(CatalogueProduitDto produit, int quantite = 1, string? genre = null, string? taille = null, string? couleur = null)
         {
             await EnsureLoadedAsync();
 
-            var existant = _items.FirstOrDefault(i => i.ProduitId == produit.Id);
+            var targetGenre = !string.IsNullOrWhiteSpace(genre) ? genre : produit.Genre;
+            var targetTaille = !string.IsNullOrWhiteSpace(taille) ? taille : produit.Taille;
+            var targetCouleur = !string.IsNullOrWhiteSpace(couleur) ? couleur : produit.Couleur;
+
+            var existant = _items.FirstOrDefault(i => i.ProduitId == produit.Id 
+                && i.Genre == targetGenre && i.Taille == targetTaille && i.Couleur == targetCouleur);
             if (existant != null)
             {
                 // Incrémente — respecte la limite de stock si non commandable
@@ -87,6 +92,9 @@ namespace WicStock.Web.Services
                     ImageUrl = produit.ImageUrl,
                     Categorie = produit.Categorie,
                     TypeTissu = produit.TypeTissu,
+                    Genre = targetGenre,
+                    Taille = targetTaille,
+                    Couleur = targetCouleur,
                     PrixUnitaire = produit.PrixUnitaire,
                     PrixEffectif = produit.PrixEffectif,
                     EstEnPromotion = produit.EstEnPromotion,

@@ -33,5 +33,10 @@ namespace WicStock_.Models
 
         /// <summary>Indique si ce produit était en rupture et commandé sur commande.</summary>
         public bool EstSurCommande { get; set; } = false;
+
+        /// <summary>Snapshot des attributs choisis par le client au moment de la commande.</summary>
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
     }
 }

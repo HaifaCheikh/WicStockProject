@@ -7,6 +7,10 @@ namespace WicStock.Web.Models.Dtos
         public string Nom { get; set; } = "";
         public string? TypeTissu { get; set; }
         public string? Categorie { get; set; }
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
+        public string? CodeHexCouleur { get; set; }
         public decimal PrixUnitaire { get; set; } = 0;
         public string? ImageUrl { get; set; }
         public int QuantiteStock { get; set; } = 0;
@@ -107,6 +111,9 @@ namespace WicStock.Web.Models.Dtos
         public string ProduitNom { get; set; } = string.Empty;
         public string ProduitReference { get; set; } = string.Empty;
         public string? ProduitImageUrl { get; set; }
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
         public int Quantite { get; set; }
         public decimal PrixUnitaire { get; set; }
         public decimal SousTotal { get; set; }

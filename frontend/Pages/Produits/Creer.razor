@@ -119,12 +119,75 @@
                                 </MudSelect>
                             </MudItem>
 
-                            <MudItem xs="12" sm="6">
+                            <MudItem xs="12">
                                 <MudTextField @bind-Value="produit.CycleDeVie"
                                               Label="Cycle de vie"
                                               Variant="Variant.Outlined"
                                               Class="styled-field"
                                               Placeholder="Ex: Actif, Obsolète" />
+                            </MudItem>
+                        </MudGrid>
+                    </section>
+
+                    <!-- Section : Attributs (Genre, Taille, Couleur) -->
+                    <section class="form-section">
+                        <div class="section-label">Attributs (Genre, Taille, Couleur)</div>
+
+                        <MudGrid Spacing="3">
+                            <MudItem xs="12" sm="4">
+                                <MudSelect @bind-Value="produit.Genre"
+                                           Label="Genre"
+                                           Variant="Variant.Outlined"
+                                           Class="styled-field"
+                                           Clearable="true">
+                                    @foreach (var g in WicStock.Web.Models.AttributsProduit.Genres)
+                                    {
+                                        <MudSelectItem Value="@g">@g</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+
+                            <MudItem xs="12" sm="4">
+                                <MudSelect @bind-Value="produit.Taille"
+                                           Label="Taille / Pointure"
+                                           Variant="Variant.Outlined"
+                                           Class="styled-field"
+                                           Clearable="true">
+                                    <MudSelectItem T="string" Disabled="true">--- Tailles vêtements ---</MudSelectItem>
+                                    @foreach (var t in WicStock.Web.Models.AttributsProduit.TaillesLettres)
+                                    {
+                                        <MudSelectItem Value="@t">@t</MudSelectItem>
+                                    }
+                                    <MudSelectItem T="string" Disabled="true">--- Pointures / Tailles numériques ---</MudSelectItem>
+                                    @foreach (var t in WicStock.Web.Models.AttributsProduit.TaillesNumeriques)
+                                    {
+                                        <MudSelectItem Value="@t">Taille @t</MudSelectItem>
+                                    }
+                                    <MudSelectItem T="string" Disabled="true">--- Autre ---</MudSelectItem>
+                                    @foreach (var t in WicStock.Web.Models.AttributsProduit.TaillesAutre)
+                                    {
+                                        <MudSelectItem Value="@t">@t</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+
+                            <MudItem xs="12" sm="4">
+                                <MudSelect @bind-Value="produit.Couleur"
+                                           Label="Couleur"
+                                           Variant="Variant.Outlined"
+                                           Class="styled-field"
+                                           Clearable="true">
+                                    @foreach (var c in WicStock.Web.Models.AttributsProduit.Couleurs)
+                                    {
+                                        var hex = WicStock.Web.Models.AttributsProduit.GetHex(c);
+                                        <MudSelectItem Value="@c">
+                                            <div style="display: flex; align-items: center; gap: 8px;">
+                                                <span style="width: 14px; height: 14px; border-radius: 50%; background-color: @hex; border: 1px solid rgba(0,0,0,0.2);"></span>
+                                                <span>@c</span>
+                                            </div>
+                                        </MudSelectItem>
+                                    }
+                                </MudSelect>
                             </MudItem>
                         </MudGrid>
                     </section>

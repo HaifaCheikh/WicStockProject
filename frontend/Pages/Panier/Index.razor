@@ -202,6 +202,13 @@
                                 <div class="panier-item-info">
                                     <p class="panier-item-ref">@item.Reference</p>
                                     <h3 class="panier-item-name">@item.Nom</h3>
+                                    @{
+                                        var descAttr = WicStock.Web.Models.AttributsProduit.FormatLigneDescription(item.Genre, item.Taille, item.Couleur);
+                                    }
+                                    @if (!string.IsNullOrEmpty(descAttr))
+                                    {
+                                        <p class="panier-item-attr" style="font-size: 0.8125rem; color: #64748b; margin-top: 2px;">@descAttr</p>
+                                    }
                                     @if (!string.IsNullOrEmpty(item.TypeTissu))
                                     {
                                         <p class="panier-item-tissu">@item.TypeTissu</p>

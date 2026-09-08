@@ -88,6 +88,30 @@
                 }
             </select>
 
+            <select class="b-filter-select" @bind="genreFilter">
+                <option value="">Tous les genres</option>
+                @foreach (var g in WicStock.Web.Models.AttributsProduit.Genres)
+                {
+                    <option value="@g">@g</option>
+                }
+            </select>
+
+            <select class="b-filter-select" @bind="tailleFilter">
+                <option value="">Toutes les tailles</option>
+                @foreach (var t in WicStock.Web.Models.AttributsProduit.ToutesLesTailles)
+                {
+                    <option value="@t">Taille @t</option>
+                }
+            </select>
+
+            <select class="b-filter-select" @bind="couleurFilter">
+                <option value="">Toutes les couleurs</option>
+                @foreach (var c in WicStock.Web.Models.AttributsProduit.Couleurs)
+                {
+                    <option value="@c">@c</option>
+                }
+            </select>
+
             <select class="b-filter-select" @bind="priceSortFilter">
                 <option value="">Trier par prix</option>
                 <option value="asc">Prix : croissant</option>
@@ -189,6 +213,25 @@
                             {
                                 <p class="b-card-tissu">@p.TypeTissu</p>
                             }
+
+                            <!-- Badges Genre / Taille / Couleur -->
+                            <div class="b-card-attrs" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; margin-bottom: 8px;">
+                                @if (!string.IsNullOrEmpty(p.Genre))
+                                {
+                                    <span style="font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; background: #F1F5F9; color: #475569; font-weight: 600;">@p.Genre</span>
+                                }
+                                @if (!string.IsNullOrEmpty(p.Taille))
+                                {
+                                    <span style="font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; background: #F1F5F9; color: #475569; font-weight: 600;">Taille @p.Taille</span>
+                                }
+                                @if (!string.IsNullOrEmpty(p.Couleur))
+                                {
+                                    <span style="font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; background: #F1F5F9; color: #475569; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+                                        <span style="width: 8px; height: 8px; border-radius: 50%; background-color: @(p.CodeHexCouleur ?? WicStock.Web.Models.AttributsProduit.GetHex(p.Couleur)); border: 1px solid rgba(0,0,0,0.15); display: inline-block;"></span>
+                                        @p.Couleur
+                                    </span>
+                                }
+                            </div>
 
                             <!-- Prix -->
                             <div class="b-card-prix">
@@ -399,6 +442,9 @@
     private List<CatalogueProduitDto>? produits;
     private string searchString = string.Empty;
     private string categoryFilter = string.Empty;
+    private string genreFilter = string.Empty;
+    private string tailleFilter = string.Empty;
+    private string couleurFilter = string.Empty;
     private string priceSortFilter = string.Empty;
     private int cartCount = 0;
     private HashSet<int> ajoutsEnCours = new();
@@ -413,7 +459,10 @@
                      p.Nom.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
                      p.Reference.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
                      (p.TypeTissu?.Contains(searchString, StringComparison.OrdinalIgnoreCase) ?? false))
-                    && (string.IsNullOrEmpty(categoryFilter) || p.Categorie == categoryFilter))
+                    && (string.IsNullOrEmpty(categoryFilter) || p.Categorie == categoryFilter)
+                    && (string.IsNullOrEmpty(genreFilter) || p.Genre == genreFilter)
+                    && (string.IsNullOrEmpty(tailleFilter) || p.Taille == tailleFilter)
+                    && (string.IsNullOrEmpty(couleurFilter) || p.Couleur == couleurFilter))
                 ?? Enumerable.Empty<CatalogueProduitDto>();
 
             if (priceSortFilter == "asc")
@@ -484,6 +533,9 @@
     {
         searchString = string.Empty;
         categoryFilter = string.Empty;
+        genreFilter = string.Empty;
+        tailleFilter = string.Empty;
+        couleurFilter = string.Empty;
         priceSortFilter = string.Empty;
     }
 

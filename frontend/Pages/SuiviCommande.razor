@@ -100,6 +100,13 @@
                                 <div class="order-line-info">
                                     <span class="ref-code">@ligne.ProduitReference</span>
                                     <span class="order-line-name">@ligne.ProduitNom</span>
+                                    @{
+                                        var lineAttr = WicStock.Web.Models.AttributsProduit.FormatLigneDescription(ligne.Genre, ligne.Taille, ligne.Couleur);
+                                    }
+                                    @if (!string.IsNullOrEmpty(lineAttr))
+                                    {
+                                        <span class="order-line-attr" style="font-size: 0.8125rem; color: #64748B; display: block; margin-top: 2px;">@lineAttr</span>
+                                    }
                                 </div>
                                 <div class="order-line-right">
                                     <span class="order-line-qty">× @ligne.Quantite</span>

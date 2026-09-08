@@ -19,6 +19,17 @@ public static class DatabaseSchemaBootstrap
                 ALTER TABLE "Produits" ADD COLUMN IF NOT EXISTS "DateFinPromotion" timestamp NULL;
                 ALTER TABLE "Produits" ADD COLUMN IF NOT EXISTS "DisponibleSurCommande" boolean NOT NULL DEFAULT false;
                 ALTER TABLE "Produits" ADD COLUMN IF NOT EXISTS "EstArchive" boolean NOT NULL DEFAULT false;
+                ALTER TABLE "Produits" ADD COLUMN IF NOT EXISTS "Genre" varchar(50) NULL;
+                ALTER TABLE "Produits" ADD COLUMN IF NOT EXISTS "Taille" varchar(50) NULL;
+                ALTER TABLE "Produits" ADD COLUMN IF NOT EXISTS "Couleur" varchar(50) NULL;
+
+                ALTER TABLE "LigneCommandes" ADD COLUMN IF NOT EXISTS "Genre" varchar(50) NULL;
+                ALTER TABLE "LigneCommandes" ADD COLUMN IF NOT EXISTS "Taille" varchar(50) NULL;
+                ALTER TABLE "LigneCommandes" ADD COLUMN IF NOT EXISTS "Couleur" varchar(50) NULL;
+
+                ALTER TABLE "HistoriqueVentes" ADD COLUMN IF NOT EXISTS "Genre" varchar(50) NULL;
+                ALTER TABLE "HistoriqueVentes" ADD COLUMN IF NOT EXISTS "Taille" varchar(50) NULL;
+                ALTER TABLE "HistoriqueVentes" ADD COLUMN IF NOT EXISTS "Couleur" varchar(50) NULL;
 
                 ALTER TABLE "HistoriqueVentes" ADD COLUMN IF NOT EXISTS "UtilisateurId" int NULL;
                 ALTER TABLE "HistoriqueVentes" ADD COLUMN IF NOT EXISTS "DateSouhaitee" timestamp NULL;

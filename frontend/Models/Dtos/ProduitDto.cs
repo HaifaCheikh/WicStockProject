@@ -31,6 +31,10 @@ namespace WicStock.Web.Models.Dtos
         public string Nom { get; set; } = string.Empty;
         public string TypeTissu { get; set; } = string.Empty;
         public string Categorie { get; set; } = string.Empty;
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
+        public string? CodeHexCouleur { get; set; }
         public string CycleDeVie { get; set; } = string.Empty;
         public decimal PrixUnitaire { get; set; } = 0;
         public DateTime DateCreation { get; set; }
