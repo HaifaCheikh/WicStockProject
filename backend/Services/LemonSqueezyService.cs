@@ -12,13 +12,8 @@ namespace WicStock_.Services
         {
             _httpClient = httpClient;
             _configuration = configuration;
-
-            var apiKey = _configuration["LemonSqueezy:ApiKey"];
-            if (!string.IsNullOrEmpty(apiKey))
-            {
-                _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
-                _httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.api+json");
-            }
+            // Les headers Authorization et Accept sont définis dans CreateCheckoutAsync
+            // pour pouvoir utiliser la clé la plus à jour (config ou env var)
         }
 
         public string? GetStoreId() => _configuration["LemonSqueezy:StoreId"] ?? Environment.GetEnvironmentVariable("LEMONSQUEEZY_STORE_ID");
@@ -49,9 +44,12 @@ namespace WicStock_.Services
                 return null;
             }
 
-            _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
-            _httpClient.DefaultRequestHeaders.Accept.Clear();
-            _httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/vnd.api+json"));
+            // Utiliser TryAddWithoutValidation pour les JWT LemonSqueezy
+            // (AuthenticationHeaderValue fait une validation stricte qui rejette certains tokens JWT)
+            _httpClient.DefaultRequestHeaders.Remove("Authorization");
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {apiKey}");
+            _httpClient.DefaultRequestHeaders.Remove("Accept");
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/vnd.api+json");
 
             // custom_price = prix unitaire en centimes (ex: 160 TND = 16000 centimes)
             var prixUnitaireCentimes = (long)Math.Round((amount / (quantite > 0 ? quantite : 1)) * 100);
