@@ -42,7 +42,9 @@ namespace WicStock_.Services
             var apiKey = GetApiKey();
 
             if (string.IsNullOrEmpty(storeId) || string.IsNullOrEmpty(variantId) || string.IsNullOrEmpty(apiKey)
-                || apiKey.Contains("VOTRE_CLE") || storeId.Contains("VOTRE_STORE") || variantId.Contains("VOTRE_VARIANT"))
+                || apiKey.Contains("VOTRE_CLE") || storeId.Contains("VOTRE_STORE") || variantId.Contains("VOTRE_VARIANT")
+                || apiKey == "12345" || storeId == "12345" || variantId == "67890"
+                || apiKey.Length < 20)
             {
                 return null;
             }

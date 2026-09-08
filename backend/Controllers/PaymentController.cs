@@ -224,12 +224,13 @@ namespace WicStock_.Controllers
                 await _context.SaveChangesAsync();
             }
 
-            // Déterminer la redirection de manière dynamique
+            // Rediriger vers la page de confirmation de paiement du frontend
+            // (qui fait ensuite une navigation interne Blazor vers suivi-commande)
             string targetFrontend = !string.IsNullOrWhiteSpace(origin)
                 ? origin.TrimEnd('/')
                 : (_configuration["AppSettings:FrontendUrl"]?.TrimEnd('/') ?? "https://localhost:7121");
 
-            return Redirect($"{targetFrontend}/mes-commandes/suivi/{commandeId}?payment=success");
+            return Redirect($"{targetFrontend}/payment/success/{commandeId}");
         }
 
         // POST: api/payment/simulate/{commandeId} (Paiement direct en 1 clic sans service tiers)
