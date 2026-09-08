@@ -230,7 +230,7 @@ namespace WicStock_.Controllers
                 ? origin.TrimEnd('/')
                 : (_configuration["AppSettings:FrontendUrl"]?.TrimEnd('/') ?? "https://localhost:7121");
 
-            return Redirect($"{targetFrontend}/payment/success/{commandeId}");
+            return Redirect($"{targetFrontend}/mes-commandes/suivi/{commandeId}?payment=success");
         }
 
         // POST: api/payment/simulate/{commandeId} (Paiement direct en 1 clic sans service tiers)
