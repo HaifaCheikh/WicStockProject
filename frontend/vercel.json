@@ -1,10 +1,13 @@
 {
   "buildCommand": "curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0 --install-dir $HOME/.dotnet && $HOME/.dotnet/dotnet publish WicStock.Web.csproj -c Release -o output_build",
   "outputDirectory": "output_build/wwwroot",
-  "rewrites": [
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "handle": "filesystem"
+    },
+    {
+      "src": "/.*",
+      "dest": "/index.html"
     }
   ]
 }

@@ -82,7 +82,7 @@ namespace WicStock_.Services
                         ProductOptions = new ProductOptions
                         {
                             Name = productName,
-                            Description = $"Commande #{commandeId} — WicStock",
+                            Description = $"{productName} — WicStock",
                             ReceiptButtonText = "Retour à WicStock",
                             RedirectUrl = successUrl
                         },

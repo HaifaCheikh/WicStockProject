@@ -1,15 +1,17 @@
 {
   "buildCommand": "curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0 --install-dir $HOME/.dotnet && $HOME/.dotnet/dotnet publish frontend/WicStock.Web.csproj -c Release -o output_vercel",
   "outputDirectory": "output_vercel/wwwroot",
-  "rewrites": [
+  "routes": [
     {
-      "source": "/uploads/(.*)",
-      "destination": "https://wicstock-api.onrender.com/uploads/$1"
+      "src": "/uploads/(.*)",
+      "dest": "https://wicstock-api.onrender.com/uploads/$1"
     },
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "handle": "filesystem"
+    },
+    {
+      "src": "/.*",
+      "dest": "/index.html"
     }
   ]
 }
-
