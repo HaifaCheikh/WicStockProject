@@ -12,6 +12,8 @@ namespace WicStock.Web.Models.Dtos
         public string? Couleur { get; set; }
         public string? CodeHexCouleur { get; set; }
         public decimal PrixUnitaire { get; set; } = 0;
+        public decimal PrixMinimum { get; set; } = 0;
+        public List<VarianteDto> Variantes { get; set; } = new();
         public string? ImageUrl { get; set; }
         public int QuantiteStock { get; set; } = 0;
         public int QuantiteActuelle { get; set; } = 0;
@@ -44,7 +46,7 @@ namespace WicStock.Web.Models.Dtos
         public bool EstEnPromotion { get; set; } = false;
         public decimal PrixPromo { get; set; } = 0;
 
-        public decimal PrixEffectif => EstEnPromotion && PrixPromo > 0 ? PrixPromo : PrixUnitaire;
+        public decimal PrixEffectif => EstEnPromotion && PrixPromo > 0 ? PrixPromo : (PrixMinimum > 0 ? PrixMinimum : PrixUnitaire);
     }
 
     public class CommandeCreateDto

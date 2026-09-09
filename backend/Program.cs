@@ -59,6 +59,7 @@ builder.Services.AddScoped<IAExplicationService>();
 builder.Services.AddScoped<IMetriquesStockService, MetriquesStockService>();
 builder.Services.AddScoped<IAnalyseSurstockService, AnalyseSurstockService>();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<WicStock_.Services.IAttributService, WicStock_.Services.AttributService>();
 builder.Services.AddHttpClient<LemonSqueezyService>();
 
 // SignalR

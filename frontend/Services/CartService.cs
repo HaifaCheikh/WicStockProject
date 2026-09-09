@@ -60,47 +60,62 @@ namespace WicStock.Web.Services
         /// Ajoute un produit au panier ou incrémente sa quantité s'il y est déjà.
         /// Respecte la quantité disponible (sauf pour les produits sur commande).
         /// </summary>
-        public async Task AddToCartAsync(CatalogueProduitDto produit, int quantite = 1, string? genre = null, string? taille = null, string? couleur = null)
+        /// <summary>
+        /// Ajoute un produit au panier ou incrémente sa quantité s'il y est déjà.
+        /// Respecte la quantité disponible (sauf pour les produits sur commande).
+        /// </summary>
+        public async Task AddToCartAsync(CatalogueProduitDto produit, int quantite = 1, string? genre = null, string? taille = null, string? couleur = null, VarianteDto? variante = null)
         {
             await EnsureLoadedAsync();
 
-            var targetGenre = !string.IsNullOrWhiteSpace(genre) ? genre : produit.Genre;
-            var targetTaille = !string.IsNullOrWhiteSpace(taille) ? taille : produit.Taille;
-            var targetCouleur = !string.IsNullOrWhiteSpace(couleur) ? couleur : produit.Couleur;
+            var targetGenre = variante?.Genre ?? (!string.IsNullOrWhiteSpace(genre) ? genre : produit.Genre);
+            var targetTaille = variante?.Taille ?? (!string.IsNullOrWhiteSpace(taille) ? taille : produit.Taille);
+            var targetCouleur = variante?.Couleur ?? (!string.IsNullOrWhiteSpace(couleur) ? couleur : produit.Couleur);
+            int? targetVarianteId = variante?.Id;
 
-            var existant = _items.FirstOrDefault(i => i.ProduitId == produit.Id 
-                && i.Genre == targetGenre && i.Taille == targetTaille && i.Couleur == targetCouleur);
+            decimal basePrice = (variante != null && variante.PrixOverride.HasValue) ? variante.PrixOverride.Value : produit.PrixUnitaire;
+            decimal prixEff = produit.EstEnPromotion && produit.RemisePourcentage > 0
+                ? Math.Round(basePrice * (1 - (decimal)produit.RemisePourcentage / 100m), 2)
+                : (variante != null && variante.PrixOverride.HasValue ? variante.PrixOverride.Value : produit.PrixEffectif);
+
+            int qteDispo = variante != null ? variante.QuantiteActuelle : produit.QuantiteDisponible;
+
+            var existant = _items.FirstOrDefault(i => 
+                (targetVarianteId.HasValue && targetVarianteId.Value > 0 && i.VarianteProduitId == targetVarianteId)
+                || (i.ProduitId == produit.Id && i.Genre == targetGenre && i.Taille == targetTaille && i.Couleur == targetCouleur));
+
             if (existant != null)
             {
                 // Incrémente — respecte la limite de stock si non commandable
                 int maxQty = produit.DisponibleSurCommande
-                    ? existant.Quantite + quantite  // pas de limite pour les commandes sur commande
-                    : Math.Min(existant.Quantite + quantite, produit.QuantiteDisponible);
+                    ? existant.Quantite + quantite
+                    : Math.Min(existant.Quantite + quantite, qteDispo);
                 existant.Quantite = maxQty;
             }
             else
             {
                 int qty = produit.DisponibleSurCommande
                     ? quantite
-                    : Math.Min(quantite, produit.QuantiteDisponible);
+                    : Math.Min(quantite, qteDispo);
 
                 _items.Add(new CartItemDto
                 {
                     ProduitId = produit.Id,
+                    VarianteProduitId = targetVarianteId,
                     Nom = produit.Nom,
-                    Reference = produit.Reference,
+                    Reference = variante?.Reference ?? produit.Reference,
                     ImageUrl = produit.ImageUrl,
                     Categorie = produit.Categorie,
                     TypeTissu = produit.TypeTissu,
                     Genre = targetGenre,
                     Taille = targetTaille,
                     Couleur = targetCouleur,
-                    PrixUnitaire = produit.PrixUnitaire,
-                    PrixEffectif = produit.PrixEffectif,
+                    PrixUnitaire = basePrice,
+                    PrixEffectif = prixEff,
                     EstEnPromotion = produit.EstEnPromotion,
                     RemisePourcentage = produit.RemisePourcentage,
                     Quantite = Math.Max(1, qty),
-                    QuantiteDisponible = produit.QuantiteDisponible,
+                    QuantiteDisponible = qteDispo,
                     DisponibleSurCommande = produit.DisponibleSurCommande
                 });
             }
@@ -109,26 +124,41 @@ namespace WicStock.Web.Services
             OnCartChanged?.Invoke();
         }
 
-        /// <summary>Supprime un article du panier.</summary>
-        public async Task RemoveFromCartAsync(int produitId)
+        /// <summary>Supprime un article du panier par ProduitId et facultativement VarianteId ou attributs.</summary>
+        public async Task RemoveFromCartAsync(int produitId, int? varianteId = null, string? genre = null, string? taille = null, string? couleur = null)
         {
             await EnsureLoadedAsync();
-            _items.RemoveAll(i => i.ProduitId == produitId);
+            if (varianteId.HasValue && varianteId.Value > 0)
+            {
+                _items.RemoveAll(i => i.VarianteProduitId == varianteId.Value);
+            }
+            else if (!string.IsNullOrWhiteSpace(genre) || !string.IsNullOrWhiteSpace(taille) || !string.IsNullOrWhiteSpace(couleur))
+            {
+                _items.RemoveAll(i => i.ProduitId == produitId && i.Genre == genre && i.Taille == taille && i.Couleur == couleur);
+            }
+            else
+            {
+                _items.RemoveAll(i => i.ProduitId == produitId);
+            }
             await PersisterAsync();
             OnCartChanged?.Invoke();
         }
 
         /// <summary>Met à jour la quantité d'un article. Si quantite <= 0, supprime l'article.</summary>
-        public async Task UpdateQuantityAsync(int produitId, int nouvelleQuantite)
+        public async Task UpdateQuantityAsync(int produitId, int nouvelleQuantite, int? varianteId = null, string? genre = null, string? taille = null, string? couleur = null)
         {
             await EnsureLoadedAsync();
             if (nouvelleQuantite <= 0)
             {
-                await RemoveFromCartAsync(produitId);
+                await RemoveFromCartAsync(produitId, varianteId, genre, taille, couleur);
                 return;
             }
 
-            var item = _items.FirstOrDefault(i => i.ProduitId == produitId);
+            var item = _items.FirstOrDefault(i =>
+                (varianteId.HasValue && varianteId.Value > 0 && i.VarianteProduitId == varianteId) ||
+                (i.ProduitId == produitId && i.Genre == genre && i.Taille == taille && i.Couleur == couleur) ||
+                (varianteId == null && string.IsNullOrWhiteSpace(genre) && i.ProduitId == produitId));
+
             if (item != null)
             {
                 // Respecte la limite de stock sauf si commandable

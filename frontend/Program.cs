@@ -65,6 +65,7 @@ builder.Services.AddScoped<PaymentService>();
 builder.Services.AddScoped<LivraisonService>();
 builder.Services.AddScoped<FeedbackService>();
 builder.Services.AddScoped<CartService>();
+builder.Services.AddScoped<AttributService>();
 builder.Services.AddScoped<BoutiqueService>(sp =>
 {
     var factory = sp.GetRequiredService<IHttpClientFactory>();

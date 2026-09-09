@@ -74,10 +74,21 @@ namespace WicStock_.Models
 
         // Navigation
         public Stock? Stock { get; set; }
+        public List<VarianteProduit> Variantes { get; set; } = new();
         public List<HistoriqueVente> HistoriqueVentes { get; set; } = new();
         public List<HistoriqueProduction> HistoriqueProductions { get; set; } = new();
         public List<Alerte> Alertes { get; set; } = new();
         public List<PrevisionEtatProduit> Previsions { get; set; } = new();
+
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public int QuantiteTotalStock => Variantes.Any()
+            ? Variantes.Sum(v => v.QuantiteActuelle)
+            : (Stock?.QuantiteActuelle ?? 0);
+
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public decimal PrixMinimum => Variantes.Any(v => v.PrixEffectif > 0)
+            ? Variantes.Min(v => v.PrixEffectif)
+            : PrixUnitaire;
 
         public int CalculerAncienneteJours()
         {

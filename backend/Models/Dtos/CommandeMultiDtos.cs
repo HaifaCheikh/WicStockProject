@@ -23,6 +23,9 @@ namespace WicStock_.Models.Dtos
         /// <summary>ID du produit à commander.</summary>
         public int ProduitId { get; set; }
 
+        /// <summary>ID de la variante spécifique commandée (optionnel).</summary>
+        public int? VarianteProduitId { get; set; }
+
         /// <summary>Quantité demandée (>= 1).</summary>
         public int Quantite { get; set; }
 
@@ -48,6 +51,7 @@ namespace WicStock_.Models.Dtos
     public class LigneCommandeResultDto
     {
         public int ProduitId { get; set; }
+        public int? VarianteProduitId { get; set; }
         public string ProduitNom { get; set; } = string.Empty;
         public string ProduitReference { get; set; } = string.Empty;
         public string? ProduitImageUrl { get; set; }

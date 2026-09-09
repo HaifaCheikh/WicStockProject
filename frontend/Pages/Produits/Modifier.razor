@@ -3,6 +3,7 @@
 @using WicStock.Web.Services
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
 @inject ProduitService ProduitService
+@inject AttributService AttributService
 @inject NavigationManager Navigation
 @inject HttpClient Http
 @inject ISnackbar Snackbar
@@ -164,79 +165,104 @@
                             </MudGrid>
                         </section>
 
-                        <!-- Section : Attributs (Genre, Taille, Couleur) -->
+                        <!-- Section : Attributs & Variantes -->
                         <section class="form-section">
-                            <div class="section-label">Attributs (Genre, Taille, Couleur)</div>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <div class="section-label mb-0">Variantes du Produit (Taille, Couleur, Stock)</div>
+                                    <span class="hint-text">Définissez chaque variante disponible avec son propre niveau de stock.</span>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" @onclick="AjouterVariante">
+                                    <i class="bi bi-plus-lg me-1"></i>Ajouter une variante
+                                </button>
+                            </div>
 
-                            <MudGrid Spacing="3">
-                                <MudItem xs="12" sm="4">
-                                    <MudSelect @bind-Value="produit.Genre"
-                                               Label="Genre"
-                                               Variant="Variant.Outlined"
-                                               Class="styled-field"
-                                               Clearable="true">
-                                        @foreach (var g in WicStock.Web.Models.AttributsProduit.Genres)
-                                        {
-                                            <MudSelectItem Value="@g">@g</MudSelectItem>
-                                        }
-                                    </MudSelect>
-                                </MudItem>
-
-                                <MudItem xs="12" sm="4">
-                                    <MudSelect @bind-Value="produit.Taille"
-                                               Label="Taille / Pointure"
-                                               Variant="Variant.Outlined"
-                                               Class="styled-field"
-                                               Clearable="true">
-                                        <MudSelectItem T="string" Disabled="true">--- Tailles vêtements ---</MudSelectItem>
-                                        @foreach (var t in WicStock.Web.Models.AttributsProduit.TaillesLettres)
-                                        {
-                                            <MudSelectItem Value="@t">@t</MudSelectItem>
-                                        }
-                                        <MudSelectItem T="string" Disabled="true">--- Pointures / Tailles numériques ---</MudSelectItem>
-                                        @foreach (var t in WicStock.Web.Models.AttributsProduit.TaillesNumeriques)
-                                        {
-                                            <MudSelectItem Value="@t">Taille @t</MudSelectItem>
-                                        }
-                                        <MudSelectItem T="string" Disabled="true">--- Autre ---</MudSelectItem>
-                                        @foreach (var t in WicStock.Web.Models.AttributsProduit.TaillesAutre)
-                                        {
-                                            <MudSelectItem Value="@t">@t</MudSelectItem>
-                                        }
-                                    </MudSelect>
-                                </MudItem>
-
-                                <MudItem xs="12" sm="4">
-                                    <MudSelect @bind-Value="produit.Couleur"
-                                               Label="Couleur"
-                                               Variant="Variant.Outlined"
-                                               Class="styled-field"
-                                               Clearable="true">
-                                        @foreach (var c in WicStock.Web.Models.AttributsProduit.Couleurs)
-                                        {
-                                            var hex = WicStock.Web.Models.AttributsProduit.GetHex(c);
-                                            <MudSelectItem Value="@c">
-                                                <div style="display: flex; align-items: center; gap: 8px;">
-                                                    <span style="width: 14px; height: 14px; border-radius: 50%; background-color: @hex; border: 1px solid rgba(0,0,0,0.2);"></span>
-                                                    <span>@c</span>
-                                                </div>
-                                            </MudSelectItem>
-                                        }
-                                    </MudSelect>
-                                </MudItem>
-                            </MudGrid>
+                            @if (produit.Variantes == null || !produit.Variantes.Any())
+                            {
+                                <div class="alert alert-light border rounded-3 text-center py-3 mb-3">
+                                    <span class="text-muted">Aucune variante spécifique. Cliquez sur "+ Ajouter une variante" pour configurer les déclinaisons Taille/Couleur/Stock.</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="table-responsive mb-3">
+                                    <table class="table table-sm table-bordered align-middle text-nowrap fs-7">
+                                        <thead class="bg-light">
+                                            <tr>
+                                                <th>Genre</th>
+                                                <th>Taille</th>
+                                                <th>Couleur</th>
+                                                <th>SKU / Réf.</th>
+                                                <th style="width: 100px;">Stock</th>
+                                                <th style="width: 110px;">Prix (DT)</th>
+                                                <th style="width: 40px;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var v in produit.Variantes)
+                                            {
+                                                <tr>
+                                                    <td>
+                                                        <select class="form-select form-select-sm" @bind="v.Genre" @bind:after="() => AutoGenSKU(v)">
+                                                            <option value="">-- Genre --</option>
+                                                            @foreach (var g in listGenres)
+                                                            {
+                                                                <option value="@g.Valeur">@g.Valeur</option>
+                                                            }
+                                                        </select>
+                                                    </td>
+                                                    <td>
+                                                        <select class="form-select form-select-sm" @bind="v.Taille" @bind:after="() => AutoGenSKU(v)">
+                                                            <option value="">-- Taille --</option>
+                                                            @foreach (var t in listTailles)
+                                                            {
+                                                                <option value="@t.Valeur">@t.Valeur</option>
+                                                            }
+                                                        </select>
+                                                    </td>
+                                                    <td>
+                                                        <select class="form-select form-select-sm" @bind="v.Couleur" @bind:after="() => AutoGenSKU(v)">
+                                                            <option value="">-- Couleur --</option>
+                                                            @foreach (var c in listCouleurs)
+                                                            {
+                                                                <option value="@c.Valeur">@c.Valeur</option>
+                                                            }
+                                                        </select>
+                                                    </td>
+                                                    <td>
+                                                        <input type="text" class="form-control form-control-sm font-monospace" @bind="v.Reference" placeholder="Automatique" />
+                                                    </td>
+                                                    <td>
+                                                        <input type="number" class="form-control form-control-sm" @bind="v.QuantiteActuelle" min="0" />
+                                                    </td>
+                                                    <td>
+                                                        <input type="number" class="form-control form-control-sm" @bind="v.PrixOverride" step="0.5" placeholder="Par défaut" />
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <button type="button" class="btn btn-sm btn-link text-danger p-0" @onclick="() => SupprimerVariante(v)">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
                         </section>
 
                         <!-- Section : Stock & tarification -->
                         <section class="form-section">
-                            <div class="section-label">Stock &amp; tarification</div>
+                            <div class="section-label">Stock &amp; tarification globale</div>
 
                             <MudGrid Spacing="3">
                                 <MudItem xs="12" sm="6">
-                                    <MudNumericField @bind-Value="produit.Stock!.QuantiteActuelle"
-                                                     Label="Quantité en stock (articles)"
+                                    <MudNumericField Value="@CalculerStockTotal()"
+                                                     ValueChanged="@((int val) => ForceStock(val))"
+                                                     Label="Quantité totale en stock (calculée)"
                                                      Variant="Variant.Outlined"
                                                      Min="0"
+                                                     ReadOnly="@(produit.Variantes != null && produit.Variantes.Any())"
                                                      Class="styled-field field-mono"
                                                      Placeholder="Ex: 250" />
                                 </MudItem>
@@ -882,31 +908,16 @@
     private string? imagePreviewUrl;
     private bool isSaving = false;
 
-    private (string Label, string CssClass) StockStatus
-    {
-        get
-        {
-            var quantite = produit?.Stock?.QuantiteActuelle ?? 0;
-            var surCommande = produit?.DisponibleSurCommande ?? false;
-
-            if (quantite <= 0)
-            {
-                return surCommande
-                    ? ("Sur commande", "stock-pill--amber")
-                    : ("Rupture", "stock-pill--rust");
-            }
-
-            if (quantite < 10)
-            {
-                return ("Stock faible", "stock-pill--amber");
-            }
-
-            return ("Disponible", "stock-pill--pine");
-        }
-    }
+    private List<AttributValeurDto> listGenres = new();
+    private List<AttributValeurDto> listTailles = new();
+    private List<AttributValeurDto> listCouleurs = new();
 
     protected override async Task OnInitializedAsync()
     {
+        listGenres = await AttributService.ObtenirAttributsAsync("Genre");
+        listTailles = await AttributService.ObtenirAttributsAsync("Taille");
+        listCouleurs = await AttributService.ObtenirAttributsAsync("Couleur");
+
         produit = await ProduitService.ObtenirParId(Id);
         if (produit == null)
         {
@@ -923,6 +934,76 @@
         if (produit.Stock == null)
         {
             produit.Stock = new StockDto();
+        }
+    }
+
+    private void AjouterVariante()
+    {
+        if (produit == null) return;
+        produit.Variantes ??= new();
+        var v = new VarianteDto
+        {
+            ProduitId = produit.Id,
+            QuantiteActuelle = 10,
+            Genre = listGenres.FirstOrDefault()?.Valeur,
+            Taille = listTailles.FirstOrDefault()?.Valeur,
+            Couleur = listCouleurs.FirstOrDefault()?.Valeur
+        };
+        AutoGenSKU(v);
+        produit.Variantes.Add(v);
+    }
+
+    private void SupprimerVariante(VarianteDto v)
+    {
+        produit?.Variantes?.Remove(v);
+    }
+
+    private void AutoGenSKU(VarianteDto v)
+    {
+        if (produit == null) return;
+        var baseRef = string.IsNullOrWhiteSpace(produit.Reference) ? "PROD" : produit.Reference;
+        var genreCode = string.IsNullOrWhiteSpace(v.Genre) ? "U" : v.Genre.Substring(0, 1).ToUpperInvariant();
+        var tailleCode = string.IsNullOrWhiteSpace(v.Taille) ? "STD" : v.Taille.Replace(" ", "").ToUpperInvariant();
+        var couleurCode = string.IsNullOrWhiteSpace(v.Couleur) ? "DEF" : System.Text.RegularExpressions.Regex.Replace(v.Couleur, @"[^a-zA-Z0-9]", "").ToUpperInvariant();
+        v.Reference = $"{baseRef}-{genreCode}-{tailleCode}-{couleurCode}";
+    }
+
+    private int CalculerStockTotal()
+    {
+        if (produit?.Variantes != null && produit.Variantes.Any())
+        {
+            var sum = produit.Variantes.Sum(v => v.QuantiteActuelle);
+            if (produit.Stock != null) produit.Stock.QuantiteActuelle = sum;
+            return sum;
+        }
+        return produit?.Stock?.QuantiteActuelle ?? 0;
+    }
+
+    private void ForceStock(int val)
+    {
+        if (produit?.Stock != null) produit.Stock.QuantiteActuelle = val;
+    }
+
+    private (string Label, string CssClass) StockStatus
+    {
+        get
+        {
+            var quantite = CalculerStockTotal();
+            var surCommande = produit?.DisponibleSurCommande ?? false;
+
+            if (quantite <= 0)
+            {
+                return surCommande
+                    ? ("Sur commande", "stock-pill--amber")
+                    : ("Rupture", "stock-pill--rust");
+            }
+
+            if (quantite < 10)
+            {
+                return ("Stock faible", "stock-pill--amber");
+            }
+
+            return ("Disponible", "stock-pill--pine");
         }
     }
 

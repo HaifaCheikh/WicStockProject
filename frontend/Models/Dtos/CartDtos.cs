@@ -7,6 +7,7 @@ namespace WicStock.Web.Models.Dtos
     public class CartItemDto
     {
         public int ProduitId { get; set; }
+        public int? VarianteProduitId { get; set; }
         public string Nom { get; set; } = string.Empty;
         public string Reference { get; set; } = string.Empty;
         public string? ImageUrl { get; set; }
@@ -46,6 +47,7 @@ namespace WicStock.Web.Models.Dtos
     public class LigneCommandeClientDto
     {
         public int ProduitId { get; set; }
+        public int? VarianteProduitId { get; set; }
         public int Quantite { get; set; }
         public string? Genre { get; set; }
         public string? Taille { get; set; }
@@ -66,6 +68,7 @@ namespace WicStock.Web.Models.Dtos
     public class LigneResultClientDto
     {
         public int ProduitId { get; set; }
+        public int? VarianteProduitId { get; set; }
         public string ProduitNom { get; set; } = string.Empty;
         public string ProduitReference { get; set; } = string.Empty;
         public string? Genre { get; set; }

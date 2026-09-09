@@ -235,7 +235,12 @@
 
                             <!-- Prix -->
                             <div class="b-card-prix">
-                                @if (p.EstEnPromotion && p.PrixPromo > 0)
+                                @if (p.PrixMinimum > 0 && p.PrixMinimum < p.PrixUnitaire)
+                                {
+                                    <span class="b-prix-from" style="font-size: 0.78rem; color: #64748B; font-weight: 500; display: block;">À partir de</span>
+                                    <span class="b-prix">@p.PrixMinimum.ToString("0.00") DT</span>
+                                }
+                                else if (p.EstEnPromotion && p.PrixPromo > 0)
                                 {
                                     <span class="b-prix-promo">@p.PrixPromo.ToString("0.00") DT</span>
                                     <span class="b-prix-barre">@p.PrixUnitaire.ToString("0.00") DT</span>

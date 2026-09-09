@@ -76,6 +76,8 @@ namespace WicStock_.Controllers
                 .Include(h => h.Produit)
                 .Include(h => h.LigneCommandes)
                     .ThenInclude(l => l.Produit)
+                .Include(h => h.LigneCommandes)
+                    .ThenInclude(l => l.VarianteProduit)
                 .Where(h => h.UtilisateurId == userId)
                 .OrderByDescending(h => h.DateVente)
                 .ToListAsync();
@@ -107,9 +109,13 @@ namespace WicStock_.Controllers
                     ? h.LigneCommandes.Select(l => (object)new
                     {
                         l.ProduitId,
+                        l.VarianteProduitId,
                         ProduitNom = l.Produit?.Nom ?? string.Empty,
-                        ProduitReference = l.Produit?.Reference ?? string.Empty,
+                        ProduitReference = l.VarianteProduit?.Reference ?? l.Produit?.Reference ?? string.Empty,
                         ProduitImageUrl = l.Produit?.ImageUrl,
+                        l.Genre,
+                        l.Taille,
+                        l.Couleur,
                         l.Quantite,
                         l.PrixUnitaire,
                         SousTotal = l.Quantite * l.PrixUnitaire,
@@ -240,6 +246,7 @@ namespace WicStock_.Controllers
             var produitIds = dto.Lignes.Select(l => l.ProduitId).Distinct().ToList();
             var produits = await _context.Produits
                 .Include(p => p.Stock)
+                .Include(p => p.Variantes)
                 .Where(p => produitIds.Contains(p.Id) && !p.EstArchive)
                 .ToDictionaryAsync(p => p.Id);
 
@@ -258,7 +265,27 @@ namespace WicStock_.Controllers
                 }
 
                 var produit = produits[ligne.ProduitId];
-                var stockQty = produit.Stock?.QuantiteActuelle ?? 0;
+
+                // Chercher la variante si spécifiée ou assortie aux attributs
+                VarianteProduit? variante = null;
+                if (ligne.VarianteProduitId.HasValue && ligne.VarianteProduitId.Value > 0)
+                {
+                    variante = produit.Variantes?.FirstOrDefault(v => v.Id == ligne.VarianteProduitId.Value);
+                }
+                else if (!string.IsNullOrWhiteSpace(ligne.Genre) || !string.IsNullOrWhiteSpace(ligne.Taille) || !string.IsNullOrWhiteSpace(ligne.Couleur))
+                {
+                    variante = produit.Variantes?.FirstOrDefault(v =>
+                        (string.IsNullOrWhiteSpace(ligne.Genre) || v.Genre == ligne.Genre) &&
+                        (string.IsNullOrWhiteSpace(ligne.Taille) || v.Taille == ligne.Taille) &&
+                        (string.IsNullOrWhiteSpace(ligne.Couleur) || v.Couleur == ligne.Couleur));
+                }
+
+                if (variante == null && produit.Variantes != null && produit.Variantes.Any())
+                {
+                    variante = produit.Variantes.First();
+                }
+
+                var stockQty = variante != null ? variante.QuantiteActuelle : (produit.Stock?.QuantiteActuelle ?? 0);
 
                 // Stock insuffisant ET non commandable sur commande → erreur
                 if (!produit.DisponibleSurCommande && stockQty < ligne.Quantite)
@@ -267,7 +294,7 @@ namespace WicStock_.Controllers
                     {
                         ProduitId = produit.Id,
                         ProduitNom = produit.Nom,
-                        ProduitReference = produit.Reference,
+                        ProduitReference = variante?.Reference ?? produit.Reference,
                         QuantiteDemandee = ligne.Quantite,
                         QuantiteDisponible = stockQty,
                         EstSurCommande = false
@@ -299,7 +326,18 @@ namespace WicStock_.Controllers
                 bool tousEnStock = dto.Lignes.All(l =>
                 {
                     var p = produits[l.ProduitId];
-                    var qte = p.Stock?.QuantiteActuelle ?? 0;
+                    VarianteProduit? varMatch = null;
+                    if (l.VarianteProduitId.HasValue && l.VarianteProduitId.Value > 0)
+                        varMatch = p.Variantes?.FirstOrDefault(v => v.Id == l.VarianteProduitId.Value);
+                    else if (!string.IsNullOrWhiteSpace(l.Genre) || !string.IsNullOrWhiteSpace(l.Taille) || !string.IsNullOrWhiteSpace(l.Couleur))
+                        varMatch = p.Variantes?.FirstOrDefault(v =>
+                            (string.IsNullOrWhiteSpace(l.Genre) || v.Genre == l.Genre) &&
+                            (string.IsNullOrWhiteSpace(l.Taille) || v.Taille == l.Taille) &&
+                            (string.IsNullOrWhiteSpace(l.Couleur) || v.Couleur == l.Couleur));
+
+                    if (varMatch == null && p.Variantes != null && p.Variantes.Any()) varMatch = p.Variantes.First();
+
+                    var qte = varMatch != null ? varMatch.QuantiteActuelle : (p.Stock?.QuantiteActuelle ?? 0);
                     return !p.DisponibleSurCommande && qte >= l.Quantite;
                 });
 
@@ -334,34 +372,68 @@ namespace WicStock_.Controllers
                 foreach (var ligneDto in dto.Lignes)
                 {
                     var produit = produits[ligneDto.ProduitId];
-                    var stockQty = produit.Stock?.QuantiteActuelle ?? 0;
+                    VarianteProduit? variante = null;
+                    if (ligneDto.VarianteProduitId.HasValue && ligneDto.VarianteProduitId.Value > 0)
+                    {
+                        variante = produit.Variantes?.FirstOrDefault(v => v.Id == ligneDto.VarianteProduitId.Value);
+                    }
+                    else if (!string.IsNullOrWhiteSpace(ligneDto.Genre) || !string.IsNullOrWhiteSpace(ligneDto.Taille) || !string.IsNullOrWhiteSpace(ligneDto.Couleur))
+                    {
+                        variante = produit.Variantes?.FirstOrDefault(v =>
+                            (string.IsNullOrWhiteSpace(ligneDto.Genre) || v.Genre == ligneDto.Genre) &&
+                            (string.IsNullOrWhiteSpace(ligneDto.Taille) || v.Taille == ligneDto.Taille) &&
+                            (string.IsNullOrWhiteSpace(ligneDto.Couleur) || v.Couleur == ligneDto.Couleur));
+                    }
+                    if (variante == null && produit.Variantes != null && produit.Variantes.Any())
+                    {
+                        variante = produit.Variantes.First();
+                    }
+
+                    var stockQty = variante != null ? variante.QuantiteActuelle : (produit.Stock?.QuantiteActuelle ?? 0);
 
                     // Prix recalculé serveur — utiliser le prix promo si applicable
+                    decimal prixBase = (variante != null && variante.PrixOverride.HasValue) ? variante.PrixOverride.Value : produit.PrixUnitaire;
                     var today = DateTime.Today;
                     int remise = produit.RemisePourcentage ?? 0;
                     DateTime? dateFin = produit.DateFinPromotion;
                     bool estEnPromo = remise > 0 && dateFin.HasValue && dateFin.Value.Date >= today;
                     decimal prixEffectif = estEnPromo
-                        ? Math.Round(produit.PrixUnitaire * (1 - (decimal)remise / 100m), 2)
-                        : produit.PrixUnitaire;
+                        ? Math.Round(prixBase * (1 - (decimal)remise / 100m), 2)
+                        : prixBase;
 
                     bool estSurCommande = produit.DisponibleSurCommande && stockQty < ligneDto.Quantite;
                     if (estSurCommande) auMoinsUneSurCommande = true;
 
                     // Décrémenter le stock : seulement si la commande est acceptée automatiquement
-                    if (tousEnStock && produit.Stock != null)
+                    if (tousEnStock)
                     {
-                        produit.Stock.QuantiteActuelle -= ligneDto.Quantite;
-                        produit.Stock.DateMiseAJour = DateTime.Now;
+                        if (variante != null)
+                        {
+                            variante.QuantiteActuelle -= ligneDto.Quantite;
+                            if (produit.Stock != null && produit.Variantes != null)
+                            {
+                                produit.Stock.QuantiteActuelle = produit.Variantes.Sum(v => v.QuantiteActuelle);
+                                produit.Stock.DateMiseAJour = DateTime.Now;
+                            }
+                        }
+                        else if (produit.Stock != null)
+                        {
+                            produit.Stock.QuantiteActuelle -= ligneDto.Quantite;
+                            produit.Stock.DateMiseAJour = DateTime.Now;
+                        }
                     }
 
                     var ligne = new LigneCommande
                     {
                         HistoriqueVenteId = commande.Id,
                         ProduitId = produit.Id,
+                        VarianteProduitId = variante?.Id,
                         Quantite = ligneDto.Quantite,
                         PrixUnitaire = prixEffectif,
-                        EstSurCommande = estSurCommande
+                        EstSurCommande = estSurCommande,
+                        Genre = variante?.Genre ?? ligneDto.Genre,
+                        Taille = variante?.Taille ?? ligneDto.Taille,
+                        Couleur = variante?.Couleur ?? ligneDto.Couleur
                     };
                     _context.LigneCommandes.Add(ligne);
 
@@ -369,8 +441,13 @@ namespace WicStock_.Controllers
                     lignesResult.Add(new LigneCommandeResultDto
                     {
                         ProduitId = produit.Id,
+                        VarianteProduitId = variante?.Id,
                         ProduitNom = produit.Nom,
-                        ProduitReference = produit.Reference,
+                        ProduitReference = variante?.Reference ?? produit.Reference,
+                        ProduitImageUrl = produit.ImageUrl,
+                        Genre = variante?.Genre ?? ligneDto.Genre,
+                        Taille = variante?.Taille ?? ligneDto.Taille,
+                        Couleur = variante?.Couleur ?? ligneDto.Couleur,
                         Quantite = ligneDto.Quantite,
                         PrixUnitaire = prixEffectif,
                         EstSurCommande = estSurCommande

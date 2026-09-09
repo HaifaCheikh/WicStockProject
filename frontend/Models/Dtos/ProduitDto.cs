@@ -70,6 +70,9 @@ namespace WicStock.Web.Models.Dtos
         }
 
         public StockDto? Stock { get; set; } = new StockDto();
+        public List<VarianteDto> Variantes { get; set; } = new();
+        public decimal PrixMinimum { get; set; }
+        public int QuantiteTotalStock => Variantes != null && Variantes.Any() ? Variantes.Sum(v => v.QuantiteActuelle) : (Stock?.QuantiteActuelle ?? 0);
         public List<PrevisionEtatProduitDto> Previsions { get; set; } = new();
 
         public PrevisionEtatProduitDto? DernierePrevision => Previsions?.OrderByDescending(p => p.DateCalcul).FirstOrDefault();

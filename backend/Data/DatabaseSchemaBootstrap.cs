@@ -100,7 +100,126 @@ public static class DatabaseSchemaBootstrap
                         CREATE INDEX "IX_LigneCommandes_ProduitId" ON "LigneCommandes"("ProduitId");
                     END IF;
                 END $$;
+                -- ===== AttributsValeurs (Genres, Tailles, Couleurs Denim) =====
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.tables
+                        WHERE table_name = 'AttributsValeurs'
+                    ) THEN
+                        CREATE TABLE "AttributsValeurs" (
+                            "Id" SERIAL PRIMARY KEY,
+                            "Type" varchar(30) NOT NULL,
+                            "Valeur" varchar(100) NOT NULL,
+                            "CodeHex" varchar(10) NULL,
+                            "Ordre" int NOT NULL DEFAULT 0,
+                            "Actif" boolean NOT NULL DEFAULT true
+                        );
+                        CREATE UNIQUE INDEX "IX_AttributsValeurs_Type_Valeur" ON "AttributsValeurs"("Type", "Valeur");
+                    END IF;
+                END $$;
+
+                -- ===== VariantesProduit =====
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.tables
+                        WHERE table_name = 'VariantesProduit'
+                    ) THEN
+                        CREATE TABLE "VariantesProduit" (
+                            "Id" SERIAL PRIMARY KEY,
+                            "ProduitId" int NOT NULL,
+                            "Reference" varchar(100) NOT NULL,
+                            "Genre" varchar(50) NULL,
+                            "Taille" varchar(50) NULL,
+                            "Couleur" varchar(50) NULL,
+                            "QuantiteActuelle" int NOT NULL DEFAULT 0,
+                            "SeuilAlerte" int NOT NULL DEFAULT 10,
+                            "PrixOverride" numeric(18,2) NULL,
+                            CONSTRAINT "FK_VariantesProduit_Produits" FOREIGN KEY ("ProduitId")
+                                REFERENCES "Produits"("Id") ON DELETE CASCADE
+                        );
+                        CREATE UNIQUE INDEX "IX_VariantesProduit_Reference" ON "VariantesProduit"("Reference");
+                        CREATE UNIQUE INDEX "IX_VariantesProduit_Produit_Genre_Taille_Couleur" ON "VariantesProduit"("ProduitId", "Genre", "Taille", "Couleur");
+                    END IF;
+                END $$;
+
+                ALTER TABLE "LigneCommandes" ADD COLUMN IF NOT EXISTS "VarianteProduitId" int NULL;
                 """);
+
+            // ===== SEEDING INITIAL DES ATTRIBUTS =====
+            if (!await context.AttributsValeurs.AnyAsync())
+            {
+                var seedAttributs = new List<WicStock_.Models.AttributValeur>
+                {
+                    // Genres
+                    new() { Type = "Genre", Valeur = "Homme", Ordre = 1 },
+                    new() { Type = "Genre", Valeur = "Femme", Ordre = 2 },
+                    new() { Type = "Genre", Valeur = "Enfant", Ordre = 3 },
+                    new() { Type = "Genre", Valeur = "Unisex", Ordre = 4 },
+
+                    // Tailles Vêtements
+                    new() { Type = "Taille", Valeur = "XS", Ordre = 1 },
+                    new() { Type = "Taille", Valeur = "S", Ordre = 2 },
+                    new() { Type = "Taille", Valeur = "M", Ordre = 3 },
+                    new() { Type = "Taille", Valeur = "L", Ordre = 4 },
+                    new() { Type = "Taille", Valeur = "XL", Ordre = 5 },
+                    new() { Type = "Taille", Valeur = "XXL", Ordre = 6 },
+
+                    // Tailles Numériques / Pointures
+                    new() { Type = "Taille", Valeur = "36", Ordre = 7 },
+                    new() { Type = "Taille", Valeur = "38", Ordre = 8 },
+                    new() { Type = "Taille", Valeur = "40", Ordre = 9 },
+                    new() { Type = "Taille", Valeur = "42", Ordre = 10 },
+                    new() { Type = "Taille", Valeur = "44", Ordre = 11 },
+                    new() { Type = "Taille", Valeur = "Standard", Ordre = 12 },
+
+                    // Palette Denim
+                    new() { Type = "Couleur", Valeur = "Bleu clair délavé", CodeHex = "#7B9CC4", Ordre = 1 },
+                    new() { Type = "Couleur", Valeur = "Bleu indigo", CodeHex = "#3B5488", Ordre = 2 },
+                    new() { Type = "Couleur", Valeur = "Bleu moyen", CodeHex = "#4A6FA5", Ordre = 3 },
+                    new() { Type = "Couleur", Valeur = "Bleu foncé / brut", CodeHex = "#1F3A5F", Ordre = 4 },
+                    new() { Type = "Couleur", Valeur = "Noir denim", CodeHex = "#1C1C1E", Ordre = 5 },
+                    new() { Type = "Couleur", Valeur = "Gris denim", CodeHex = "#6E7075", Ordre = 6 },
+                    new() { Type = "Couleur", Valeur = "Blanc cassé", CodeHex = "#F0EBE1", Ordre = 7 },
+                    new() { Type = "Couleur", Valeur = "Beige / sable", CodeHex = "#C9BBA0", Ordre = 8 },
+                    new() { Type = "Couleur", Valeur = "Marron / tabac", CodeHex = "#6B4A2F", Ordre = 9 }
+                };
+
+                await context.AttributsValeurs.AddRangeAsync(seedAttributs);
+                await context.SaveChangesAsync();
+                logger.LogInformation("Seeding initial des attributs (Genres, Tailles, Couleurs Denim) réussi.");
+            }
+
+            // ===== MIGRATION AUTOMATIQUE DES PRODUITS EXISTANTS VERS DÉCLINAISONS =====
+            var produitsSansVariantes = await context.Produits
+                .Include(p => p.Stock)
+                .Include(p => p.Variantes)
+                .Where(p => !p.Variantes.Any())
+                .ToListAsync();
+
+            if (produitsSansVariantes.Any())
+            {
+                foreach (var prod in produitsSansVariantes)
+                {
+                    var qty = prod.Stock?.QuantiteActuelle ?? 0;
+                    var seuil = prod.Stock?.SeuilAlerte ?? 10;
+                    var sku = $"{prod.Reference}-STD";
+
+                    context.VariantesProduit.Add(new WicStock_.Models.VarianteProduit
+                    {
+                        ProduitId = prod.Id,
+                        Reference = sku,
+                        Genre = prod.Genre ?? "Unisex",
+                        Taille = prod.Taille ?? "Standard",
+                        Couleur = prod.Couleur ?? "Bleu indigo",
+                        QuantiteActuelle = qty,
+                        SeuilAlerte = seuil
+                    });
+                }
+                await context.SaveChangesAsync();
+                logger.LogInformation("Migration automatique de {Count} produits existants vers 1 variante par défaut effectuée.", produitsSansVariantes.Count);
+            }
 
             logger.LogInformation("Database schema bootstrap (PostgreSQL) completed.");
         }

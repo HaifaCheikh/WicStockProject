@@ -18,6 +18,10 @@ namespace WicStock_.Models
         public int ProduitId { get; set; }
         public Produit? Produit { get; set; }
 
+        // FK vers la variante spécifique (optionnelle pour compatibilité historique)
+        public int? VarianteProduitId { get; set; }
+        public VarianteProduit? VarianteProduit { get; set; }
+
         /// <summary>Quantité commandée pour ce produit.</summary>
         public int Quantite { get; set; }
 
