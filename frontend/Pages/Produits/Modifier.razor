@@ -168,95 +168,89 @@
 
                         <!-- Section : Attributs & Variantes -->
                         <section class="form-section">
-                            <div class="section-header">
-                                <div>
-                                    <div class="section-label mb-0">Variantes du produit (taille, couleur, stock)</div>
-                                    <span class="hint-text">Définissez chaque variante disponible avec son propre niveau de stock.</span>
+                            <div class="section-label mb-0">Variantes du produit</div>
+                            <span class="hint-text">Sélectionnez les genres, tailles et couleurs disponibles — le prix reste celui défini ci-dessous pour toutes les déclinaisons.</span>
+
+                            <div class="builder-card">
+                                <div class="builder-grid">
+                                    <div class="attr-group">
+                                        <div class="attr-group-head">
+                                            <span class="attr-group-label">Genre</span>
+                                            <button type="button" class="attr-group-toggle" @onclick="() => ToggleAllChips(selectedGenresGen, listGenres)">
+                                                @(AllSelected(selectedGenresGen, listGenres) ? "Aucun" : "Tout sélectionner")
+                                            </button>
+                                        </div>
+                                        <div class="chip-list">
+                                            @foreach (var g in listGenres)
+                                            {
+                                                <button type="button"
+                                                        class="attr-chip @(selectedGenresGen.Contains(g.Valeur) ? "attr-chip--active" : "")"
+                                                        @onclick="() => ToggleChip(selectedGenresGen, g.Valeur)">
+                                                    @g.Valeur
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <div class="attr-group">
+                                        <div class="attr-group-head">
+                                            <span class="attr-group-label">Taille</span>
+                                            <button type="button" class="attr-group-toggle" @onclick="() => ToggleAllChips(selectedTaillesGen, listTailles)">
+                                                @(AllSelected(selectedTaillesGen, listTailles) ? "Aucun" : "Tout sélectionner")
+                                            </button>
+                                        </div>
+                                        <div class="chip-list">
+                                            @foreach (var t in listTailles)
+                                            {
+                                                <button type="button"
+                                                        class="attr-chip @(selectedTaillesGen.Contains(t.Valeur) ? "attr-chip--active" : "")"
+                                                        @onclick="() => ToggleChip(selectedTaillesGen, t.Valeur)">
+                                                    @t.Valeur
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <div class="attr-group">
+                                        <div class="attr-group-head">
+                                            <span class="attr-group-label">Couleur</span>
+                                            <button type="button" class="attr-group-toggle" @onclick="() => ToggleAllChips(selectedCouleursGen, listCouleurs)">
+                                                @(AllSelected(selectedCouleursGen, listCouleurs) ? "Aucun" : "Tout sélectionner")
+                                            </button>
+                                        </div>
+                                        <div class="chip-list">
+                                            @foreach (var c in listCouleurs)
+                                            {
+                                                <button type="button"
+                                                        class="attr-chip attr-chip--color @(selectedCouleursGen.Contains(c.Valeur) ? "attr-chip--active" : "")"
+                                                        @onclick="() => ToggleChip(selectedCouleursGen, c.Valeur)">
+                                                    <span class="swatch" style="background-color:@(!string.IsNullOrEmpty(c.CodeHex) ? c.CodeHex : "#ccc")"></span>
+                                                    @c.Valeur
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="section-actions">
-                                    <button type="button" class="btn btn--outline btn--sm" @onclick="() => showGenerator = !showGenerator">
-                                        <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Small" />
-                                        <span>@(showGenerator ? "Masquer le générateur" : "Génération en masse")</span>
-                                    </button>
-                                    <button type="button" class="btn btn--primary btn--sm" @onclick="AjouterVariante">
+
+                                <div class="builder-footer">
+                                    <div class="builder-summary">
+                                        <span class="builder-count">@NombreCombinaisonsTotal</span>
+                                        <span>déclinaison(s) seront créées</span>
+                                    </div>
+
+                                    <div class="stock-input">
+                                        <label>Stock initial</label>
+                                        <input type="number" class="stock-input-field" @bind="initialStockGen" min="0" />
+                                    </div>
+
+                                    <button type="button" class="btn btn--primary btn--sm"
+                                            @onclick="GenererCombinaisonsEnMasse"
+                                            disabled="@(NombreCombinaisonsTotal == 0)">
                                         <MudIcon Icon="@Icons.Material.Filled.Add" Size="Size.Small" />
-                                        <span>Ajouter une ligne</span>
+                                        <span>Générer les variantes</span>
                                     </button>
                                 </div>
                             </div>
-
-                            <!-- Panneau de génération combinatoire en masse -->
-                            @if (showGenerator)
-                            {
-                                <div class="generator-panel">
-                                    <div class="generator-head">
-                                        <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Small" />
-                                        <div>
-                                            <div class="generator-title">Générateur combinatoire automatique</div>
-                                            <div class="generator-hint">Sélectionnez les attributs pour créer toutes les déclinaisons possibles en un clic.</div>
-                                        </div>
-                                    </div>
-
-                                    <div class="generator-grid">
-                                        <div class="attr-group">
-                                            <div class="attr-group-label">Genre</div>
-                                            <div class="chip-list">
-                                                @foreach (var g in listGenres)
-                                                {
-                                                    <button type="button"
-                                                            class="attr-chip @(selectedGenresGen.Contains(g.Valeur) ? "attr-chip--active" : "")"
-                                                            @onclick="() => ToggleChip(selectedGenresGen, g.Valeur)">
-                                                        @g.Valeur
-                                                    </button>
-                                                }
-                                            </div>
-                                        </div>
-
-                                        <div class="attr-group">
-                                            <div class="attr-group-label">Taille</div>
-                                            <div class="chip-list">
-                                                @foreach (var t in listTailles)
-                                                {
-                                                    <button type="button"
-                                                            class="attr-chip @(selectedTaillesGen.Contains(t.Valeur) ? "attr-chip--active" : "")"
-                                                            @onclick="() => ToggleChip(selectedTaillesGen, t.Valeur)">
-                                                        @t.Valeur
-                                                    </button>
-                                                }
-                                            </div>
-                                        </div>
-
-                                        <div class="attr-group">
-                                            <div class="attr-group-label">Couleur</div>
-                                            <div class="chip-list">
-                                                @foreach (var c in listCouleurs)
-                                                {
-                                                    <button type="button"
-                                                            class="attr-chip attr-chip--color @(selectedCouleursGen.Contains(c.Valeur) ? "attr-chip--active" : "")"
-                                                            @onclick="() => ToggleChip(selectedCouleursGen, c.Valeur)">
-                                                        <span class="swatch" style="background-color:@(!string.IsNullOrEmpty(c.CodeHex) ? c.CodeHex : "#ccc")"></span>
-                                                        @c.Valeur
-                                                    </button>
-                                                }
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="generator-footer">
-                                        <div class="stock-input">
-                                            <label>Stock initial</label>
-                                            <input type="number" class="stock-input-field" @bind="initialStockGen" min="0" />
-                                        </div>
-
-                                        <button type="button" class="btn btn--primary btn--sm"
-                                                @onclick="GenererCombinaisonsEnMasse"
-                                                disabled="@(NombreCombinaisonsTotal == 0)">
-                                            <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" />
-                                            <span>Générer @NombreCombinaisonsTotal variante(s)</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            }
 
                             @if (produit.Variantes == null || !produit.Variantes.Any())
                             {
@@ -264,7 +258,7 @@
                                     <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Large" Class="empty-state-icon" />
                                     <div class="empty-state-title">Aucune variante configurée</div>
                                     <div class="empty-state-hint">
-                                        Utilisez le <strong>générateur en masse</strong> ou <strong>"Ajouter une ligne"</strong> ci-dessus pour définir les déclinaisons (taille / couleur / stock).
+                                        Sélectionnez au moins un genre, une taille ou une couleur ci-dessus, puis cliquez sur <strong>"Générer les variantes"</strong>.
                                     </div>
                                 </div>
                             }
@@ -279,7 +273,6 @@
                                                 <th>Couleur</th>
                                                 <th>SKU (auto)</th>
                                                 <th class="col-narrow">Stock</th>
-                                                <th class="col-narrow">Prix (DT)</th>
                                                 <th class="col-icon"></th>
                                             </tr>
                                         </thead>
@@ -326,9 +319,6 @@
                                                     </td>
                                                     <td>
                                                         <input type="number" class="variant-stock" @bind="v.QuantiteActuelle" min="0" />
-                                                    </td>
-                                                    <td>
-                                                        <input type="number" class="variant-price" @bind="v.PrixOverride" step="0.5" placeholder="@($"{produit.PrixUnitaire:F2}")" />
                                                     </td>
                                                     <td class="col-icon">
                                                         <button type="button" class="variant-delete-btn" @onclick="() => SupprimerVariante(v)" aria-label="Supprimer la variante">
@@ -663,44 +653,32 @@
 
     .produit-form-page .upload-btn:hover { background: var(--denim-dark); }
 
-    /* Panneau générateur combinatoire */
-    .produit-form-page .generator-panel {
-        background: var(--sand);
+    /* Bloc de construction des variantes */
+    .produit-form-page .builder-card {
+        background: var(--paper);
         border: 1px solid var(--border);
         border-radius: var(--radius-md);
         padding: 20px;
+        margin-top: 14px;
         margin-bottom: 16px;
     }
 
-    .produit-form-page .generator-head {
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        margin-bottom: 16px;
-        color: var(--denim);
-    }
-
-    .produit-form-page .generator-title {
-        font-family: var(--font-display);
-        font-weight: 700;
-        font-size: 0.9375rem;
-        color: var(--ink);
-    }
-
-    .produit-form-page .generator-hint {
-        font-size: 0.8125rem;
-        color: var(--ink-muted);
-        margin-top: 2px;
-    }
-
-    .produit-form-page .generator-grid {
+    .produit-form-page .builder-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
-        gap: 16px;
+        gap: 20px;
     }
 
     @@media (max-width: 700px) {
-        .produit-form-page .generator-grid { grid-template-columns: 1fr; }
+        .produit-form-page .builder-grid { grid-template-columns: 1fr; }
+    }
+
+    .produit-form-page .attr-group-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
     }
 
     .produit-form-page .attr-group-label {
@@ -709,8 +687,21 @@
         color: var(--ink-muted);
         text-transform: uppercase;
         letter-spacing: 0.04em;
-        margin-bottom: 8px;
     }
+
+    .produit-form-page .attr-group-toggle {
+        background: none;
+        border: none;
+        padding: 0;
+        font-family: var(--font-body);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        color: var(--denim);
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .produit-form-page .attr-group-toggle:hover { text-decoration: underline; }
 
     .produit-form-page .chip-list { display: flex; flex-wrap: wrap; gap: 6px; }
 
@@ -746,15 +737,31 @@
         flex-shrink: 0;
     }
 
-    .produit-form-page .generator-footer {
+    .produit-form-page .builder-footer {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        margin-top: 16px;
+        justify-content: flex-end;
+        gap: 20px;
+        margin-top: 20px;
         padding-top: 16px;
         border-top: 1px solid var(--border-soft);
         flex-wrap: wrap;
+    }
+
+    .produit-form-page .builder-summary {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        margin-right: auto;
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+    }
+
+    .produit-form-page .builder-count {
+        font-family: var(--font-mono);
+        font-weight: 700;
+        font-size: 1rem;
+        color: var(--denim);
     }
 
     .produit-form-page .stock-input { display: flex; align-items: center; gap: 8px; }
@@ -844,8 +851,7 @@
 
     .produit-form-page .variant-select,
     .produit-form-page .variant-sku,
-    .produit-form-page .variant-stock,
-    .produit-form-page .variant-price {
+    .produit-form-page .variant-stock {
         width: 100%;
         height: 36px;
         border: 1px solid var(--border);
@@ -860,8 +866,7 @@
 
     .produit-form-page .variant-select:focus,
     .produit-form-page .variant-sku:focus,
-    .produit-form-page .variant-stock:focus,
-    .produit-form-page .variant-price:focus {
+    .produit-form-page .variant-stock:focus {
         outline: none;
         border-color: var(--denim);
     }
@@ -874,7 +879,6 @@
     }
 
     .produit-form-page .variant-stock { font-weight: 600; color: var(--denim); min-width: 70px; }
-    .produit-form-page .variant-price { min-width: 90px; }
 
     .produit-form-page .variant-color-cell { display: flex; align-items: center; gap: 6px; }
 
@@ -1069,7 +1073,6 @@
     private List<AttributValeurDto> listTailles = new();
     private List<AttributValeurDto> listCouleurs = new();
 
-    private bool showGenerator = false;
     private HashSet<string> selectedGenresGen = new();
     private HashSet<string> selectedTaillesGen = new();
     private HashSet<string> selectedCouleursGen = new();
@@ -1119,6 +1122,26 @@
         else set.Add(value);
     }
 
+    private bool AllSelected(ICollection<string> set, List<AttributValeurDto> options)
+    {
+        return options.Any() && options.All(o => set.Contains(o.Valeur));
+    }
+
+    private void ToggleAllChips(ICollection<string> set, List<AttributValeurDto> options)
+    {
+        if (AllSelected(set, options))
+        {
+            set.Clear();
+        }
+        else
+        {
+            foreach (var o in options)
+            {
+                set.Add(o.Valeur);
+            }
+        }
+    }
+
     private int NombreCombinaisonsTotal =>
         (selectedGenresGen.Any() ? selectedGenresGen.Count : (selectedTaillesGen.Any() || selectedCouleursGen.Any() ? 1 : 0)) *
         (selectedTaillesGen.Any() ? selectedTaillesGen.Count : (selectedGenresGen.Any() || selectedCouleursGen.Any() ? 1 : 0)) *
@@ -1163,23 +1186,6 @@
         }
 
         Snackbar.Add($"{ajouts} nouvelle(s) variante(s) générée(s) avec succès !", Severity.Success);
-        showGenerator = false;
-    }
-
-    private void AjouterVariante()
-    {
-        if (produit == null) return;
-        produit.Variantes ??= new();
-        var v = new VarianteDto
-        {
-            ProduitId = produit.Id,
-            QuantiteActuelle = 10,
-            Genre = listGenres.FirstOrDefault()?.Valeur,
-            Taille = listTailles.FirstOrDefault()?.Valeur,
-            Couleur = listCouleurs.FirstOrDefault()?.Valeur
-        };
-        AutoGenSKU(v);
-        produit.Variantes.Add(v);
     }
 
     private void SupprimerVariante(VarianteDto v)
