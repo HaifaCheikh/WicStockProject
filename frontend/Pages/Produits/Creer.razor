@@ -133,17 +133,19 @@
 
                     <!-- Section : Attributs & Variantes -->
                     <section class="form-section">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="section-header">
                             <div>
-                                <div class="section-label mb-0">Variantes du Produit (Taille, Couleur, Stock)</div>
+                                <div class="section-label mb-0">Variantes du produit (taille, couleur, stock)</div>
                                 <span class="hint-text">Définissez chaque variante disponible avec son propre niveau de stock.</span>
                             </div>
-                            <div class="d-flex gap-2">
-                                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" @onclick="() => showGenerator = !showGenerator">
-                                    <i class="bi bi-lightning-charge me-1"></i>@(showGenerator ? "Masquer générateur" : "Génération en masse")
+                            <div class="section-actions">
+                                <button type="button" class="btn btn--outline btn--sm" @onclick="() => showGenerator = !showGenerator">
+                                    <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Small" />
+                                    <span>@(showGenerator ? "Masquer le générateur" : "Génération en masse")</span>
                                 </button>
-                                <button type="button" class="btn btn-sm btn-primary rounded-pill" @onclick="AjouterVariante">
-                                    <i class="bi bi-plus-lg me-1"></i>Ajouter une ligne
+                                <button type="button" class="btn btn--primary btn--sm" @onclick="AjouterVariante">
+                                    <MudIcon Icon="@Icons.Material.Filled.Add" Size="Size.Small" />
+                                    <span>Ajouter une ligne</span>
                                 </button>
                             </div>
                         </div>
@@ -151,72 +153,71 @@
                         <!-- Panneau de génération combinatoire en masse -->
                         @if (showGenerator)
                         {
-                            <div class="p-3 mb-3 bg-light border rounded-3 shadow-sm">
-                                <h6 class="fw-bold mb-2 text-primary fs-7">
-                                    <i class="bi bi-magic me-1"></i>Générateur combinatoire automatique
-                                </h6>
-                                <p class="text-muted fs-8 mb-3">Cochez les attributs souhaités pour créer automatiquement toutes les déclinaisons possibles en un clic.</p>
+                            <div class="generator-panel">
+                                <div class="generator-head">
+                                    <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Small" />
+                                    <div>
+                                        <div class="generator-title">Générateur combinatoire automatique</div>
+                                        <div class="generator-hint">Sélectionnez les attributs pour créer toutes les déclinaisons possibles en un clic.</div>
+                                    </div>
+                                </div>
 
-                                <div class="row g-3">
-                                    <div class="col-md-4">
-                                        <label class="form-label fw-semibold fs-7 mb-1">Genres :</label>
-                                        <div class="d-flex flex-column gap-1 max-vh-20 overflow-auto border p-2 rounded bg-white">
+                                <div class="generator-grid">
+                                    <div class="attr-group">
+                                        <div class="attr-group-label">Genre</div>
+                                        <div class="chip-list">
                                             @foreach (var g in listGenres)
                                             {
-                                                <div class="form-check fs-7">
-                                                    <input class="form-check-input" type="checkbox" id="gen_@g.Id"
-                                                           checked="@selectedGenresGen.Contains(g.Valeur)"
-                                                           @onchange="(e) => ToggleGenGenre(g.Valeur, e.Value)" />
-                                                    <label class="form-check-label" for="gen_@g.Id">@g.Valeur</label>
-                                                </div>
+                                                <button type="button"
+                                                        class="attr-chip @(selectedGenresGen.Contains(g.Valeur) ? "attr-chip--active" : "")"
+                                                        @onclick="() => ToggleChip(selectedGenresGen, g.Valeur)">
+                                                    @g.Valeur
+                                                </button>
                                             }
                                         </div>
                                     </div>
 
-                                    <div class="col-md-4">
-                                        <label class="form-label fw-semibold fs-7 mb-1">Tailles :</label>
-                                        <div class="d-flex flex-column gap-1 max-vh-20 overflow-auto border p-2 rounded bg-white">
+                                    <div class="attr-group">
+                                        <div class="attr-group-label">Taille</div>
+                                        <div class="chip-list">
                                             @foreach (var t in listTailles)
                                             {
-                                                <div class="form-check fs-7">
-                                                    <input class="form-check-input" type="checkbox" id="taille_@t.Id"
-                                                           checked="@selectedTaillesGen.Contains(t.Valeur)"
-                                                           @onchange="(e) => ToggleGenTaille(t.Valeur, e.Value)" />
-                                                    <label class="form-check-label" for="taille_@t.Id">@t.Valeur</label>
-                                                </div>
+                                                <button type="button"
+                                                        class="attr-chip @(selectedTaillesGen.Contains(t.Valeur) ? "attr-chip--active" : "")"
+                                                        @onclick="() => ToggleChip(selectedTaillesGen, t.Valeur)">
+                                                    @t.Valeur
+                                                </button>
                                             }
                                         </div>
                                     </div>
 
-                                    <div class="col-md-4">
-                                        <label class="form-label fw-semibold fs-7 mb-1">Couleurs Denim :</label>
-                                        <div class="d-flex flex-column gap-1 max-vh-20 overflow-auto border p-2 rounded bg-white">
+                                    <div class="attr-group">
+                                        <div class="attr-group-label">Couleur</div>
+                                        <div class="chip-list">
                                             @foreach (var c in listCouleurs)
                                             {
-                                                <div class="form-check fs-7">
-                                                    <input class="form-check-input" type="checkbox" id="c_@c.Id"
-                                                           checked="@selectedCouleursGen.Contains(c.Valeur)"
-                                                           @onchange="(e) => ToggleGenCouleur(c.Valeur, e.Value)" />
-                                                    <label class="form-check-label d-flex align-items-center gap-1" for="c_@c.Id">
-                                                        <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:@(!string.IsNullOrEmpty(c.CodeHex) ? c.CodeHex : "#ccc"); border:1px solid rgba(0,0,0,0.2);"></span>
-                                                        @c.Valeur
-                                                    </label>
-                                                </div>
+                                                <button type="button"
+                                                        class="attr-chip attr-chip--color @(selectedCouleursGen.Contains(c.Valeur) ? "attr-chip--active" : "")"
+                                                        @onclick="() => ToggleChip(selectedCouleursGen, c.Valeur)">
+                                                    <span class="swatch" style="background-color:@(!string.IsNullOrEmpty(c.CodeHex) ? c.CodeHex : "#ccc")"></span>
+                                                    @c.Valeur
+                                                </button>
                                             }
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="d-flex align-items-center gap-3 mt-3 pt-2 border-top">
-                                    <div class="d-flex align-items-center gap-2">
-                                        <label class="form-label mb-0 fs-7 fw-semibold">Stock initial :</label>
-                                        <input type="number" class="form-control form-control-sm" style="width: 80px;" @bind="initialStockGen" min="0" />
+                                <div class="generator-footer">
+                                    <div class="stock-input">
+                                        <label>Stock initial</label>
+                                        <input type="number" class="stock-input-field" @bind="initialStockGen" min="0" />
                                     </div>
 
-                                    <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 ms-auto"
+                                    <button type="button" class="btn btn--primary btn--sm"
                                             @onclick="GenererCombinaisonsEnMasse"
                                             disabled="@(NombreCombinaisonsTotal == 0)">
-                                        <i class="bi bi-check2-all me-1"></i>Générer (@NombreCombinaisonsTotal combinaison(s))
+                                        <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" />
+                                        <span>Générer @NombreCombinaisonsTotal variante(s)</span>
                                     </button>
                                 </div>
                             </div>
@@ -224,25 +225,27 @@
 
                         @if (produit.Variantes == null || !produit.Variantes.Any())
                         {
-                            <div class="alert alert-light border rounded-3 text-center py-4 mb-3">
-                                <i class="bi bi-boxes fs-2 text-muted d-block mb-1"></i>
-                                <span class="text-muted fw-semibold">Aucune variante configurée.</span>
-                                <p class="text-muted fs-7 mb-0">Utilisez le bouton <strong>"Génération en masse"</strong> ou <strong>"+ Ajouter une ligne"</strong> ci-dessus pour définir les déclinaisons (Taille / Couleur / Stock).</p>
+                            <div class="empty-state">
+                                <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Large" Class="empty-state-icon" />
+                                <div class="empty-state-title">Aucune variante configurée</div>
+                                <div class="empty-state-hint">
+                                    Utilisez le <strong>générateur en masse</strong> ou <strong>"Ajouter une ligne"</strong> ci-dessus pour définir les déclinaisons (taille / couleur / stock).
+                                </div>
                             </div>
                         }
                         else
                         {
-                            <div class="table-responsive mb-3">
-                                <table class="table table-sm table-hover table-bordered align-middle text-nowrap fs-7">
-                                    <thead class="bg-light text-uppercase fs-8 text-muted">
+                            <div class="variant-table-wrap">
+                                <table class="variant-table">
+                                    <thead>
                                         <tr>
                                             <th>Genre</th>
                                             <th>Taille</th>
                                             <th>Couleur</th>
-                                            <th>SKU (Référence unique auto)</th>
-                                            <th style="width: 100px;">Stock</th>
-                                            <th style="width: 140px;">Prix Spécifique (DT)</th>
-                                            <th style="width: 40px;"></th>
+                                            <th>SKU (auto)</th>
+                                            <th class="col-narrow">Stock</th>
+                                            <th class="col-narrow">Prix (DT)</th>
+                                            <th class="col-icon"></th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -251,8 +254,8 @@
                                             var hex = listCouleurs.FirstOrDefault(c => c.Valeur == v.Couleur)?.CodeHex;
                                             <tr>
                                                 <td>
-                                                    <select class="form-select form-select-sm" @bind="v.Genre" @bind:after="() => AutoGenSKU(v)">
-                                                        <option value="">-- Genre --</option>
+                                                    <select class="variant-select" @bind="v.Genre" @bind:after="() => AutoGenSKU(v)">
+                                                        <option value="">—</option>
                                                         @foreach (var g in listGenres)
                                                         {
                                                             <option value="@g.Valeur">@g.Valeur</option>
@@ -260,8 +263,8 @@
                                                     </select>
                                                 </td>
                                                 <td>
-                                                    <select class="form-select form-select-sm" @bind="v.Taille" @bind:after="() => AutoGenSKU(v)">
-                                                        <option value="">-- Taille --</option>
+                                                    <select class="variant-select" @bind="v.Taille" @bind:after="() => AutoGenSKU(v)">
+                                                        <option value="">—</option>
                                                         @foreach (var t in listTailles)
                                                         {
                                                             <option value="@t.Valeur">@t.Valeur</option>
@@ -269,13 +272,13 @@
                                                     </select>
                                                 </td>
                                                 <td>
-                                                    <div class="d-flex align-items-center gap-1">
+                                                    <div class="variant-color-cell">
                                                         @if (!string.IsNullOrEmpty(hex))
                                                         {
-                                                            <span style="width: 14px; height: 14px; border-radius: 50%; background-color: @hex; border: 1px solid rgba(0,0,0,0.2); flex-shrink: 0;"></span>
+                                                            <span class="swatch-sm" style="background-color:@hex"></span>
                                                         }
-                                                        <select class="form-select form-select-sm" @bind="v.Couleur" @bind:after="() => AutoGenSKU(v)">
-                                                            <option value="">-- Couleur --</option>
+                                                        <select class="variant-select" @bind="v.Couleur" @bind:after="() => AutoGenSKU(v)">
+                                                            <option value="">—</option>
                                                             @foreach (var c in listCouleurs)
                                                             {
                                                                 <option value="@c.Valeur">@c.Valeur</option>
@@ -284,17 +287,17 @@
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    <input type="text" class="form-control form-control-sm font-monospace bg-light" @bind="v.Reference" title="SKU généré automatiquement" />
+                                                    <input type="text" class="variant-sku" @bind="v.Reference" title="SKU généré automatiquement" />
                                                 </td>
                                                 <td>
-                                                    <input type="number" class="form-control form-control-sm fw-bold text-primary" @bind="v.QuantiteActuelle" min="0" />
+                                                    <input type="number" class="variant-stock" @bind="v.QuantiteActuelle" min="0" />
                                                 </td>
                                                 <td>
-                                                    <input type="number" class="form-control form-control-sm" @bind="v.PrixOverride" step="0.5" placeholder="@($"Défaut ({produit.PrixUnitaire:F2})")" />
+                                                    <input type="number" class="variant-price" @bind="v.PrixOverride" step="0.5" placeholder="@($"{produit.PrixUnitaire:F2}")" />
                                                 </td>
-                                                <td class="text-center">
-                                                    <button type="button" class="btn btn-sm btn-link text-danger p-0" @onclick="() => SupprimerVariante(v)">
-                                                        <i class="bi bi-trash fs-6"></i>
+                                                <td class="col-icon">
+                                                    <button type="button" class="variant-delete-btn" @onclick="() => SupprimerVariante(v)" aria-label="Supprimer la variante">
+                                                        <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" />
                                                     </button>
                                                 </td>
                                             </tr>
@@ -440,76 +443,60 @@
         padding-bottom: 48px;
     }
 
-        /* En-tête */
-        .produit-form-page .page-head {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
+    /* En-tête */
+    .produit-form-page .page-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
 
-        .produit-form-page .head-spacer {
-            flex: 1;
-        }
+    .produit-form-page .head-spacer { flex: 1; }
 
-        .produit-form-page .back-btn {
-            color: var(--ink-muted) !important;
-        }
+    .produit-form-page .back-btn { color: var(--ink-muted) !important; }
+    .produit-form-page .back-btn:hover { color: var(--denim) !important; background: var(--denim-tint) !important; }
 
-            .produit-form-page .back-btn:hover {
-                color: var(--denim) !important;
-                background: var(--denim-tint) !important;
-            }
+    .produit-form-page .eyebrow {
+        font-family: var(--font-mono);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        margin-bottom: 2px;
+    }
 
-        .produit-form-page .eyebrow {
-            font-family: var(--font-mono);
-            font-size: 0.6875rem;
-            font-weight: 600;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            color: var(--ink-soft);
-            margin-bottom: 2px;
-        }
+    .produit-form-page .page-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: var(--ink);
+        letter-spacing: -0.02em;
+    }
 
-        .produit-form-page .page-title {
-            font-family: var(--font-display);
-            font-weight: 700;
-            color: var(--ink);
-            letter-spacing: -0.02em;
-        }
+    .produit-form-page .status-chip {
+        font-family: var(--font-mono);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        padding: 6px 12px;
+        border-radius: 999px;
+        white-space: nowrap;
+    }
 
-        .produit-form-page .status-chip {
-            font-family: var(--font-mono);
-            font-size: 0.6875rem;
-            font-weight: 600;
-            letter-spacing: 0.03em;
-            text-transform: uppercase;
-            padding: 6px 12px;
-            border-radius: 999px;
-            white-space: nowrap;
-        }
+    .produit-form-page .status-chip--draft { background: var(--amber-tint); color: var(--amber); }
 
-        .produit-form-page .status-chip--draft {
-            background: var(--amber-tint);
-            color: var(--amber);
-        }
-
-        /* Grille de mise en page */
-        .produit-form-page .layout-grid {
-            display: grid;
-            grid-template-columns: 1fr 260px;
-            gap: 20px;
-            align-items: start;
-        }
+    /* Grille de mise en page */
+    .produit-form-page .layout-grid {
+        display: grid;
+        grid-template-columns: 1fr 260px;
+        gap: 20px;
+        align-items: start;
+    }
 
     @@media (max-width: 900px) {
-        .produit-form-page .layout-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .produit-form-page .preview-column {
-            order: -1;
-        }
+        .produit-form-page .layout-grid { grid-template-columns: 1fr; }
+        .produit-form-page .preview-column { order: -1; }
     }
 
     /* Carte formulaire */
@@ -521,13 +508,8 @@
         overflow: hidden;
     }
 
-    .produit-form-page .form-section {
-        padding: 16px 24px;
-    }
-
-        .produit-form-page .form-section + .form-section {
-            border-top: 1px solid var(--border-soft);
-        }
+    .produit-form-page .form-section { padding: 16px 24px; }
+    .produit-form-page .form-section + .form-section { border-top: 1px solid var(--border-soft); }
 
     .produit-form-page .section-label {
         font-family: var(--font-mono);
@@ -539,12 +521,20 @@
         margin-bottom: 10px;
     }
 
-    .produit-form-page .hint-text {
-        color: var(--ink-muted);
-        font-size: 0.75rem;
+    .produit-form-page .hint-text { color: var(--ink-muted); font-size: 0.75rem; }
+
+    .produit-form-page .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
     }
 
-    /* Champs */
+    .produit-form-page .section-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+    /* Champs MudBlazor */
     .produit-form-page .styled-field .mud-input-outlined-border {
         border-radius: var(--radius-sm) !important;
         border-color: var(--border) !important;
@@ -555,22 +545,12 @@
         border-color: var(--denim) !important;
     }
 
-    .produit-form-page .styled-field .mud-input-label.mud-input-label-outlined.mud-shrink {
-        color: var(--denim) !important;
-    }
+    .produit-form-page .styled-field .mud-input-label.mud-input-label-outlined.mud-shrink { color: var(--denim) !important; }
 
-    .produit-form-page .field-mono input {
-        font-family: var(--font-mono);
-        font-size: 0.875rem;
-    }
+    .produit-form-page .field-mono input { font-family: var(--font-mono); font-size: 0.875rem; }
 
     /* Zone image */
-    .produit-form-page .uploader {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        flex-wrap: wrap;
-    }
+    .produit-form-page .uploader { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 
     .produit-form-page .upload-placeholder {
         display: flex;
@@ -586,14 +566,9 @@
         transition: border-color 0.15s ease, color 0.15s ease;
     }
 
-        .produit-form-page .upload-placeholder:hover {
-            border-color: var(--denim);
-            color: var(--denim);
-        }
+    .produit-form-page .upload-placeholder:hover { border-color: var(--denim); color: var(--denim); }
 
-    .produit-form-page .image-preview {
-        position: relative;
-    }
+    .produit-form-page .image-preview { position: relative; }
 
     .produit-form-page .preview-img {
         border-radius: var(--radius-lg);
@@ -618,15 +593,9 @@
         box-shadow: 0 2px 4px rgba(20,38,63,0.15);
     }
 
-        .produit-form-page .remove-img-btn:hover {
-            background: var(--rust-tint);
-        }
+    .produit-form-page .remove-img-btn:hover { background: var(--rust-tint); }
 
-    .produit-form-page .uploader-meta {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
+    .produit-form-page .uploader-meta { display: flex; flex-direction: column; gap: 6px; }
 
     .produit-form-page .upload-btn {
         display: inline-flex;
@@ -645,9 +614,246 @@
         transition: background 0.15s ease;
     }
 
-        .produit-form-page .upload-btn:hover {
-            background: var(--denim-dark);
-        }
+    .produit-form-page .upload-btn:hover { background: var(--denim-dark); }
+
+    /* Panneau générateur combinatoire */
+    .produit-form-page .generator-panel {
+        background: var(--sand);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 20px;
+        margin-bottom: 16px;
+    }
+
+    .produit-form-page .generator-head {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 16px;
+        color: var(--denim);
+    }
+
+    .produit-form-page .generator-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 0.9375rem;
+        color: var(--ink);
+    }
+
+    .produit-form-page .generator-hint {
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+        margin-top: 2px;
+    }
+
+    .produit-form-page .generator-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+    }
+
+    @@media (max-width: 700px) {
+        .produit-form-page .generator-grid { grid-template-columns: 1fr; }
+    }
+
+    .produit-form-page .attr-group-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 8px;
+    }
+
+    .produit-form-page .chip-list { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .produit-form-page .attr-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-family: var(--font-body);
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--ink-muted);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .produit-form-page .attr-chip:hover { border-color: var(--denim); color: var(--denim); }
+
+    .produit-form-page .attr-chip--active {
+        background: var(--denim);
+        border-color: var(--denim);
+        color: #fff;
+    }
+
+    .produit-form-page .attr-chip--color .swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 1px solid rgba(0,0,0,0.15);
+        flex-shrink: 0;
+    }
+
+    .produit-form-page .generator-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border-soft);
+        flex-wrap: wrap;
+    }
+
+    .produit-form-page .stock-input { display: flex; align-items: center; gap: 8px; }
+
+    .produit-form-page .stock-input label {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+    }
+
+    .produit-form-page .stock-input-field {
+        width: 70px;
+        height: 34px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 0 10px;
+        font-family: var(--font-mono);
+        font-size: 0.875rem;
+    }
+
+    /* État vide */
+    .produit-form-page .empty-state {
+        text-align: center;
+        padding: 32px 20px;
+        background: var(--sand);
+        border: 1px dashed var(--border);
+        border-radius: var(--radius-md);
+        margin-bottom: 16px;
+    }
+
+    .produit-form-page .empty-state-icon { color: var(--ink-soft); margin-bottom: 8px; }
+
+    .produit-form-page .empty-state-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 0.9375rem;
+        color: var(--ink);
+        margin-bottom: 4px;
+    }
+
+    .produit-form-page .empty-state-hint {
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+        max-width: 420px;
+        margin: 0 auto;
+    }
+
+    /* Tableau des variantes */
+    .produit-form-page .variant-table-wrap {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        overflow-x: auto;
+        margin-bottom: 16px;
+    }
+
+    .produit-form-page .variant-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8125rem;
+    }
+
+    .produit-form-page .variant-table thead th {
+        background: var(--sand);
+        color: var(--ink-soft);
+        font-family: var(--font-mono);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        text-align: left;
+        padding: 10px 12px;
+        white-space: nowrap;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .produit-form-page .variant-table tbody td {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border-soft);
+        vertical-align: middle;
+    }
+
+    .produit-form-page .variant-table tbody tr:last-child td { border-bottom: none; }
+    .produit-form-page .variant-table tbody tr:hover { background: var(--sand); }
+
+    .produit-form-page .variant-table .col-narrow { width: 100px; }
+    .produit-form-page .variant-table .col-icon { width: 44px; text-align: center; }
+
+    .produit-form-page .variant-select,
+    .produit-form-page .variant-sku,
+    .produit-form-page .variant-stock,
+    .produit-form-page .variant-price {
+        width: 100%;
+        height: 36px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 0 10px;
+        font-family: var(--font-body);
+        font-size: 0.8125rem;
+        color: var(--ink);
+        background: var(--paper);
+        transition: border-color 0.15s ease;
+    }
+
+    .produit-form-page .variant-select:focus,
+    .produit-form-page .variant-sku:focus,
+    .produit-form-page .variant-stock:focus,
+    .produit-form-page .variant-price:focus {
+        outline: none;
+        border-color: var(--denim);
+    }
+
+    .produit-form-page .variant-sku {
+        font-family: var(--font-mono);
+        background: var(--sand);
+        color: var(--ink-muted);
+        min-width: 170px;
+    }
+
+    .produit-form-page .variant-stock { font-weight: 600; color: var(--denim); min-width: 70px; }
+    .produit-form-page .variant-price { min-width: 90px; }
+
+    .produit-form-page .variant-color-cell { display: flex; align-items: center; gap: 6px; }
+
+    .produit-form-page .swatch-sm {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 1px solid rgba(0,0,0,0.15);
+        flex-shrink: 0;
+    }
+
+    .produit-form-page .variant-delete-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border: none;
+        background: transparent;
+        color: var(--ink-soft);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .produit-form-page .variant-delete-btn:hover { background: var(--rust-tint); color: var(--rust); }
 
     /* Option (checkbox) */
     .produit-form-page .option-row {
@@ -660,23 +866,9 @@
         cursor: pointer;
     }
 
-    .produit-form-page .option-checkbox {
-        margin-top: -8px;
-    }
-
-    .produit-form-page .option-title {
-        display: block;
-        font-weight: 600;
-        font-size: 0.875rem;
-        color: var(--ink);
-    }
-
-    .produit-form-page .option-hint {
-        display: block;
-        font-size: 0.8125rem;
-        color: var(--ink-muted);
-        margin-top: 2px;
-    }
+    .produit-form-page .option-checkbox { margin-top: -8px; }
+    .produit-form-page .option-title { display: block; font-weight: 600; font-size: 0.875rem; color: var(--ink); }
+    .produit-form-page .option-hint { display: block; font-size: 0.8125rem; color: var(--ink-muted); margin-top: 2px; }
 
     /* Actions */
     .produit-form-page .form-actions {
@@ -702,37 +894,18 @@
         transition: all 0.15s ease;
     }
 
-        .produit-form-page .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
+    .produit-form-page .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-    .produit-form-page .btn--primary {
-        background: var(--denim);
-        color: #fff;
-        box-shadow: 0 6px 16px -6px rgba(43,76,126,0.4);
-    }
+    .produit-form-page .btn--primary { background: var(--denim); color: #fff; box-shadow: 0 6px 16px -6px rgba(43,76,126,0.4); }
+    .produit-form-page .btn--primary:hover:not(:disabled) { background: var(--denim-dark); }
 
-        .produit-form-page .btn--primary:hover:not(:disabled) {
-            background: var(--denim-dark);
-        }
+    .produit-form-page .btn--outline { background: transparent; color: var(--ink-muted); border: 1px solid var(--border); }
+    .produit-form-page .btn--outline:hover:not(:disabled) { border-color: var(--denim); color: var(--denim); }
 
-    .produit-form-page .btn--outline {
-        background: transparent;
-        color: var(--ink-muted);
-        border: 1px solid var(--border);
-    }
-
-        .produit-form-page .btn--outline:hover {
-            border-color: var(--denim);
-            color: var(--denim);
-        }
+    .produit-form-page .btn--sm { padding: 8px 16px; font-size: 0.8125rem; }
 
     /* Colonne aperçu */
-    .produit-form-page .preview-sticky {
-        position: sticky;
-        top: 24px;
-    }
+    .produit-form-page .preview-sticky { position: sticky; top: 24px; }
 
     .produit-form-page .preview-label {
         display: flex;
@@ -763,15 +936,9 @@
         color: var(--ink-soft);
     }
 
-        .produit-form-page .preview-image img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
+    .produit-form-page .preview-image img { width: 100%; height: 100%; object-fit: cover; }
 
-    .produit-form-page .preview-body {
-        padding: 16px;
-    }
+    .produit-form-page .preview-body { padding: 16px; }
 
     .produit-form-page .preview-ref {
         font-family: var(--font-mono);
@@ -791,81 +958,25 @@
         line-height: 1.3;
     }
 
-    .produit-form-page .preview-chips {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin-top: 12px;
-    }
+    .produit-form-page .preview-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 
-    .produit-form-page .chip {
-        font-size: 0.75rem;
-        font-weight: 600;
-        padding: 4px 10px;
-        border-radius: 999px;
-    }
+    .produit-form-page .chip { font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; }
+    .produit-form-page .chip--denim { background: var(--denim-tint); color: var(--denim); }
+    .produit-form-page .chip--outline { background: transparent; color: var(--ink-muted); border: 1px solid var(--border); }
 
-    .produit-form-page .chip--denim {
-        background: var(--denim-tint);
-        color: var(--denim);
-    }
+    .produit-form-page .preview-divider { height: 1px; background: var(--border-soft); margin: 16px 0; }
 
-    .produit-form-page .chip--outline {
-        background: transparent;
-        color: var(--ink-muted);
-        border: 1px solid var(--border);
-    }
+    .produit-form-page .preview-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .produit-form-page .preview-row:last-child { margin-bottom: 0; }
 
-    .produit-form-page .preview-divider {
-        height: 1px;
-        background: var(--border-soft);
-        margin: 16px 0;
-    }
+    .produit-form-page .preview-row-label { font-size: 0.8125rem; color: var(--ink-muted); }
 
-    .produit-form-page .preview-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 8px;
-    }
+    .produit-form-page .preview-price { font-family: var(--font-mono); font-weight: 600; font-size: 0.9375rem; color: var(--ink); }
 
-        .produit-form-page .preview-row:last-child {
-            margin-bottom: 0;
-        }
-
-    .produit-form-page .preview-row-label {
-        font-size: 0.8125rem;
-        color: var(--ink-muted);
-    }
-
-    .produit-form-page .preview-price {
-        font-family: var(--font-mono);
-        font-weight: 600;
-        font-size: 0.9375rem;
-        color: var(--ink);
-    }
-
-    .produit-form-page .stock-pill {
-        font-size: 0.75rem;
-        font-weight: 600;
-        padding: 3px 10px;
-        border-radius: 999px;
-    }
-
-    .produit-form-page .stock-pill--pine {
-        background: var(--pine-tint);
-        color: var(--pine);
-    }
-
-    .produit-form-page .stock-pill--amber {
-        background: var(--amber-tint);
-        color: var(--amber);
-    }
-
-    .produit-form-page .stock-pill--rust {
-        background: var(--rust-tint);
-        color: var(--rust);
-    }
+    .produit-form-page .stock-pill { font-size: 0.75rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+    .produit-form-page .stock-pill--pine { background: var(--pine-tint); color: var(--pine); }
+    .produit-form-page .stock-pill--amber { background: var(--amber-tint); color: var(--amber); }
+    .produit-form-page .stock-pill--rust { background: var(--rust-tint); color: var(--rust); }
 </style>
 
 @code {
@@ -894,22 +1005,10 @@
         listCouleurs = await AttributService.ObtenirAttributsAsync("Couleur");
     }
 
-    private void ToggleGenGenre(string val, object? isChecked)
+    private void ToggleChip(ICollection<string> set, string value)
     {
-        if (isChecked is bool b && b) selectedGenresGen.Add(val);
-        else selectedGenresGen.Remove(val);
-    }
-
-    private void ToggleGenTaille(string val, object? isChecked)
-    {
-        if (isChecked is bool b && b) selectedTaillesGen.Add(val);
-        else selectedTaillesGen.Remove(val);
-    }
-
-    private void ToggleGenCouleur(string val, object? isChecked)
-    {
-        if (isChecked is bool b && b) selectedCouleursGen.Add(val);
-        else selectedCouleursGen.Remove(val);
+        if (set.Contains(value)) set.Remove(value);
+        else set.Add(value);
     }
 
     private void GenererCombinaisonsEnMasse()
