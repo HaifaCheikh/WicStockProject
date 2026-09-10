@@ -105,7 +105,8 @@
                             </MudItem>
 
                             <MudItem xs="12" sm="6">
-                                <MudSelect @bind-Value="produit.Categorie"
+                                <MudSelect Value="@produit.Categorie"
+                                           ValueChanged="@((string val) => OnCategorieChanged(val))"
                                            Label="Catégorie"
                                            Variant="Variant.Outlined"
                                            Class="styled-field"
@@ -138,63 +139,102 @@
 
                         <div class="builder-card">
                             <div class="builder-grid">
-                                <div class="attr-group">
-                                    <div class="attr-group-head">
+                                <details class="attr-group">
+                                    <summary class="attr-summary">
                                         <span class="attr-group-label">Genre</span>
+                                        <span class="attr-summary-value">
+                                            @(selectedGenresGen.Any() ? $"{selectedGenresGen.Count} sélectionné(s)" : "Aucune sélection")
+                                        </span>
+                                        <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" Class="attr-caret" />
+                                    </summary>
+                                    <div class="attr-panel">
                                         <button type="button" class="attr-group-toggle" @onclick="() => ToggleAllChips(selectedGenresGen, listGenres)">
-                                            @(AllSelected(selectedGenresGen, listGenres) ? "Aucun" : "Tout sélectionner")
+                                            @(AllSelected(selectedGenresGen, listGenres) ? "Tout désélectionner" : "Tout sélectionner")
                                         </button>
+                                        <div class="chip-list">
+                                            @foreach (var g in listGenres)
+                                            {
+                                                <button type="button"
+                                                        class="attr-chip @(selectedGenresGen.Contains(g.Valeur) ? "attr-chip--active" : "")"
+                                                        @onclick="() => ToggleChip(selectedGenresGen, g.Valeur)">
+                                                    @g.Valeur
+                                                </button>
+                                            }
+                                        </div>
                                     </div>
-                                    <div class="chip-list">
-                                        @foreach (var g in listGenres)
-                                        {
-                                            <button type="button"
-                                                    class="attr-chip @(selectedGenresGen.Contains(g.Valeur) ? "attr-chip--active" : "")"
-                                                    @onclick="() => ToggleChip(selectedGenresGen, g.Valeur)">
-                                                @g.Valeur
-                                            </button>
-                                        }
-                                    </div>
-                                </div>
+                                </details>
 
-                                <div class="attr-group">
-                                    <div class="attr-group-head">
+                                <details class="attr-group">
+                                    <summary class="attr-summary">
                                         <span class="attr-group-label">Taille</span>
-                                        <button type="button" class="attr-group-toggle" @onclick="() => ToggleAllChips(selectedTaillesGen, listTailles)">
-                                            @(AllSelected(selectedTaillesGen, listTailles) ? "Aucun" : "Tout sélectionner")
-                                        </button>
-                                    </div>
-                                    <div class="chip-list">
-                                        @foreach (var t in listTailles)
+                                        <span class="attr-summary-value">
+                                            @(selectedTaillesGen.Any() ? $"{selectedTaillesGen.Count} sélectionné(s)" : "Aucune sélection")
+                                        </span>
+                                        <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" Class="attr-caret" />
+                                    </summary>
+                                    <div class="attr-panel">
+                                        @if (!string.IsNullOrWhiteSpace(produit.Categorie))
                                         {
-                                            <button type="button"
-                                                    class="attr-chip @(selectedTaillesGen.Contains(t.Valeur) ? "attr-chip--active" : "")"
-                                                    @onclick="() => ToggleChip(selectedTaillesGen, t.Valeur)">
-                                                @t.Valeur
-                                            </button>
+                                            <div class="attr-filter-note">
+                                                Tailles @(EstCategorieNumerique(produit.Categorie) ? "numériques" : "lettres") proposées pour "@produit.Categorie"
+                                            </div>
                                         }
+                                        <button type="button" class="attr-group-toggle" @onclick="() => ToggleAllChips(selectedTaillesGen, TaillesFiltrees)">
+                                            @(AllSelected(selectedTaillesGen, TaillesFiltrees) ? "Tout désélectionner" : "Tout sélectionner")
+                                        </button>
+                                        <div class="chip-list">
+                                            @foreach (var t in TaillesFiltrees)
+                                            {
+                                                <button type="button"
+                                                        class="attr-chip @(selectedTaillesGen.Contains(t.Valeur) ? "attr-chip--active" : "")"
+                                                        @onclick="() => ToggleChip(selectedTaillesGen, t.Valeur)">
+                                                    @t.Valeur
+                                                </button>
+                                            }
+                                        </div>
                                     </div>
-                                </div>
+                                </details>
 
-                                <div class="attr-group">
-                                    <div class="attr-group-head">
+                                <details class="attr-group">
+                                    <summary class="attr-summary">
                                         <span class="attr-group-label">Couleur</span>
+                                        <span class="attr-summary-value attr-summary-swatches">
+                                            @if (selectedCouleursGen.Any())
+                                            {
+                                                @foreach (var val in selectedCouleursGen.Take(5))
+                                                {
+                                                    var hex = listCouleurs.FirstOrDefault(c => c.Valeur == val)?.CodeHex;
+                                                    <span class="swatch-sm" style="background-color:@(hex ?? "#ccc")"></span>
+                                                }
+                                                @if (selectedCouleursGen.Count > 5)
+                                                {
+                                                    <span class="tag-more">+@(selectedCouleursGen.Count - 5)</span>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span>Aucune sélection</span>
+                                            }
+                                        </span>
+                                        <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" Class="attr-caret" />
+                                    </summary>
+                                    <div class="attr-panel">
                                         <button type="button" class="attr-group-toggle" @onclick="() => ToggleAllChips(selectedCouleursGen, listCouleurs)">
-                                            @(AllSelected(selectedCouleursGen, listCouleurs) ? "Aucun" : "Tout sélectionner")
+                                            @(AllSelected(selectedCouleursGen, listCouleurs) ? "Tout désélectionner" : "Tout sélectionner")
                                         </button>
+                                        <div class="chip-list">
+                                            @foreach (var c in listCouleurs)
+                                            {
+                                                <button type="button"
+                                                        class="attr-chip attr-chip--color @(selectedCouleursGen.Contains(c.Valeur) ? "attr-chip--active" : "")"
+                                                        @onclick="() => ToggleChip(selectedCouleursGen, c.Valeur)">
+                                                    <span class="swatch" style="background-color:@(!string.IsNullOrEmpty(c.CodeHex) ? c.CodeHex : "#ccc")"></span>
+                                                    @c.Valeur
+                                                </button>
+                                            }
+                                        </div>
                                     </div>
-                                    <div class="chip-list">
-                                        @foreach (var c in listCouleurs)
-                                        {
-                                            <button type="button"
-                                                    class="attr-chip attr-chip--color @(selectedCouleursGen.Contains(c.Valeur) ? "attr-chip--active" : "")"
-                                                    @onclick="() => ToggleChip(selectedCouleursGen, c.Valeur)">
-                                                <span class="swatch" style="background-color:@(!string.IsNullOrEmpty(c.CodeHex) ? c.CodeHex : "#ccc")"></span>
-                                                @c.Valeur
-                                            </button>
-                                        }
-                                    </div>
-                                </div>
+                                </details>
                             </div>
 
                             <div class="builder-footer">
@@ -626,26 +666,85 @@
         .produit-form-page .builder-grid { grid-template-columns: 1fr; }
     }
 
-    .produit-form-page .attr-group-head {
+    .produit-form-page .attr-group {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--sand);
+        overflow: hidden;
+    }
+
+    .produit-form-page .attr-summary {
         display: flex;
         align-items: center;
-        justify-content: space-between;
         gap: 8px;
-        margin-bottom: 8px;
+        padding: 10px 12px;
+        cursor: pointer;
+        list-style: none;
+        user-select: none;
     }
+
+    .produit-form-page .attr-summary::-webkit-details-marker { display: none; }
+    .produit-form-page .attr-summary::marker { content: ""; }
 
     .produit-form-page .attr-group-label {
         font-size: 0.75rem;
-        font-weight: 600;
-        color: var(--ink-muted);
+        font-weight: 700;
+        color: var(--ink);
         text-transform: uppercase;
         letter-spacing: 0.04em;
+        flex-shrink: 0;
+    }
+
+    .produit-form-page .attr-summary-value {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    .produit-form-page .attr-summary-swatches { gap: 3px; }
+
+    .produit-form-page .tag-more {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+        margin-left: 2px;
+    }
+
+    .produit-form-page .attr-caret {
+        color: var(--ink-soft);
+        flex-shrink: 0;
+        transition: transform 0.15s ease;
+    }
+
+    .produit-form-page details[open] .attr-caret { transform: rotate(180deg); }
+    .produit-form-page details[open] .attr-summary { border-bottom: 1px solid var(--border); }
+
+    .produit-form-page .attr-panel {
+        padding: 12px;
+        background: var(--paper);
+    }
+
+    .produit-form-page .attr-filter-note {
+        font-size: 0.75rem;
+        color: var(--denim);
+        background: var(--denim-tint);
+        border-radius: var(--radius-sm);
+        padding: 6px 10px;
+        margin-bottom: 8px;
     }
 
     .produit-form-page .attr-group-toggle {
+        display: inline-block;
         background: none;
         border: none;
         padding: 0;
+        margin-bottom: 8px;
         font-family: var(--font-body);
         font-size: 0.6875rem;
         font-weight: 600;
@@ -1012,6 +1111,46 @@
     {
         if (set.Contains(value)) set.Remove(value);
         else set.Add(value);
+    }
+
+    // Catégories dont les tailles s'expriment en chiffres (bas de corps)
+    private static readonly HashSet<string> CategoriesTailleNumerique = new() { "Pants", "Shorts" };
+
+    private bool EstCategorieNumerique(string? categorie) =>
+        !string.IsNullOrWhiteSpace(categorie) && CategoriesTailleNumerique.Contains(categorie);
+
+    private bool EstTailleNumerique(string valeur) => int.TryParse(valeur, out _);
+
+    /// <summary>
+    /// Tailles pertinentes pour la catégorie sélectionnée : numériques pour les bas
+    /// (pantalon, short), lettres pour le reste. "Standard" reste toujours proposé.
+    /// Si aucune catégorie n'est encore choisie, toutes les tailles sont affichées.
+    /// </summary>
+    private List<AttributValeurDto> TaillesFiltrees
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(produit.Categorie))
+            {
+                return listTailles;
+            }
+
+            bool numerique = EstCategorieNumerique(produit.Categorie);
+
+            return listTailles
+                .Where(t => t.Valeur.Equals("Standard", StringComparison.OrdinalIgnoreCase)
+                            || EstTailleNumerique(t.Valeur) == numerique)
+                .ToList();
+        }
+    }
+
+    private void OnCategorieChanged(string val)
+    {
+        produit.Categorie = val;
+
+        // On retire les tailles déjà cochées qui ne correspondent plus à la nouvelle catégorie
+        var taillesValides = TaillesFiltrees.Select(t => t.Valeur).ToHashSet();
+        selectedTaillesGen.RemoveWhere(t => !taillesValides.Contains(t));
     }
 
     private bool AllSelected(ICollection<string> set, List<AttributValeurDto> options)
