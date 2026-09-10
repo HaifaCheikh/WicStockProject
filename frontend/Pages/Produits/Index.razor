@@ -204,12 +204,61 @@
                                 <MudIcon Icon="@Icons.Material.Filled.Texture" Size="Size.Small" Class="text-muted" />
                                 <span class="product-detail">@(string.IsNullOrEmpty(prod.TypeTissu) ? "Non spécifié" : prod.TypeTissu)</span>
                             </div>
-                            @if (!string.IsNullOrWhiteSpace(prod.Genre) || !string.IsNullOrWhiteSpace(prod.Taille) || !string.IsNullOrWhiteSpace(prod.Couleur))
-                            {
-                                <span class="text-muted" style="font-size:0.75rem;">•</span>
-                                <span class="product-detail" style="font-weight:600; color:var(--denim);">@WicStock.Web.Models.AttributsProduit.FormatLigneDescription(prod.Genre, prod.Taille, prod.Couleur)</span>
-                            }
                         </div>
+
+                        @{
+                            var _genres  = GetProdGenres(prod);
+                            var _tailles = GetProdTailles(prod);
+                            var _couleurs = GetProdCouleurs(prod);
+                        }
+                        @if (_genres.Any() || _tailles.Any() || _couleurs.Any())
+                        {
+                            <div class="prod-attrs-block">
+                                @if (_genres.Any())
+                                {
+                                    <div class="attrs-row">
+                                        @foreach (var g in _genres)
+                                        {
+                                            <span class="genre-pill">@g</span>
+                                        }
+                                    </div>
+                                }
+                                @if (_tailles.Any())
+                                {
+                                    <div class="attrs-row">
+                                        @{
+                                            var _taillesShow = _tailles.Take(4).ToList();
+                                            int _taillesExtra = _tailles.Count - _taillesShow.Count;
+                                        }
+                                        @foreach (var t in _taillesShow)
+                                        {
+                                            <span class="size-chip">@t</span>
+                                        }
+                                        @if (_taillesExtra > 0)
+                                        {
+                                            <span class="size-chip size-chip--more">+@_taillesExtra</span>
+                                        }
+                                    </div>
+                                }
+                                @if (_couleurs.Any())
+                                {
+                                    <div class="attrs-row">
+                                        @{
+                                            var _couleursShow = _couleurs.Take(5).ToList();
+                                            int _couleursExtra = _couleurs.Count - _couleursShow.Count;
+                                        }
+                                        @foreach (var c in _couleursShow)
+                                        {
+                                            <span class="color-swatch" style="background-color:@c.hex;" title="@c.nom"></span>
+                                        }
+                                        @if (_couleursExtra > 0)
+                                        {
+                                            <span class="color-more">+@_couleursExtra</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
 
                         <div class="meta-footer mt-3">
                             <div class="d-flex align-center gap-2 flex-wrap">
@@ -1138,6 +1187,65 @@
         border: 1px solid #E9C6BA;
     }
 
+    /* ===== Attributs variantes (admin carte) ===== */
+    .admin-page .prod-attrs-block {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-top: 6px;
+    }
+
+    .admin-page .attrs-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .admin-page .genre-pill {
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: var(--denim-soft, #E8EEF8);
+        color: var(--denim, #2B4C7E);
+        border: 1px solid rgba(43,76,126,0.15);
+    }
+
+    .admin-page .size-chip {
+        font-size: 0.68rem;
+        font-weight: 600;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: #F1F5F9;
+        color: #475569;
+        border: 1px solid #E2E8F0;
+    }
+
+    .admin-page .size-chip--more {
+        background: #E2E8F0;
+        color: #64748B;
+    }
+
+    .admin-page .color-swatch {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 1.5px solid rgba(0,0,0,0.15);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        flex-shrink: 0;
+    }
+
+    .admin-page .color-more {
+        font-size: 0.66rem;
+        font-weight: 600;
+        color: #64748B;
+        margin-left: 2px;
+    }
+
     .admin-page .card-actions {
         margin-left: auto;
     }
@@ -1756,7 +1864,48 @@
     }
 
     // ===== GESTION DE COMMANDES CLIENTS =====
-    private int NombreCommandesEnAttente => commandesClients == null
+    private int NombreCommandesEnAttente =>
+        commandesClients == null
         ? 0
         : commandesClients.Count(c => c.StatutCommande == "EN_ATTENTE");
+
+    // ===== HELPERS ATTRIBUTS VARIANTES (admin catalogue) =====
+    private List<string> GetProdGenres(ProduitDto prod)
+    {
+        if (prod.Variantes?.Any() == true)
+            return prod.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Genre))
+                .Select(v => v.Genre!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        return string.IsNullOrWhiteSpace(prod.Genre) ? new() : new() { prod.Genre.Trim() };
+    }
+
+    private List<string> GetProdTailles(ProduitDto prod)
+    {
+        if (prod.Variantes?.Any() == true)
+            return prod.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Taille))
+                .Select(v => v.Taille!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        return string.IsNullOrWhiteSpace(prod.Taille) ? new() : new() { prod.Taille.Trim() };
+    }
+
+    private List<(string nom, string hex)> GetProdCouleurs(ProduitDto prod)
+    {
+        if (prod.Variantes?.Any() == true)
+            return prod.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Couleur))
+                .Select(v => (
+                    nom: v.Couleur!.Trim(),
+                    hex: v.CodeHexCouleur ?? WicStock.Web.Models.AttributsProduit.GetHex(v.Couleur)
+                ))
+                .GroupBy(c => c.nom, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .ToList();
+        if (!string.IsNullOrWhiteSpace(prod.Couleur))
+            return new() { (prod.Couleur.Trim(), prod.CodeHexCouleur ?? WicStock.Web.Models.AttributsProduit.GetHex(prod.Couleur)) };
+        return new();
+    }
 }

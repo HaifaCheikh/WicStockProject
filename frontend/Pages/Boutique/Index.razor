@@ -209,29 +209,67 @@
                                 </span>
                             </div>
                             <h3 class="b-card-name">@p.Nom</h3>
-                            @if (!string.IsNullOrEmpty(p.TypeTissu))
+                            @{
+                                var _bGenres   = GetCatGenres(p);
+                                var _bTailles  = GetCatTailles(p);
+                                var _bCouleurs = GetCatCouleurs(p);
+                                // Subtitle: Genre · TypeTissu
+                                var _bSubtitle = string.Join(" · ", new[] {
+                                    _bGenres.FirstOrDefault() ?? "",
+                                    p.TypeTissu ?? ""
+                                }.Where(s => !string.IsNullOrEmpty(s)));
+                            }
+                            @if (!string.IsNullOrEmpty(_bSubtitle))
                             {
-                                <p class="b-card-tissu">@p.TypeTissu</p>
+                                <p class="b-card-tissu">@_bSubtitle</p>
                             }
 
-                            <!-- Badges Genre / Taille / Couleur -->
-                            <div class="b-card-attrs" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; margin-bottom: 8px;">
-                                @if (!string.IsNullOrEmpty(p.Genre))
-                                {
-                                    <span style="font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; background: #F1F5F9; color: #475569; font-weight: 600;">@p.Genre</span>
-                                }
-                                @if (!string.IsNullOrEmpty(p.Taille))
-                                {
-                                    <span style="font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; background: #F1F5F9; color: #475569; font-weight: 600;">Taille @p.Taille</span>
-                                }
-                                @if (!string.IsNullOrEmpty(p.Couleur))
-                                {
-                                    <span style="font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; background: #F1F5F9; color: #475569; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
-                                        <span style="width: 8px; height: 8px; border-radius: 50%; background-color: @(p.CodeHexCouleur ?? WicStock.Web.Models.AttributsProduit.GetHex(p.Couleur)); border: 1px solid rgba(0,0,0,0.15); display: inline-block;"></span>
-                                        @p.Couleur
-                                    </span>
-                                }
-                            </div>
+                            <!-- Coloris + Tailles from variantes -->
+                            @if (_bCouleurs.Any() || _bTailles.Any())
+                            {
+                                <div class="b-attrs-section">
+                                    @if (_bCouleurs.Any())
+                                    {
+                                        <div class="b-attrs-row">
+                                            <span class="b-attrs-label">Coloris</span>
+                                            <div class="b-swatches">
+                                                @{
+                                                    var _bCoulShow = _bCouleurs.Take(5).ToList();
+                                                    int _bCoulExtra = _bCouleurs.Count - _bCoulShow.Count;
+                                                }
+                                                @foreach (var c in _bCoulShow)
+                                                {
+                                                    <span class="b-swatch" style="background-color:@c.hex;" title="@c.nom"></span>
+                                                }
+                                                @if (_bCoulExtra > 0)
+                                                {
+                                                    <span class="b-swatch-more">+@_bCoulExtra</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                    @if (_bTailles.Any())
+                                    {
+                                        <div class="b-attrs-row">
+                                            <span class="b-attrs-label">Taille</span>
+                                            <div class="b-chips">
+                                                @{
+                                                    var _bTailShow = _bTailles.Take(5).ToList();
+                                                    int _bTailExtra = _bTailles.Count - _bTailShow.Count;
+                                                }
+                                                @foreach (var t in _bTailShow)
+                                                {
+                                                    <span class="b-size-chip">@t</span>
+                                                }
+                                                @if (_bTailExtra > 0)
+                                                {
+                                                    <span class="b-size-chip b-size-chip--more">+@_bTailExtra</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
 
                             <!-- Prix -->
                             <div class="b-card-prix">
@@ -402,7 +440,19 @@
     .b-rating-none { color: #94A3B8; font-size: 0.7rem; font-weight: 500; }
 
     .b-card-name { font-family: var(--font-head); font-size: 1rem; font-weight: 700; color: var(--b-ink); margin-bottom: 4px; line-height: 1.3; min-height: 2.6em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .b-card-tissu { font-size: 0.8rem; color: var(--b-ink-muted); margin-bottom: 10px; }
+    .b-card-tissu { font-size: 0.78rem; color: var(--b-ink-muted); margin-bottom: 6px; font-weight: 500; }
+
+    /* ===== Attributs variantes (boutique + catalogue) ===== */
+    .b-attrs-section { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+    .b-attrs-row { display: flex; align-items: center; gap: 6px; }
+    .b-attrs-label { font-size: 0.68rem; font-weight: 600; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.04em; min-width: 44px; flex-shrink: 0; }
+    .b-swatches { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .b-swatch { display: inline-block; width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid rgba(0,0,0,0.12); box-shadow: 0 1px 3px rgba(0,0,0,0.12); flex-shrink: 0; transition: transform 0.1s; }
+    .b-swatch:hover { transform: scale(1.2); }
+    .b-swatch-more { font-size: 0.66rem; font-weight: 600; color: #64748B; }
+    .b-chips { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+    .b-size-chip { font-size: 0.66rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; letter-spacing: 0.01em; }
+    .b-size-chip--more { background: #E2E8F0; color: #64748B; }
 
     .b-card-prix { margin-bottom: 10px; }
     .b-prix { font-size: 1.1rem; font-weight: 700; color: var(--b-denim); font-family: var(--font-head); }
@@ -555,4 +605,45 @@
     {
         CartService.OnCartChanged -= MettreAJourBadge;
     }
+
+    // ===== HELPERS ATTRIBUTS VARIANTES (boutique) =====
+    private List<string> GetCatGenres(CatalogueProduitDto p)
+    {
+        if (p.Variantes?.Any() == true)
+            return p.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Genre))
+                .Select(v => v.Genre!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        return string.IsNullOrWhiteSpace(p.Genre) ? new() : new() { p.Genre.Trim() };
+    }
+
+    private List<string> GetCatTailles(CatalogueProduitDto p)
+    {
+        if (p.Variantes?.Any() == true)
+            return p.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Taille))
+                .Select(v => v.Taille!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        return string.IsNullOrWhiteSpace(p.Taille) ? new() : new() { p.Taille.Trim() };
+    }
+
+    private List<(string nom, string hex)> GetCatCouleurs(CatalogueProduitDto p)
+    {
+        if (p.Variantes?.Any() == true)
+            return p.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Couleur))
+                .Select(v => (
+                    nom: v.Couleur!.Trim(),
+                    hex: v.CodeHexCouleur ?? WicStock.Web.Models.AttributsProduit.GetHex(v.Couleur)
+                ))
+                .GroupBy(c => c.nom, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .ToList();
+        if (!string.IsNullOrWhiteSpace(p.Couleur))
+            return new() { (p.Couleur.Trim(), p.CodeHexCouleur ?? WicStock.Web.Models.AttributsProduit.GetHex(p.Couleur)) };
+        return new();
+    }
 }
+

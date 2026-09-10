@@ -219,24 +219,62 @@
                                             </div>
                                         }
 
-                                        <!-- Badges Genre / Taille / Couleur -->
-                                        <div class="product-attrs d-flex align-center gap-1 flex-wrap mt-2">
-                                            @if (!string.IsNullOrEmpty(produit.Genre))
-                                            {
-                                                <span class="attr-badge" style="font-size: 0.72rem; padding: 2px 7px; border-radius: 999px; background: #F1F5F9; color: #475569; font-weight: 600;">@produit.Genre</span>
-                                            }
-                                            @if (!string.IsNullOrEmpty(produit.Taille))
-                                            {
-                                                <span class="attr-badge" style="font-size: 0.72rem; padding: 2px 7px; border-radius: 999px; background: #F1F5F9; color: #475569; font-weight: 600;">Taille @produit.Taille</span>
-                                            }
-                                            @if (!string.IsNullOrEmpty(produit.Couleur))
-                                            {
-                                                <span class="attr-badge" style="font-size: 0.72rem; padding: 2px 7px; border-radius: 999px; background: #F1F5F9; color: #475569; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
-                                                    <span style="width: 8px; height: 8px; border-radius: 50%; background-color: @(produit.CodeHexCouleur ?? WicStock.Web.Models.AttributsProduit.GetHex(produit.Couleur)); border: 1px solid rgba(0,0,0,0.15); display: inline-block;"></span>
-                                                    @produit.Couleur
-                                                </span>
-                                            }
-                                        </div>
+                                        @{
+                                            var _cGenres   = GetCatGenres(produit);
+                                            var _cTailles  = GetCatTailles(produit);
+                                            var _cCouleurs = GetCatCouleurs(produit);
+                                            var _cSubtitle = string.Join(" · ", new[] {
+                                                _cGenres.FirstOrDefault() ?? "",
+                                                produit.TypeTissu ?? ""
+                                            }.Where(s => !string.IsNullOrEmpty(s)));
+                                        }
+
+                                        <!-- Coloris + Tailles from variantes -->
+                                        @if (_cCouleurs.Any() || _cTailles.Any())
+                                        {
+                                            <div class="b-attrs-section mt-2">
+                                                @if (_cCouleurs.Any())
+                                                {
+                                                    <div class="b-attrs-row">
+                                                        <span class="b-attrs-label">Coloris</span>
+                                                        <div class="b-swatches">
+                                                            @{
+                                                                var _cCoulShow  = _cCouleurs.Take(5).ToList();
+                                                                int _cCoulExtra = _cCouleurs.Count - _cCoulShow.Count;
+                                                            }
+                                                            @foreach (var c in _cCoulShow)
+                                                            {
+                                                                <span class="b-swatch" style="background-color:@c.hex;" title="@c.nom"></span>
+                                                            }
+                                                            @if (_cCoulExtra > 0)
+                                                            {
+                                                                <span class="b-swatch-more">+@_cCoulExtra</span>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                }
+                                                @if (_cTailles.Any())
+                                                {
+                                                    <div class="b-attrs-row">
+                                                        <span class="b-attrs-label">Taille</span>
+                                                        <div class="b-chips">
+                                                            @{
+                                                                var _cTailShow  = _cTailles.Take(5).ToList();
+                                                                int _cTailExtra = _cTailles.Count - _cTailShow.Count;
+                                                            }
+                                                            @foreach (var t in _cTailShow)
+                                                            {
+                                                                <span class="b-size-chip">@t</span>
+                                                            }
+                                                            @if (_cTailExtra > 0)
+                                                            {
+                                                                <span class="b-size-chip b-size-chip--more">+@_cTailExtra</span>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
                                     </div>
 
                                     <!-- Action Prix & Commander -->
@@ -1193,6 +1231,18 @@
         font-weight: 500;
         font-size: 0.875rem;
     }
+
+    /* ===== Attributs variantes (catalogue client) ===== */
+    .b-attrs-section { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+    .b-attrs-row { display: flex; align-items: center; gap: 6px; }
+    .b-attrs-label { font-size: 0.68rem; font-weight: 600; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.04em; min-width: 44px; flex-shrink: 0; }
+    .b-swatches { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .b-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid rgba(0,0,0,0.12); box-shadow: 0 1px 2px rgba(0,0,0,0.1); flex-shrink: 0; }
+    .b-swatch:hover { transform: scale(1.2); }
+    .b-swatch-more { font-size: 0.65rem; font-weight: 600; color: #64748B; }
+    .b-chips { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+    .b-size-chip { font-size: 0.65rem; font-weight: 700; padding: 2px 5px; border-radius: 4px; background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; }
+    .b-size-chip--more { background: #E2E8F0; color: #64748B; }
 
     .product-footer {
         padding-top: 12px;
@@ -2539,4 +2589,45 @@
             }
         }
     }
+
+    // ===== HELPERS ATTRIBUTS VARIANTES (catalogue client) =====
+    private List<string> GetCatGenres(CatalogueProduitDto p)
+    {
+        if (p.Variantes?.Any() == true)
+            return p.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Genre))
+                .Select(v => v.Genre!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        return string.IsNullOrWhiteSpace(p.Genre) ? new() : new() { p.Genre.Trim() };
+    }
+
+    private List<string> GetCatTailles(CatalogueProduitDto p)
+    {
+        if (p.Variantes?.Any() == true)
+            return p.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Taille))
+                .Select(v => v.Taille!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        return string.IsNullOrWhiteSpace(p.Taille) ? new() : new() { p.Taille.Trim() };
+    }
+
+    private List<(string nom, string hex)> GetCatCouleurs(CatalogueProduitDto p)
+    {
+        if (p.Variantes?.Any() == true)
+            return p.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Couleur))
+                .Select(v => (
+                    nom: v.Couleur!.Trim(),
+                    hex: v.CodeHexCouleur ?? WicStock.Web.Models.AttributsProduit.GetHex(v.Couleur)
+                ))
+                .GroupBy(c => c.nom, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .ToList();
+        if (!string.IsNullOrWhiteSpace(p.Couleur))
+            return new() { (p.Couleur.Trim(), p.CodeHexCouleur ?? WicStock.Web.Models.AttributsProduit.GetHex(p.Couleur)) };
+        return new();
+    }
 }
+
