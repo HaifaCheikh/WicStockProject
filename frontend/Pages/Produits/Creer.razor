@@ -71,12 +71,13 @@
 
                         <MudGrid Spacing="3">
                             <MudItem xs="12">
-                                <MudTextField @bind-Value="produit.Reference"
-                                              Label="Référence"
+                                <MudTextField Value="@produit.Reference"
+                                              ValueChanged="@((string val) => OnReferenceChanged(val))"
+                                              Label="Référence produit"
                                               Variant="Variant.Outlined"
                                               Required="true"
                                               Class="styled-field field-mono"
-                                              Placeholder="Ex: TIS-COT-2026" />
+                                              Placeholder="Ex: TIS-DNM-01" />
                             </MudItem>
 
                             <MudItem xs="12">
@@ -137,35 +138,117 @@
                                 <div class="section-label mb-0">Variantes du Produit (Taille, Couleur, Stock)</div>
                                 <span class="hint-text">Définissez chaque variante disponible avec son propre niveau de stock.</span>
                             </div>
-                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" @onclick="AjouterVariante">
-                                <i class="bi bi-plus-lg me-1"></i>Ajouter une variante
-                            </button>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" @onclick="() => showGenerator = !showGenerator">
+                                    <i class="bi bi-lightning-charge me-1"></i>@(showGenerator ? "Masquer générateur" : "Génération en masse")
+                                </button>
+                                <button type="button" class="btn btn-sm btn-primary rounded-pill" @onclick="AjouterVariante">
+                                    <i class="bi bi-plus-lg me-1"></i>Ajouter une ligne
+                                </button>
+                            </div>
                         </div>
+
+                        <!-- Panneau de génération combinatoire en masse -->
+                        @if (showGenerator)
+                        {
+                            <div class="p-3 mb-3 bg-light border rounded-3 shadow-sm">
+                                <h6 class="fw-bold mb-2 text-primary fs-7">
+                                    <i class="bi bi-magic me-1"></i>Générateur combinatoire automatique
+                                </h6>
+                                <p class="text-muted fs-8 mb-3">Cochez les attributs souhaités pour créer automatiquement toutes les déclinaisons possibles en un clic.</p>
+
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold fs-7 mb-1">Genres :</label>
+                                        <div class="d-flex flex-column gap-1 max-vh-20 overflow-auto border p-2 rounded bg-white">
+                                            @foreach (var g in listGenres)
+                                            {
+                                                <div class="form-check fs-7">
+                                                    <input class="form-check-input" type="checkbox" id="gen_@g.Id"
+                                                           checked="@selectedGenresGen.Contains(g.Valeur)"
+                                                           @onchange="(e) => ToggleGenGenre(g.Valeur, e.Value)" />
+                                                    <label class="form-check-label" for="gen_@g.Id">@g.Valeur</label>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold fs-7 mb-1">Tailles :</label>
+                                        <div class="d-flex flex-column gap-1 max-vh-20 overflow-auto border p-2 rounded bg-white">
+                                            @foreach (var t in listTailles)
+                                            {
+                                                <div class="form-check fs-7">
+                                                    <input class="form-check-input" type="checkbox" id="taille_@t.Id"
+                                                           checked="@selectedTaillesGen.Contains(t.Valeur)"
+                                                           @onchange="(e) => ToggleGenTaille(t.Valeur, e.Value)" />
+                                                    <label class="form-check-label" for="taille_@t.Id">@t.Valeur</label>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold fs-7 mb-1">Couleurs Denim :</label>
+                                        <div class="d-flex flex-column gap-1 max-vh-20 overflow-auto border p-2 rounded bg-white">
+                                            @foreach (var c in listCouleurs)
+                                            {
+                                                <div class="form-check fs-7">
+                                                    <input class="form-check-input" type="checkbox" id="c_@c.Id"
+                                                           checked="@selectedCouleursGen.Contains(c.Valeur)"
+                                                           @onchange="(e) => ToggleGenCouleur(c.Valeur, e.Value)" />
+                                                    <label class="form-check-label d-flex align-items-center gap-1" for="c_@c.Id">
+                                                        <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:@(!string.IsNullOrEmpty(c.CodeHex) ? c.CodeHex : "#ccc"); border:1px solid rgba(0,0,0,0.2);"></span>
+                                                        @c.Valeur
+                                                    </label>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex align-items-center gap-3 mt-3 pt-2 border-top">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <label class="form-label mb-0 fs-7 fw-semibold">Stock initial :</label>
+                                        <input type="number" class="form-control form-control-sm" style="width: 80px;" @bind="initialStockGen" min="0" />
+                                    </div>
+
+                                    <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 ms-auto"
+                                            @onclick="GenererCombinaisonsEnMasse"
+                                            disabled="@(NombreCombinaisonsTotal == 0)">
+                                        <i class="bi bi-check2-all me-1"></i>Générer (@NombreCombinaisonsTotal combinaison(s))
+                                    </button>
+                                </div>
+                            </div>
+                        }
 
                         @if (produit.Variantes == null || !produit.Variantes.Any())
                         {
-                            <div class="alert alert-light border rounded-3 text-center py-3 mb-3">
-                                <span class="text-muted">Aucune variante spécifique. Cliquez sur "+ Ajouter une variante" pour configurer les déclinaisons Taille/Couleur/Stock.</span>
+                            <div class="alert alert-light border rounded-3 text-center py-4 mb-3">
+                                <i class="bi bi-boxes fs-2 text-muted d-block mb-1"></i>
+                                <span class="text-muted fw-semibold">Aucune variante configurée.</span>
+                                <p class="text-muted fs-7 mb-0">Utilisez le bouton <strong>"Génération en masse"</strong> ou <strong>"+ Ajouter une ligne"</strong> ci-dessus pour définir les déclinaisons (Taille / Couleur / Stock).</p>
                             </div>
                         }
                         else
                         {
                             <div class="table-responsive mb-3">
-                                <table class="table table-sm table-bordered align-middle text-nowrap fs-7">
-                                    <thead class="bg-light">
+                                <table class="table table-sm table-hover table-bordered align-middle text-nowrap fs-7">
+                                    <thead class="bg-light text-uppercase fs-8 text-muted">
                                         <tr>
                                             <th>Genre</th>
                                             <th>Taille</th>
                                             <th>Couleur</th>
-                                            <th>SKU / Réf.</th>
+                                            <th>SKU (Référence unique auto)</th>
                                             <th style="width: 100px;">Stock</th>
-                                            <th style="width: 110px;">Prix (DT)</th>
+                                            <th style="width: 140px;">Prix Spécifique (DT)</th>
                                             <th style="width: 40px;"></th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         @foreach (var v in produit.Variantes)
                                         {
+                                            var hex = listCouleurs.FirstOrDefault(c => c.Valeur == v.Couleur)?.CodeHex;
                                             <tr>
                                                 <td>
                                                     <select class="form-select form-select-sm" @bind="v.Genre" @bind:after="() => AutoGenSKU(v)">
@@ -186,26 +269,32 @@
                                                     </select>
                                                 </td>
                                                 <td>
-                                                    <select class="form-select form-select-sm" @bind="v.Couleur" @bind:after="() => AutoGenSKU(v)">
-                                                        <option value="">-- Couleur --</option>
-                                                        @foreach (var c in listCouleurs)
+                                                    <div class="d-flex align-items-center gap-1">
+                                                        @if (!string.IsNullOrEmpty(hex))
                                                         {
-                                                            <option value="@c.Valeur">@c.Valeur</option>
+                                                            <span style="width: 14px; height: 14px; border-radius: 50%; background-color: @hex; border: 1px solid rgba(0,0,0,0.2); flex-shrink: 0;"></span>
                                                         }
-                                                    </select>
+                                                        <select class="form-select form-select-sm" @bind="v.Couleur" @bind:after="() => AutoGenSKU(v)">
+                                                            <option value="">-- Couleur --</option>
+                                                            @foreach (var c in listCouleurs)
+                                                            {
+                                                                <option value="@c.Valeur">@c.Valeur</option>
+                                                            }
+                                                        </select>
+                                                    </div>
                                                 </td>
                                                 <td>
-                                                    <input type="text" class="form-control form-control-sm font-monospace" @bind="v.Reference" placeholder="Automatique" />
+                                                    <input type="text" class="form-control form-control-sm font-monospace bg-light" @bind="v.Reference" title="SKU généré automatiquement" />
                                                 </td>
                                                 <td>
-                                                    <input type="number" class="form-control form-control-sm" @bind="v.QuantiteActuelle" min="0" />
+                                                    <input type="number" class="form-control form-control-sm fw-bold text-primary" @bind="v.QuantiteActuelle" min="0" />
                                                 </td>
                                                 <td>
-                                                    <input type="number" class="form-control form-control-sm" @bind="v.PrixOverride" step="0.5" placeholder="Par défaut" />
+                                                    <input type="number" class="form-control form-control-sm" @bind="v.PrixOverride" step="0.5" placeholder="@($"Défaut ({produit.PrixUnitaire:F2})")" />
                                                 </td>
                                                 <td class="text-center">
                                                     <button type="button" class="btn btn-sm btn-link text-danger p-0" @onclick="() => SupprimerVariante(v)">
-                                                        <i class="bi bi-trash"></i>
+                                                        <i class="bi bi-trash fs-6"></i>
                                                     </button>
                                                 </td>
                                             </tr>
@@ -787,11 +876,90 @@
     private List<AttributValeurDto> listTailles = new();
     private List<AttributValeurDto> listCouleurs = new();
 
+    private bool showGenerator = false;
+    private HashSet<string> selectedGenresGen = new();
+    private HashSet<string> selectedTaillesGen = new();
+    private HashSet<string> selectedCouleursGen = new();
+    private int initialStockGen = 10;
+
+    private int NombreCombinaisonsTotal =>
+        (selectedGenresGen.Any() ? selectedGenresGen.Count : (selectedTaillesGen.Any() || selectedCouleursGen.Any() ? 1 : 0)) *
+        (selectedTaillesGen.Any() ? selectedTaillesGen.Count : (selectedGenresGen.Any() || selectedCouleursGen.Any() ? 1 : 0)) *
+        (selectedCouleursGen.Any() ? selectedCouleursGen.Count : (selectedGenresGen.Any() || selectedTaillesGen.Any() ? 1 : 0));
+
     protected override async Task OnInitializedAsync()
     {
         listGenres = await AttributService.ObtenirAttributsAsync("Genre");
         listTailles = await AttributService.ObtenirAttributsAsync("Taille");
         listCouleurs = await AttributService.ObtenirAttributsAsync("Couleur");
+    }
+
+    private void ToggleGenGenre(string val, object? isChecked)
+    {
+        if (isChecked is bool b && b) selectedGenresGen.Add(val);
+        else selectedGenresGen.Remove(val);
+    }
+
+    private void ToggleGenTaille(string val, object? isChecked)
+    {
+        if (isChecked is bool b && b) selectedTaillesGen.Add(val);
+        else selectedTaillesGen.Remove(val);
+    }
+
+    private void ToggleGenCouleur(string val, object? isChecked)
+    {
+        if (isChecked is bool b && b) selectedCouleursGen.Add(val);
+        else selectedCouleursGen.Remove(val);
+    }
+
+    private void GenererCombinaisonsEnMasse()
+    {
+        produit.Variantes ??= new();
+
+        var genresList = selectedGenresGen.Any() ? selectedGenresGen.ToList() : new List<string> { "" };
+        var taillesList = selectedTaillesGen.Any() ? selectedTaillesGen.ToList() : new List<string> { "" };
+        var couleursList = selectedCouleursGen.Any() ? selectedCouleursGen.ToList() : new List<string> { "" };
+
+        foreach (var g in genresList)
+        {
+            foreach (var t in taillesList)
+            {
+                foreach (var c in couleursList)
+                {
+                    var gVal = string.IsNullOrEmpty(g) ? null : g;
+                    var tVal = string.IsNullOrEmpty(t) ? null : t;
+                    var cVal = string.IsNullOrEmpty(c) ? null : c;
+
+                    var existante = produit.Variantes.FirstOrDefault(v => v.Genre == gVal && v.Taille == tVal && v.Couleur == cVal);
+                    if (existante == null)
+                    {
+                        var v = new VarianteDto
+                        {
+                            Genre = gVal,
+                            Taille = tVal,
+                            Couleur = cVal,
+                            QuantiteActuelle = initialStockGen
+                        };
+                        AutoGenSKU(v);
+                        produit.Variantes.Add(v);
+                    }
+                }
+            }
+        }
+
+        showGenerator = false;
+    }
+
+    private void OnReferenceChanged(string newRef)
+    {
+        produit.Reference = newRef;
+        if (produit.Variantes != null)
+        {
+            foreach (var v in produit.Variantes)
+            {
+                AutoGenSKU(v);
+            }
+        }
     }
 
     private void AjouterVariante()
