@@ -276,8 +276,30 @@
                                 </div>
 
                                 <div class="stock-input">
-                                    <label>Stock initial</label>
-                                    <input type="number" class="stock-input-field" @bind="initialStockGen" min="0" />
+                                    <div class="stock-mode-switch">
+                                        <button type="button"
+                                                class="stock-mode-btn @(modeRepartitionStock == "meme" ? "stock-mode-btn--active" : "")"
+                                                @onclick='() => modeRepartitionStock = "meme"'>
+                                            Même valeur
+                                        </button>
+                                        <button type="button"
+                                                class="stock-mode-btn @(modeRepartitionStock == "total" ? "stock-mode-btn--active" : "")"
+                                                @onclick='() => modeRepartitionStock = "total"'>
+                                            Répartir un total
+                                        </button>
+                                    </div>
+                                    <div class="stock-input-row">
+                                        <label>@(modeRepartitionStock == "total" ? "Stock total à répartir" : "Stock initial (par variante)")</label>
+                                        <input type="number" class="stock-input-field" @bind="initialStockGen" min="0" />
+                                    </div>
+                                    @if (modeRepartitionStock == "total" && NombreCombinaisonsTotal > 0)
+                                    {
+                                        var quotient = initialStockGen / NombreCombinaisonsTotal;
+                                        var reste = initialStockGen % NombreCombinaisonsTotal;
+                                        <span class="stock-mode-hint">
+                                            ≈ @quotient /variante@(reste > 0 ? $" (+1 sur {reste} variante(s))" : "")
+                                        </span>
+                                    }
                                 </div>
 
                                 <button type="button" class="btn btn--primary btn--sm"
@@ -837,12 +859,49 @@
         color: var(--denim);
     }
 
-    .produit-form-page .stock-input { display: flex; align-items: center; gap: 8px; }
+    .produit-form-page .stock-input { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+
+    .produit-form-page .stock-input-row { display: flex; align-items: center; gap: 8px; }
 
     .produit-form-page .stock-input label {
         font-size: 0.8125rem;
         font-weight: 600;
         color: var(--ink-muted);
+        white-space: nowrap;
+    }
+
+    .produit-form-page .stock-mode-switch {
+        display: inline-flex;
+        background: var(--sand);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 2px;
+        gap: 2px;
+    }
+
+    .produit-form-page .stock-mode-btn {
+        background: none;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-family: var(--font-body);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.15s ease;
+    }
+
+    .produit-form-page .stock-mode-btn--active {
+        background: var(--denim);
+        color: #fff;
+    }
+
+    .produit-form-page .stock-mode-hint {
+        font-family: var(--font-mono);
+        font-size: 0.6875rem;
+        color: var(--ink-soft);
     }
 
     .produit-form-page .stock-input-field {
@@ -1115,6 +1174,7 @@
     private HashSet<string> selectedTaillesGen = new();
     private HashSet<string> selectedCouleursGen = new();
     private int initialStockGen = 10;
+    private string modeRepartitionStock = "meme"; // "meme" = même valeur par variante, "total" = répartir un total
 
     // Repli/dépli de chaque bloc d'attributs (réduit la charge visuelle)
     private Dictionary<string, bool> groupesOuverts = new()
@@ -1228,6 +1288,8 @@
         var taillesList = selectedTaillesGen.Any() ? selectedTaillesGen.ToList() : new List<string> { "" };
         var couleursList = selectedCouleursGen.Any() ? selectedCouleursGen.ToList() : new List<string> { "" };
 
+        // On liste d'abord les combinaisons réellement nouvelles (sans écraser les variantes déjà générées)
+        var combinaisonsACreer = new List<(string? Genre, string? Taille, string? Couleur)>();
         foreach (var g in genresList)
         {
             foreach (var t in taillesList)
@@ -1241,19 +1303,56 @@
                     var existante = produit.Variantes.FirstOrDefault(v => v.Genre == gVal && v.Taille == tVal && v.Couleur == cVal);
                     if (existante == null)
                     {
-                        var v = new VarianteDto
-                        {
-                            Genre = gVal,
-                            Taille = tVal,
-                            Couleur = cVal,
-                            QuantiteActuelle = initialStockGen
-                        };
-                        AutoGenSKU(v);
-                        produit.Variantes.Add(v);
+                        combinaisonsACreer.Add((gVal, tVal, cVal));
                     }
                 }
             }
         }
+
+        var stocksParVariante = CalculerRepartitionStock(combinaisonsACreer.Count);
+
+        for (int i = 0; i < combinaisonsACreer.Count; i++)
+        {
+            var (gVal, tVal, cVal) = combinaisonsACreer[i];
+            var v = new VarianteDto
+            {
+                Genre = gVal,
+                Taille = tVal,
+                Couleur = cVal,
+                QuantiteActuelle = stocksParVariante[i]
+            };
+            AutoGenSKU(v);
+            produit.Variantes.Add(v);
+        }
+    }
+
+    // "meme" : la valeur saisie est appliquée telle quelle à chaque variante.
+    // "total" : la valeur saisie est un total, réparti aussi équitablement que possible
+    //           entre les variantes (le reste de la division est distribué aux premières,
+    //           pour ne jamais perdre d'unité de stock).
+    private List<int> CalculerRepartitionStock(int nombreVariantes)
+    {
+        var resultat = new List<int>();
+        if (nombreVariantes <= 0) return resultat;
+
+        if (modeRepartitionStock == "total")
+        {
+            var quotient = initialStockGen / nombreVariantes;
+            var reste = initialStockGen % nombreVariantes;
+            for (int i = 0; i < nombreVariantes; i++)
+            {
+                resultat.Add(quotient + (i < reste ? 1 : 0));
+            }
+        }
+        else
+        {
+            for (int i = 0; i < nombreVariantes; i++)
+            {
+                resultat.Add(initialStockGen);
+            }
+        }
+
+        return resultat;
     }
 
     private void OnReferenceChanged(string newRef)
