@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "WicStock.Web",
   "resources": {
-    "hash": "sha256-Mt48yf7xN0uYW3uu/WRn//b3Y2/JIAigfmpt1LvBfrU=",
+    "hash": "sha256-OPeroPhU6aAmm6ZJskCjd2N0x3Qar5+0bFPhyCwKPZI=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-dexsp+9ih2C28zVhNnPXUbkz2QCq7lHpkyDcmaLl7NQ="
     },
@@ -19,7 +19,7 @@
     "coreAssembly": {},
     "assembly": {
       "Microsoft.AspNetCore.Authorization.wasm": "sha256-SObljI36MYhRI40LA2cX5sg23Wii3S0WPGMU9gBMNv4=",
-      "Microsoft.AspNetCore.Components.wasm": "sha256-xsnk20OGxLSsbfpp+7+RRMecdYRW/owVMpqzfaTp+3k=",
+      "Microsoft.AspNetCore.Components.wasm": "sha256-v74T80BxWa5ITTSfQGuRWzEmvHa14ShZqSnuvheVv/0=",
       "Microsoft.AspNetCore.Components.Authorization.wasm": "sha256-gLKMuKiF9yNQ3h1bNL+4DUxKWB+ep3yqYq8zWpt5Crg=",
       "Microsoft.AspNetCore.Components.Forms.wasm": "sha256-mL7vdDpQEQOM1mrxZFCQRqtTusiUPHk83BkWeSbQnhQ=",
       "Microsoft.AspNetCore.Components.Web.wasm": "sha256-9NgsoqdDoNyL2HRDU4hpCpBD/6EcB84PWGS2+nBMZtM=",
@@ -100,7 +100,7 @@
       "System.Xml.ReaderWriter.wasm": "sha256-QhuHFx3yfIZDctT/IzBBh18LRXBU4OIcvXmtx1o2DFI=",
       "System.wasm": "sha256-0h/E837RjMJjMLndiTv3gCaXstmfreX9Ui/wJVYpzwg=",
       "System.Private.CoreLib.wasm": "sha256-eGt2XH/MAR+dlcfeMGF38RuQOfWCOtPLytjaKCEkkSE=",
-      "WicStock.Web.wasm": "sha256-DWSn/T2Z2ZXgODVsDSOzd6hv0dhI5cQUXgUM2C36v90="
+      "WicStock.Web.wasm": "sha256-PlNtvYDRUWZmk9HO+/JATedfcEmRZ2W9UPsf4Z/9bZc="
     }
   },
   "cacheBootResources": true,
