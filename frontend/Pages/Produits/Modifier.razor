@@ -280,10 +280,11 @@
                                             <div class="chip-list">
                                                 @foreach (var c in listCouleurs)
                                                 {
+                                                    var hex = !string.IsNullOrEmpty(c.CodeHex) ? c.CodeHex : WicStock.Web.Models.AttributsProduit.GetHex(c.Valeur);
                                                     <button type="button"
                                                             class="attr-chip attr-chip--color @(selectedCouleursGen.Contains(c.Valeur) ? "attr-chip--active" : "")"
                                                             @onclick="() => ToggleChip(selectedCouleursGen, c.Valeur)">
-                                                        <span class="swatch" style="background-color:@(!string.IsNullOrEmpty(c.CodeHex) ? c.CodeHex : "#ccc")"></span>
+                                                        <span class="swatch" style="background-color:@hex"></span>
                                                         @c.Valeur
                                                     </button>
                                                 }
@@ -294,8 +295,9 @@
                                             <div class="chip-list chip-list--preview">
                                                 @foreach (var c in listCouleurs.Where(x => selectedCouleursGen.Contains(x.Valeur)))
                                                 {
+                                                    var hex = !string.IsNullOrEmpty(c.CodeHex) ? c.CodeHex : WicStock.Web.Models.AttributsProduit.GetHex(c.Valeur);
                                                     <span class="attr-chip attr-chip--color attr-chip--mini">
-                                                        <span class="swatch" style="background-color:@(!string.IsNullOrEmpty(c.CodeHex) ? c.CodeHex : "#ccc")"></span>
+                                                        <span class="swatch" style="background-color:@hex"></span>
                                                         @c.Valeur
                                                     </span>
                                                 }
@@ -1343,13 +1345,41 @@
 
         if (!string.IsNullOrEmpty(produit.ImageUrl))
         {
-            imagePreviewUrl = $"{Http.BaseAddress}{produit.ImageUrl.TrimStart('/')}";
+            imagePreviewUrl = GetFullImageUrl(produit.ImageUrl);
         }
 
         if (produit.Stock == null)
         {
             produit.Stock = new StockDto();
         }
+
+        // Pré-charger les puces de genres, tailles et couleurs d'après le produit et ses variantes
+        if (produit.Variantes != null && produit.Variantes.Any())
+        {
+            foreach (var v in produit.Variantes)
+            {
+                if (!string.IsNullOrWhiteSpace(v.Genre)) selectedGenresGen.Add(v.Genre);
+                if (!string.IsNullOrWhiteSpace(v.Taille)) selectedTaillesGen.Add(v.Taille);
+                if (!string.IsNullOrWhiteSpace(v.Couleur)) selectedCouleursGen.Add(v.Couleur);
+            }
+        }
+        else
+        {
+            if (!string.IsNullOrWhiteSpace(produit.Genre)) selectedGenresGen.Add(produit.Genre);
+            if (!string.IsNullOrWhiteSpace(produit.Taille)) selectedTaillesGen.Add(produit.Taille);
+            if (!string.IsNullOrWhiteSpace(produit.Couleur)) selectedCouleursGen.Add(produit.Couleur);
+        }
+
+        if (selectedTaillesGen.Any()) groupesOuverts["taille"] = true;
+        if (selectedCouleursGen.Any()) groupesOuverts["couleur"] = true;
+    }
+
+    private string GetFullImageUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return "";
+        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return url;
+        return $"{Http.BaseAddress}{url.TrimStart('/')}";
     }
 
     private void OnReferenceChanged(string newRef)

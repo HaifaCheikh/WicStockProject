@@ -170,6 +170,13 @@ namespace WicStock.Web.Services
             }
         }
 
+        /// <summary>Persiste les modifications d'un article du panier et notifie les abonnés.</summary>
+        public async Task SaveCartAsync()
+        {
+            await PersisterAsync();
+            OnCartChanged?.Invoke();
+        }
+
         /// <summary>Vide complètement le panier.</summary>
         public async Task ClearCartAsync()
         {

@@ -105,7 +105,14 @@
                                     }
                                     @if (!string.IsNullOrEmpty(lineAttr))
                                     {
-                                        <span class="order-line-attr" style="font-size: 0.8125rem; color: #64748B; display: block; margin-top: 2px;">@lineAttr</span>
+                                        <span class="order-line-attr d-inline-flex align-items-center gap-2" style="font-size: 0.8125rem; color: #64748B; margin-top: 2px;">
+                                            @if (!string.IsNullOrEmpty(ligne.Couleur))
+                                            {
+                                                var hexCol = WicStock.Web.Models.AttributsProduit.GetHex(ligne.Couleur);
+                                                <span style="width: 10px; height: 10px; border-radius: 50%; background-color: @hexCol; border: 1px solid rgba(0,0,0,0.2); display: inline-block; flex-shrink: 0;" title="@ligne.Couleur"></span>
+                                            }
+                                            <span>@lineAttr</span>
+                                        </span>
                                     }
                                 </div>
                                 <div class="order-line-right">

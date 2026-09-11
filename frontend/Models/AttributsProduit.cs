@@ -37,9 +37,15 @@ namespace WicStock.Web.Models
             { "Noir", "#18181B" },
             { "Blanc", "#FFFFFF" },
             { "Gris", "#71717A" },
+            { "Gris anthracite", "#3F3F46" },
+            { "Gris clair", "#E4E4E7" },
             { "Bleu", "#2563EB" },
+            { "Bleu indigo", "#4F46E5" },
+            { "Bleu marine", "#1E3A8A" },
+            { "Bleu ciel", "#38BDF8" },
             { "Rouge", "#DC2626" },
             { "Vert", "#16A34A" },
+            { "Vert olive", "#65A30D" },
             { "Beige", "#D4D4D8" },
             { "Marron", "#78350F" },
             { "Rose", "#EC4899" },
@@ -57,9 +63,18 @@ namespace WicStock.Web.Models
             if (string.IsNullOrWhiteSpace(couleur))
                 return FallbackHex;
 
-            return MappingCouleursHex.TryGetValue(couleur.Trim(), out var hex)
-                ? hex
-                : FallbackHex;
+            var val = couleur.Trim();
+            if (MappingCouleursHex.TryGetValue(val, out var hex))
+                return hex;
+
+            // Détection par mot-clé si pas d'équivalence exacte
+            foreach (var kvp in MappingCouleursHex)
+            {
+                if (val.Contains(kvp.Key, StringComparison.OrdinalIgnoreCase))
+                    return kvp.Value;
+            }
+
+            return FallbackHex;
         }
 
         public static string FormatLigneDescription(string? genre, string? taille, string? couleur)

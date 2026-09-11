@@ -207,7 +207,54 @@
                                     }
                                     @if (!string.IsNullOrEmpty(descAttr))
                                     {
-                                        <p class="panier-item-attr" style="font-size: 0.8125rem; color: #64748b; margin-top: 2px;">@descAttr</p>
+                                        <p class="panier-item-attr d-flex align-items-center gap-2" style="font-size: 0.8125rem; color: #64748b; margin-top: 2px;">
+                                            @if (!string.IsNullOrEmpty(item.Couleur))
+                                            {
+                                                var hexCol = WicStock.Web.Models.AttributsProduit.GetHex(item.Couleur);
+                                                <span style="width: 10px; height: 10px; border-radius: 50%; background-color: @hexCol; border: 1px solid rgba(0,0,0,0.2); display: inline-block; flex-shrink: 0;" title="@item.Couleur"></span>
+                                            }
+                                            <span>@descAttr</span>
+                                        </p>
+                                    }
+                                    @if (produitsDetails.TryGetValue(item.ProduitId, out var prodDetail) && prodDetail.Variantes != null && prodDetail.Variantes.Any())
+                                    {
+                                        var optTailles = prodDetail.Variantes.Select(v => v.Taille).Where(t => !string.IsNullOrWhiteSpace(t)).Distinct().ToList();
+                                        var optCouleurs = prodDetail.Variantes.Select(v => v.Couleur).Where(c => !string.IsNullOrWhiteSpace(c)).Distinct().ToList();
+
+                                        @if (optTailles.Count > 1 || optCouleurs.Count > 1)
+                                        {
+                                            <div class="panier-item-edit-attrs d-flex flex-wrap gap-2 mt-2 align-items-center">
+                                                @if (optTailles.Count > 1)
+                                                {
+                                                    <div class="d-flex align-items-center gap-1" style="font-size: 0.8rem;">
+                                                        <span class="text-muted">Taille :</span>
+                                                        <select class="form-select form-select-sm py-0 px-2" style="width: auto; font-size: 0.8rem; border-radius: 6px;"
+                                                                value="@item.Taille"
+                                                                @onchange="(e) => ChangerTailleCartItem(item, e.Value?.ToString())">
+                                                            @foreach (var t in optTailles)
+                                                            {
+                                                                <option value="@t">@t</option>
+                                                            }
+                                                        </select>
+                                                    </div>
+                                                }
+
+                                                @if (optCouleurs.Count > 1)
+                                                {
+                                                    <div class="d-flex align-items-center gap-1" style="font-size: 0.8rem;">
+                                                        <span class="text-muted">Couleur :</span>
+                                                        <select class="form-select form-select-sm py-0 px-2" style="width: auto; font-size: 0.8rem; border-radius: 6px;"
+                                                                value="@item.Couleur"
+                                                                @onchange="(e) => ChangerCouleurCartItem(item, e.Value?.ToString())">
+                                                            @foreach (var c in optCouleurs)
+                                                            {
+                                                                <option value="@c">@c</option>
+                                                            }
+                                                        </select>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
                                     }
                                     @if (!string.IsNullOrEmpty(item.TypeTissu))
                                     {
@@ -707,6 +754,7 @@
 
 @code {
     private List<CartItemDto> items = new();
+    private Dictionary<int, CatalogueProduitDto> produitsDetails = new();
     private bool commandeEnCours = false;
     private CommandeStockErrorClientDto? erreurStock = null;
     private CommandeMultiResultClientDto? commandeSucces = null;
@@ -717,7 +765,72 @@
     protected override async Task OnInitializedAsync()
     {
         items = await CartService.GetItemsAsync();
+        await ChargerDetailsProduits();
         CartService.OnCartChanged += HandleCartChanged;
+    }
+
+    private async Task ChargerDetailsProduits()
+    {
+        foreach (var item in items)
+        {
+            if (!produitsDetails.ContainsKey(item.ProduitId))
+            {
+                var p = await BoutiqueService.ObtenirProduitPublic(item.ProduitId);
+                if (p != null) produitsDetails[item.ProduitId] = p;
+            }
+        }
+    }
+
+    private async void HandleCartChanged() => await RechercherItems();
+
+    private async Task RechercherItems()
+    {
+        items = await CartService.GetItemsAsync();
+        await ChargerDetailsProduits();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ChangerTailleCartItem(CartItemDto item, string? nouvelleTaille)
+    {
+        if (string.IsNullOrWhiteSpace(nouvelleTaille) || item.Taille == nouvelleTaille) return;
+        item.Taille = nouvelleTaille;
+        ActualiserVarianteCartItem(item);
+        await CartService.SaveCartAsync();
+        StateHasChanged();
+    }
+
+    private async Task ChangerCouleurCartItem(CartItemDto item, string? nouvelleCouleur)
+    {
+        if (string.IsNullOrWhiteSpace(nouvelleCouleur) || item.Couleur == nouvelleCouleur) return;
+        item.Couleur = nouvelleCouleur;
+        ActualiserVarianteCartItem(item);
+        await CartService.SaveCartAsync();
+        StateHasChanged();
+    }
+
+    private void ActualiserVarianteCartItem(CartItemDto item)
+    {
+        if (produitsDetails.TryGetValue(item.ProduitId, out var prod) && prod.Variantes != null)
+        {
+            var match = prod.Variantes.FirstOrDefault(v =>
+                (string.IsNullOrWhiteSpace(item.Genre) || v.Genre == item.Genre) &&
+                (string.IsNullOrWhiteSpace(item.Taille) || v.Taille == item.Taille) &&
+                (string.IsNullOrWhiteSpace(item.Couleur) || v.Couleur == item.Couleur));
+
+            if (match != null)
+            {
+                item.VarianteProduitId = match.Id;
+                if (!string.IsNullOrEmpty(match.Reference)) item.Reference = match.Reference;
+                if (match.PrixOverride.HasValue)
+                {
+                    item.PrixUnitaire = match.PrixOverride.Value;
+                    item.PrixEffectif = prod.EstEnPromotion && prod.RemisePourcentage > 0
+                        ? Math.Round(match.PrixOverride.Value * (1 - (decimal)prod.RemisePourcentage / 100m), 2)
+                        : match.PrixOverride.Value;
+                }
+                item.QuantiteDisponible = match.QuantiteActuelle;
+            }
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -746,14 +859,6 @@
                 // Ignorer les erreurs d'interop JS durant le pre-rendering
             }
         }
-    }
-
-    private async void HandleCartChanged() => await RechercherItems();
-
-    private async Task RechercherItems()
-    {
-        items = await CartService.GetItemsAsync();
-        await InvokeAsync(StateHasChanged);
     }
 
     private async Task ChangerQuantite(CartItemDto item, int nouvelleQty)
@@ -840,7 +945,11 @@
             Lignes = items.Select(i => new LigneCommandeClientDto
             {
                 ProduitId = i.ProduitId,
-                Quantite = i.Quantite
+                VarianteProduitId = i.VarianteProduitId,
+                Quantite = i.Quantite,
+                Genre = i.Genre,
+                Taille = i.Taille,
+                Couleur = i.Couleur
             }).ToList()
         };
 
