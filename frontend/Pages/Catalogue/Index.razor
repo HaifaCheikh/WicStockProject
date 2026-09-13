@@ -92,22 +92,6 @@
                     }
                 </select>
 
-                <select class="filter-select" @bind="tailleFilter">
-                    <option value="">Toutes les tailles</option>
-                    @foreach (var t in WicStock.Web.Models.AttributsProduit.ToutesLesTailles)
-                    {
-                        <option value="@t">Taille @t</option>
-                    }
-                </select>
-
-                <select class="filter-select" @bind="couleurFilter">
-                    <option value="">Toutes les couleurs</option>
-                    @foreach (var c in WicStock.Web.Models.AttributsProduit.Couleurs)
-                    {
-                        <option value="@c">@c</option>
-                    }
-                </select>
-
                 <select class="filter-select" @bind="priceSortFilter">
                     <option value="">Trier par prix</option>
                     <option value="asc">Prix : croissant</option>
@@ -2624,13 +2608,13 @@
 
     private List<(string nom, string hex)> GetCatCouleurs(CatalogueProduitDto p)
     {
-        if (p.Variantes?.Any() == true)
+        if (p.Variantes?.Any(v => !string.IsNullOrWhiteSpace(v.Couleur)) == true)
         {
             var res = p.Variantes
                 .Where(v => !string.IsNullOrWhiteSpace(v.Couleur))
                 .Select(v => (
                     nom: v.Couleur!.Trim(),
-                    hex: WicStock.Web.Models.AttributsProduit.GetHex(v.Couleur)
+                    hex: !string.IsNullOrWhiteSpace(v.CodeHexCouleur) ? v.CodeHexCouleur! : WicStock.Web.Models.AttributsProduit.GetHex(v.Couleur)
                 ))
                 .Where(c => !string.IsNullOrEmpty(c.hex))
                 .GroupBy(c => c.nom, StringComparer.OrdinalIgnoreCase)
@@ -2641,7 +2625,7 @@
 
         if (!string.IsNullOrWhiteSpace(p.Couleur))
         {
-            var hex = WicStock.Web.Models.AttributsProduit.GetHex(p.Couleur);
+            var hex = !string.IsNullOrWhiteSpace(p.CodeHexCouleur) ? p.CodeHexCouleur! : WicStock.Web.Models.AttributsProduit.GetHex(p.Couleur);
             if (!string.IsNullOrEmpty(hex))
             {
                 return new() { (p.Couleur.Trim(), hex) };

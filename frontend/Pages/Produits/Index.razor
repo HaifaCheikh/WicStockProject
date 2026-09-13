@@ -1894,12 +1894,12 @@
 
     private List<(string nom, string hex)> GetProdCouleurs(ProduitDto prod)
     {
-        if (prod.Variantes?.Any() == true)
+        if (prod.Variantes?.Any(v => !string.IsNullOrWhiteSpace(v.Couleur)) == true)
             return prod.Variantes
                 .Where(v => !string.IsNullOrWhiteSpace(v.Couleur))
                 .Select(v => (
                     nom: v.Couleur!.Trim(),
-                    hex: v.CodeHexCouleur ?? WicStock.Web.Models.AttributsProduit.GetHex(v.Couleur)
+                    hex: !string.IsNullOrWhiteSpace(v.CodeHexCouleur) ? v.CodeHexCouleur! : WicStock.Web.Models.AttributsProduit.GetHex(v.Couleur)
                 ))
                 .GroupBy(c => c.nom, StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.First())

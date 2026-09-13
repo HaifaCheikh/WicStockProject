@@ -51,7 +51,14 @@ namespace WicStock.Web.Models
             { "Rose", "#EC4899" },
             { "Violet", "#8B5CF6" },
             { "Jaune", "#EAB308" },
-            { "Orange", "#F97316" }
+            { "Orange", "#F97316" },
+            { "Denim", "#3B82F6" },
+            { "Indigo", "#4F46E5" },
+            { "Kaki", "#4D7C0F" },
+            { "Bordeaux", "#881337" },
+            { "Camel", "#B45309" },
+            { "Marine", "#1E3A8A" },
+            { "Anthracite", "#3F3F46" }
         };
 
         public static List<string> Couleurs => MappingCouleursHex.Keys.ToList();

@@ -1379,7 +1379,9 @@
         if (string.IsNullOrWhiteSpace(url)) return "";
         if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             return url;
-        return $"{Http.BaseAddress}{url.TrimStart('/')}";
+        var apiBase = Http.BaseAddress?.ToString() ?? "https://wicstock-api.onrender.com/";
+        if (!apiBase.EndsWith("/")) apiBase += "/";
+        return $"{apiBase}{url.TrimStart('/')}";
     }
 
     private void OnReferenceChanged(string newRef)
@@ -1564,12 +1566,13 @@
         if (file != null)
         {
             var format = file.ContentType;
-            var resizedImage = await file.RequestImageFileAsync(format, 400, 400);
-            var buffer = new byte[resizedImage.Size];
-            using (var stream = resizedImage.OpenReadStream(2 * 1024 * 1024))
+            var resizedImage = await file.RequestImageFileAsync(format, 600, 600);
+            using var ms = new MemoryStream();
+            using (var stream = resizedImage.OpenReadStream(5 * 1024 * 1024))
             {
-                await stream.ReadAsync(buffer);
+                await stream.CopyToAsync(ms);
             }
+            var buffer = ms.ToArray();
 
             produit!.ImageBase64 = $"data:{format};base64,{Convert.ToBase64String(buffer)}";
             imagePreviewUrl = produit.ImageBase64;

@@ -197,8 +197,7 @@
                             </div>
                         </div>
                     }
-                    else
-                    {
+                    <div class="bp-details-meta mt-3">
                         @if (!string.IsNullOrEmpty(produit.TypeTissu))
                         {
                             <p class="bp-tissu">
@@ -211,28 +210,28 @@
                                 <span class="bp-label">Catégorie :</span> @produit.Categorie
                             </p>
                         }
-                        @if (!string.IsNullOrEmpty(produit.Genre))
+                        @if (!availableGenres.Any() && !string.IsNullOrEmpty(produit.Genre))
                         {
                             <p class="bp-tissu">
                                 <span class="bp-label">Genre :</span> @produit.Genre
                             </p>
                         }
-                        @if (!string.IsNullOrEmpty(produit.Taille))
+                        @if (!availableTailles.Any() && !string.IsNullOrEmpty(produit.Taille) && !string.Equals(produit.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase))
                         {
                             <p class="bp-tissu">
                                 <span class="bp-label">Taille / Pointure :</span> <span class="bp-attr-tag">@produit.Taille</span>
                             </p>
                         }
-                        @if (!string.IsNullOrEmpty(produit.Couleur))
+                        @if (!availableCouleurs.Any() && !string.IsNullOrEmpty(produit.Couleur))
                         {
-                            var hex = WicStock.Web.Models.AttributsProduit.GetHex(produit.Couleur);
+                            var hex = !string.IsNullOrWhiteSpace(produit.CodeHexCouleur) ? produit.CodeHexCouleur! : WicStock.Web.Models.AttributsProduit.GetHex(produit.Couleur);
                             <p class="bp-tissu" style="display: flex; align-items: center; gap: 8px;">
                                 <span class="bp-label">Couleur :</span>
                                 <span class="bp-color-dot" style="background-color: @hex;" title="@produit.Couleur"></span>
                                 <span>@produit.Couleur</span>
                             </p>
                         }
-                    }
+                    </div>
 
                     <!-- Prix -->
                     <div class="bp-prix-block">

@@ -38,10 +38,27 @@ namespace WicStock_.Services
         {
             if (string.IsNullOrWhiteSpace(valeur)) return true; // Valeur optionnelle autorisée
 
-            return await _context.AttributsValeurs.AsNoTracking()
+            var exists = await _context.AttributsValeurs.AsNoTracking()
                 .AnyAsync(a => a.Type.ToLower() == type.ToLower() 
-                            && a.Valeur.ToLower() == valeur.Trim().ToLower() 
-                            && a.Actif);
+                            && a.Valeur.ToLower() == valeur.Trim().ToLower());
+
+            if (!exists)
+            {
+                try
+                {
+                    _context.AttributsValeurs.Add(new AttributValeur
+                    {
+                        Type = type.Trim(),
+                        Valeur = valeur.Trim(),
+                        Actif = true,
+                        Ordre = 99
+                    });
+                    await _context.SaveChangesAsync();
+                }
+                catch { }
+            }
+
+            return true;
         }
 
         public async Task<AttributValeur> AjouterAsync(AttributValeur attr)
