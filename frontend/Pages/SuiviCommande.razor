@@ -79,9 +79,12 @@
                 @if (suivi.EstMultiLignes && suivi.Lignes.Count > 0)
                 {
                     <!-- Commande multi-articles -->
-                    <div class="order-card-head order-card-head--minimal">
-                        <span class="article-count-chip">@suivi.Lignes.Count article@(suivi.Lignes.Count > 1 ? "s" : "")</span>
-                    </div>
+                    @if (suivi.Lignes.Count > 1)
+                    {
+                        <div class="order-card-head order-card-head--minimal">
+                            <span class="article-count-chip">@suivi.Lignes.Count articles</span>
+                        </div>
+                    }
 
                     <div class="order-lines">
                         @foreach (var ligne in suivi.Lignes)
@@ -101,17 +104,29 @@
                                     <span class="ref-code">@ligne.ProduitReference</span>
                                     <span class="order-line-name">@ligne.ProduitNom</span>
                                     @{
-                                        var lineAttr = WicStock.Web.Models.AttributsProduit.FormatLigneDescription(ligne.Genre, ligne.Taille, ligne.Couleur);
+                                        var partsL = new List<string>();
+                                        if (!string.IsNullOrWhiteSpace(ligne.Genre)) partsL.Add(ligne.Genre.Trim());
+                                        if (!string.IsNullOrWhiteSpace(ligne.Taille)) partsL.Add($"Taille {ligne.Taille.Trim()}");
+                                        var hexCol = !string.IsNullOrEmpty(ligne.Couleur) ? WicStock.Web.Models.AttributsProduit.GetHex(ligne.Couleur) : null;
                                     }
-                                    @if (!string.IsNullOrEmpty(lineAttr))
+                                    @if (partsL.Count > 0 || !string.IsNullOrWhiteSpace(ligne.Couleur))
                                     {
-                                        <span class="order-line-attr d-inline-flex align-items-center gap-2" style="font-size: 0.8125rem; color: #64748B; margin-top: 2px;">
-                                            @if (!string.IsNullOrEmpty(ligne.Couleur))
+                                        <span class="order-line-attr d-inline-flex align-items-center gap-1" style="font-size: 0.8125rem; color: #64748B; margin-top: 2px;">
+                                            @if (partsL.Count > 0)
                                             {
-                                                var hexCol = WicStock.Web.Models.AttributsProduit.GetHex(ligne.Couleur);
-                                                <span style="width: 10px; height: 10px; border-radius: 50%; background-color: @hexCol; border: 1px solid rgba(0,0,0,0.2); display: inline-block; flex-shrink: 0;" title="@ligne.Couleur"></span>
+                                                <span>@string.Join(" · ", partsL)</span>
                                             }
-                                            <span>@lineAttr</span>
+                                            @if (!string.IsNullOrWhiteSpace(ligne.Couleur))
+                                            {
+                                                @if (partsL.Count > 0) { <span> · </span> }
+                                                <span style="display:inline-flex; align-items:center; gap:4px;">
+                                                    @if (hexCol != null)
+                                                    {
+                                                        <span style="width: 9px; height: 9px; border-radius: 50%; background-color: @hexCol; border: 1px solid rgba(0,0,0,0.2); display: inline-block;" title="@ligne.Couleur"></span>
+                                                    }
+                                                    <span>@ligne.Couleur.Trim()</span>
+                                                </span>
+                                            }
                                         </span>
                                     }
                                 </div>
@@ -176,17 +191,29 @@
                             <span class="ref-code">@suivi.ProduitReference</span>
                             <h2 class="order-card-title order-card-title--single">@suivi.ProduitNom</h2>
                             @{
-                                var descSingleTrack = WicStock.Web.Models.AttributsProduit.FormatLigneDescription(suivi.Genre, suivi.Taille, suivi.Couleur);
-                                var hexSingleTrack = !string.IsNullOrEmpty(suivi.Couleur) ? WicStock.Web.Models.AttributsProduit.GetHex(suivi.Couleur) : null;
+                                var partsS = new List<string>();
+                                if (!string.IsNullOrWhiteSpace(suivi.Genre)) partsS.Add(suivi.Genre.Trim());
+                                if (!string.IsNullOrWhiteSpace(suivi.Taille)) partsS.Add($"Taille {suivi.Taille.Trim()}");
+                                var hexS = !string.IsNullOrEmpty(suivi.Couleur) ? WicStock.Web.Models.AttributsProduit.GetHex(suivi.Couleur) : null;
                             }
-                            @if (!string.IsNullOrEmpty(descSingleTrack))
+                            @if (partsS.Count > 0 || !string.IsNullOrWhiteSpace(suivi.Couleur))
                             {
                                 <div style="font-size: 0.875rem; font-weight: 600; color: #2563EB; margin-top: 4px; display: inline-flex; align-items: center; gap: 6px; background: #EFF6FF; padding: 2px 8px; border-radius: 4px;">
-                                    @if (hexSingleTrack != null)
+                                    @if (partsS.Count > 0)
                                     {
-                                        <span style="width: 10px; height: 10px; border-radius: 50%; background-color: @hexSingleTrack; border: 1px solid rgba(0,0,0,0.2);"></span>
+                                        <span>@string.Join(" · ", partsS)</span>
                                     }
-                                    <span>@descSingleTrack</span>
+                                    @if (!string.IsNullOrWhiteSpace(suivi.Couleur))
+                                    {
+                                        @if (partsS.Count > 0) { <span> · </span> }
+                                        <span style="display:inline-flex; align-items:center; gap:4px;">
+                                            @if (hexS != null)
+                                            {
+                                                <span style="width: 9px; height: 9px; border-radius: 50%; background-color: @hexS; border: 1px solid rgba(0,0,0,0.2); display: inline-block;"></span>
+                                            }
+                                            <span>@suivi.Couleur.Trim()</span>
+                                        </span>
+                                    }
                                 </div>
                             }
                         </div>

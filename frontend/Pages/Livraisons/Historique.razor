@@ -89,8 +89,10 @@
                                 <div class="multi-lines-list" style="width:100%; display:flex; flex-direction:column; gap:6px;">
                                     @foreach (var l in item.Lignes)
                                     {
-                                        var desc = WicStock.Web.Models.AttributsProduit.FormatLigneDescription(l.Genre, l.Taille, l.Couleur);
-                                        var hex = !string.IsNullOrEmpty(l.Couleur) ? WicStock.Web.Models.AttributsProduit.GetHex(l.Couleur) : null;
+                                        var partsL = new List<string>();
+                                        if (!string.IsNullOrWhiteSpace(l.Genre)) partsL.Add(l.Genre.Trim());
+                                        if (!string.IsNullOrWhiteSpace(l.Taille)) partsL.Add($"Taille {l.Taille.Trim()}");
+                                        var hexL = !string.IsNullOrEmpty(l.Couleur) ? WicStock.Web.Models.AttributsProduit.GetHex(l.Couleur) : null;
                                         <div class="line-item" style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.6); padding:6px 10px; border-radius:6px; border:1px solid #E2E8F0;">
                                             <div class="product-thumb-sm" style="width:32px; height:32px; border-radius:4px; overflow:hidden; flex-shrink:0;">
                                                 @if (!string.IsNullOrEmpty(l.ProduitImageUrl))
@@ -107,14 +109,24 @@
                                                 <div style="font-size:0.75rem; color:#64748B; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                                                     <span>Réf: @l.ProduitReference</span>
                                                     <span>• Qte: <strong>@l.Quantite</strong></span>
-                                                    @if (!string.IsNullOrEmpty(desc))
+                                                    @if (partsL.Count > 0 || !string.IsNullOrWhiteSpace(l.Couleur))
                                                     {
-                                                        <span style="display:inline-flex; align-items:center; gap:4px; font-weight:600; color:#2563EB;">
-                                                            @if (hex != null)
+                                                        <span style="display:inline-flex; align-items:center; gap:4px; font-weight:600; color:#2563EB; background:#EFF6FF; padding:1px 6px; border-radius:4px;">
+                                                            @if (partsL.Count > 0)
                                                             {
-                                                                <span style="width:8px; height:8px; border-radius:50%; background-color:@hex; border:1px solid rgba(0,0,0,0.2);"></span>
+                                                                <span>@string.Join(" · ", partsL)</span>
                                                             }
-                                                            @desc
+                                                            @if (!string.IsNullOrWhiteSpace(l.Couleur))
+                                                            {
+                                                                @if (partsL.Count > 0) { <span> · </span> }
+                                                                <span style="display:inline-flex; align-items:center; gap:4px;">
+                                                                    @if (hexL != null)
+                                                                    {
+                                                                        <span style="width:8px; height:8px; border-radius:50%; background-color:@hexL; border:1px solid rgba(0,0,0,0.2);"></span>
+                                                                    }
+                                                                    <span>@l.Couleur.Trim()</span>
+                                                                </span>
+                                                            }
                                                         </span>
                                                     }
                                                 </div>
@@ -140,17 +152,29 @@
                                         <div class="product-name">@item.ProduitNom</div>
                                         <div class="product-meta">Réf : @item.ProduitReference • Qte : <strong>@item.QuantiteVendue pièce(s)</strong></div>
                                         @{
-                                            var descSingle = WicStock.Web.Models.AttributsProduit.FormatLigneDescription(item.Genre, item.Taille, item.Couleur);
-                                            var hexSingle = !string.IsNullOrEmpty(item.Couleur) ? WicStock.Web.Models.AttributsProduit.GetHex(item.Couleur) : null;
+                                            var partsLiv = new List<string>();
+                                            if (!string.IsNullOrWhiteSpace(item.Genre)) partsLiv.Add(item.Genre.Trim());
+                                            if (!string.IsNullOrWhiteSpace(item.Taille)) partsLiv.Add($"Taille {item.Taille.Trim()}");
+                                            var hexLiv = !string.IsNullOrEmpty(item.Couleur) ? WicStock.Web.Models.AttributsProduit.GetHex(item.Couleur) : null;
                                         }
-                                        @if (!string.IsNullOrEmpty(descSingle))
+                                        @if (partsLiv.Count > 0 || !string.IsNullOrWhiteSpace(item.Couleur))
                                         {
-                                            <div style="font-size:0.8125rem; font-weight:600; color:#2563EB; margin-top:3px; display:inline-flex; align-items:center; gap:6px;">
-                                                @if (hexSingle != null)
+                                            <div style="font-size:0.8125rem; font-weight:700; color:#2563EB; margin-top:4px; display:inline-flex; align-items:center; gap:6px; background:#EFF6FF; padding:3px 8px; border-radius:6px; border:1px solid #DBEAFE;">
+                                                @if (partsLiv.Count > 0)
                                                 {
-                                                    <span style="width:10px; height:10px; border-radius:50%; background-color:@hexSingle; border:1px solid rgba(0,0,0,0.2);"></span>
+                                                    <span>@string.Join(" · ", partsLiv)</span>
                                                 }
-                                                <span>@descSingle</span>
+                                                @if (!string.IsNullOrWhiteSpace(item.Couleur))
+                                                {
+                                                    @if (partsLiv.Count > 0) { <span> · </span> }
+                                                    <span style="display:inline-flex; align-items:center; gap:4px;">
+                                                        @if (hexLiv != null)
+                                                        {
+                                                            <span style="width:9px; height:9px; border-radius:50%; background-color:@hexLiv; border:1px solid rgba(0,0,0,0.2);"></span>
+                                                        }
+                                                        <span>@item.Couleur.Trim()</span>
+                                                    </span>
+                                                }
                                             </div>
                                         }
                                     </div>
