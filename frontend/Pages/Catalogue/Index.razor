@@ -829,15 +829,85 @@
                         </div>
                     }
 
+                    <!-- SELECTION DU GENRE -->
+                    @{
+                        var catGenres = GetCatGenres(produitSelectionne);
+                    }
+                    @if (catGenres.Count > 1)
+                    {
+                        <div class="dialog-field mb-3">
+                            <label class="field-label d-flex align-center gap-1">
+                                <MudIcon Icon="@Icons.Material.Filled.Wc" Size="Size.Small" Style="font-size:1rem;" />
+                                <span>Genre / Collection</span>
+                            </label>
+                            <div class="d-flex flex-wrap gap-2 mt-1">
+                                @foreach (var g in catGenres)
+                                {
+                                    var isSelected = string.Equals(commandeGenre, g, StringComparison.OrdinalIgnoreCase);
+                                    <button type="button" class="btn-attr-chip @(isSelected ? "btn-attr-chip--active" : "")" @onclick="() => SelectGenre(g)">
+                                        @g
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <!-- SELECTION DE LA COULEUR -->
+                    @{
+                        var catCouleurs = GetCatCouleurs(produitSelectionne);
+                    }
+                    @if (catCouleurs.Any())
+                    {
+                        <div class="dialog-field mb-3">
+                            <label class="field-label d-flex align-center gap-1">
+                                <MudIcon Icon="@Icons.Material.Filled.Palette" Size="Size.Small" Style="font-size:1rem;" />
+                                <span>Couleur désirée : <strong style="color:#2563EB;">@commandeCouleur</strong></span>
+                            </label>
+                            <div class="d-flex flex-wrap gap-2 align-center mt-1">
+                                @foreach (var c in catCouleurs)
+                                {
+                                    var isSelected = string.Equals(commandeCouleur, c.nom, StringComparison.OrdinalIgnoreCase);
+                                    <button type="button" class="btn-color-swatch @(isSelected ? "btn-color-swatch--active" : "")" @onclick="() => SelectCouleur(c.nom)" title="@c.nom">
+                                        <span class="color-dot" style="background-color:@c.hex;"></span>
+                                        <span>@c.nom</span>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <!-- SELECTION DE LA TAILLE -->
+                    @{
+                        var catTailles = GetCatTailles(produitSelectionne);
+                    }
+                    @if (catTailles.Any())
+                    {
+                        <div class="dialog-field mb-3">
+                            <label class="field-label d-flex align-center gap-1">
+                                <MudIcon Icon="@Icons.Material.Filled.Straighten" Size="Size.Small" Style="font-size:1rem;" />
+                                <span>Taille désirée : <strong style="color:#2563EB;">@commandeTaille</strong></span>
+                            </label>
+                            <div class="d-flex flex-wrap gap-2 mt-1">
+                                @foreach (var t in catTailles)
+                                {
+                                    var isSelected = string.Equals(commandeTaille, t, StringComparison.OrdinalIgnoreCase);
+                                    <button type="button" class="btn-size-chip @(isSelected ? "btn-size-chip--active" : "")" @onclick="() => SelectTaille(t)">
+                                        @t
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+
                     <!-- Quantité -->
-                    <div class="dialog-field">
+                    <div class="dialog-field mb-3">
                         <label class="field-label">Quantité (articles)</label>
-                        <input type="number" class="field-input" min="1" @bind="commandeQuantite" placeholder="ex : 5" />
+                        <input type="number" class="field-input" min="1" @bind="commandeQuantite" placeholder="ex : 1" />
                     </div>
 
                     @if (EstModeSurCommande)
                     {
-                        <div class="dialog-field">
+                        <div class="dialog-field mb-3">
                             <label class="field-label">Date souhaitée (optionnelle)</label>
                             <MudDatePicker @bind-Date="commandeDateSouhaitee"
                                            Variant="Variant.Outlined"
@@ -846,13 +916,13 @@
                                            Clearable="true"
                                            Placeholder="Choisir une date" />
                             <MudText Typo="Typo.caption" Class="hint-text mt-1">
-                                Ce produit sera fabrié sur commande faute de stock suffisant.
+                                Ce produit sera fabriqué sur commande faute de stock suffisant.
                             </MudText>
                         </div>
                     }
 
                     <!-- Prix unitaire -->
-                    <div class="dialog-field">
+                    <div class="dialog-field mb-3">
                         <label class="field-label">Prix unitaire (DT)</label>
                         <input type="number" class="field-input" readonly @bind="commandePrix" style="background:#F8FAFC; color:#64748B; cursor:not-allowed;" />
                     </div>
@@ -2013,6 +2083,63 @@
         color: #94A3B8;
         font-weight: 600;
     }
+
+    /* ===== Style des sélecteurs d'attributs (Genre, Couleur, Taille) dans la modal de commande ===== */
+    .btn-attr-chip, .btn-size-chip {
+        padding: 6px 14px;
+        border-radius: 8px;
+        border: 1.5px solid #CBD5E1;
+        background: #FFFFFF;
+        color: #1E293B;
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .btn-attr-chip:hover, .btn-size-chip:hover {
+        border-color: #2563EB;
+        color: #2563EB;
+        background: #EFF6FF;
+    }
+    .btn-attr-chip--active, .btn-size-chip--active {
+        border-color: #2563EB;
+        background: #2563EB;
+        color: #FFFFFF !important;
+        font-weight: 700;
+        box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+    }
+
+    .btn-color-swatch {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: 1.5px solid #CBD5E1;
+        background: #FFFFFF;
+        color: #1E293B;
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .btn-color-swatch:hover {
+        border-color: #2563EB;
+        background: #EFF6FF;
+    }
+    .btn-color-swatch--active {
+        border-color: #2563EB;
+        background: #EFF6FF;
+        color: #1E40AF;
+        font-weight: 700;
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+    }
+    .btn-color-swatch .color-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 1px solid rgba(0,0,0,0.25);
+    }
 </style>
 
 @code {
@@ -2052,6 +2179,10 @@
     private decimal commandePrix = 0;
     private bool commandeEnCours = false;
     private DateTime? commandeDateSouhaitee;
+    private string commandeGenre = "";
+    private string commandeTaille = "";
+    private string commandeCouleur = "";
+    private int? commandeVarianteId;
 
     private bool EstModeSurCommande =>
         produitSelectionne != null
@@ -2344,7 +2475,82 @@
         produitSelectionne = produit;
         commandeQuantite = 1;
         commandeDateSouhaitee = null;
-        commandePrix = produit.PrixEffectif;
+
+        var genres = GetCatGenres(produit);
+        commandeGenre = genres.FirstOrDefault() ?? produit.Genre ?? "";
+
+        var tailles = GetCatTailles(produit);
+        commandeTaille = tailles.FirstOrDefault() ?? produit.Taille ?? "";
+
+        var couleurs = GetCatCouleurs(produit);
+        commandeCouleur = couleurs.FirstOrDefault().nom ?? produit.Couleur ?? "";
+
+        UpdateVarianteEtPrix();
+    }
+
+    private void SelectGenre(string g)
+    {
+        commandeGenre = g;
+        UpdateVarianteEtPrix();
+    }
+
+    private void SelectTaille(string t)
+    {
+        commandeTaille = t;
+        UpdateVarianteEtPrix();
+    }
+
+    private void SelectCouleur(string c)
+    {
+        commandeCouleur = c;
+        UpdateVarianteEtPrix();
+    }
+
+    private void UpdateVarianteEtPrix()
+    {
+        if (produitSelectionne == null) return;
+
+        commandePrix = produitSelectionne.PrixEffectif;
+        commandeVarianteId = null;
+
+        if (produitSelectionne.Variantes != null && produitSelectionne.Variantes.Any())
+        {
+            var match = produitSelectionne.Variantes.FirstOrDefault(v =>
+                (string.IsNullOrEmpty(commandeGenre) || string.Equals(v.Genre, commandeGenre, StringComparison.OrdinalIgnoreCase)) &&
+                (string.IsNullOrEmpty(commandeTaille) || string.Equals(v.Taille, commandeTaille, StringComparison.OrdinalIgnoreCase)) &&
+                (string.IsNullOrEmpty(commandeCouleur) || string.Equals(v.Couleur, commandeCouleur, StringComparison.OrdinalIgnoreCase))
+            );
+
+            if (match == null)
+            {
+                match = produitSelectionne.Variantes.FirstOrDefault(v =>
+                    (string.IsNullOrEmpty(commandeTaille) || string.Equals(v.Taille, commandeTaille, StringComparison.OrdinalIgnoreCase)) &&
+                    (string.IsNullOrEmpty(commandeCouleur) || string.Equals(v.Couleur, commandeCouleur, StringComparison.OrdinalIgnoreCase))
+                );
+            }
+
+            if (match == null && !string.IsNullOrEmpty(commandeCouleur))
+            {
+                match = produitSelectionne.Variantes.FirstOrDefault(v => string.Equals(v.Couleur, commandeCouleur, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (match != null)
+            {
+                commandeVarianteId = match.Id;
+                if (match.PrixOverride.HasValue && match.PrixOverride.Value > 0)
+                {
+                    decimal prixBase = match.PrixOverride.Value;
+                    if (produitSelectionne.EstEnPromotion && produitSelectionne.RemisePourcentage > 0)
+                    {
+                        commandePrix = Math.Round(prixBase * (1 - (decimal)produitSelectionne.RemisePourcentage / 100m), 2);
+                    }
+                    else
+                    {
+                        commandePrix = prixBase;
+                    }
+                }
+            }
+        }
     }
 
     private void FermerCommande() => produitSelectionne = null;
@@ -2363,7 +2569,11 @@
             ProduitId = produitSelectionne.Id,
             QuantiteVendue = commandeQuantite,
             PrixUnitaire = commandePrix,
-            DateSouhaitee = EstModeSurCommande ? commandeDateSouhaitee : null
+            DateSouhaitee = EstModeSurCommande ? commandeDateSouhaitee : null,
+            Genre = commandeGenre,
+            Taille = commandeTaille,
+            Couleur = commandeCouleur,
+            VarianteProduitId = commandeVarianteId
         };
 
         var result = await CatalogueService.PasserCommande(dto);
