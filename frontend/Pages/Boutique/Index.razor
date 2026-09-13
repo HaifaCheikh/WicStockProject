@@ -610,39 +610,63 @@
     private List<string> GetCatGenres(CatalogueProduitDto p)
     {
         if (p.Variantes?.Any() == true)
-            return p.Variantes
+        {
+            var res = p.Variantes
                 .Where(v => !string.IsNullOrWhiteSpace(v.Genre))
                 .Select(v => v.Genre!.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
+            if (res.Any()) return res;
+        }
         return string.IsNullOrWhiteSpace(p.Genre) ? new() : new() { p.Genre.Trim() };
     }
 
     private List<string> GetCatTailles(CatalogueProduitDto p)
     {
         if (p.Variantes?.Any() == true)
-            return p.Variantes
-                .Where(v => !string.IsNullOrWhiteSpace(v.Taille))
+        {
+            var res = p.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Taille) && !string.Equals(v.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase))
                 .Select(v => v.Taille!.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
-        return string.IsNullOrWhiteSpace(p.Taille) ? new() : new() { p.Taille.Trim() };
+            if (res.Any()) return res;
+        }
+
+        if (!string.IsNullOrWhiteSpace(p.Taille) && !string.Equals(p.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase))
+        {
+            return new() { p.Taille.Trim() };
+        }
+
+        return new();
     }
 
     private List<(string nom, string hex)> GetCatCouleurs(CatalogueProduitDto p)
     {
         if (p.Variantes?.Any() == true)
-            return p.Variantes
+        {
+            var res = p.Variantes
                 .Where(v => !string.IsNullOrWhiteSpace(v.Couleur))
                 .Select(v => (
                     nom: v.Couleur!.Trim(),
-                    hex: v.CodeHexCouleur ?? WicStock.Web.Models.AttributsProduit.GetHex(v.Couleur)
+                    hex: WicStock.Web.Models.AttributsProduit.GetHex(v.Couleur)
                 ))
+                .Where(c => !string.IsNullOrEmpty(c.hex))
                 .GroupBy(c => c.nom, StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.First())
                 .ToList();
+            if (res.Any()) return res;
+        }
+
         if (!string.IsNullOrWhiteSpace(p.Couleur))
-            return new() { (p.Couleur.Trim(), p.CodeHexCouleur ?? WicStock.Web.Models.AttributsProduit.GetHex(p.Couleur)) };
+        {
+            var hex = WicStock.Web.Models.AttributsProduit.GetHex(p.Couleur);
+            if (!string.IsNullOrEmpty(hex))
+            {
+                return new() { (p.Couleur.Trim(), hex) };
+            }
+        }
+
         return new();
     }
 }
