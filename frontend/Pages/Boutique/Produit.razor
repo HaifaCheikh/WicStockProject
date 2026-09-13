@@ -150,7 +150,7 @@
 
                     @if (produit.Variantes != null && produit.Variantes.Any())
                     {
-                        @if (availableGenres.Count > 1)
+                        @if (availableGenres.Any())
                         {
                             <div class="bp-variant-group mb-3">
                                 <span class="bp-label fw-bold d-block mb-1">Genre :</span>
@@ -592,9 +592,44 @@
     private string? selectedTaille;
     private string? selectedCouleur;
 
-    private List<string> availableGenres => produit?.Variantes?.Where(v => !string.IsNullOrEmpty(v.Genre)).Select(v => v.Genre!).Distinct().ToList() ?? new();
-    private List<string> availableTailles => produit?.Variantes?.Where(v => !string.IsNullOrEmpty(v.Taille)).Select(v => v.Taille!).Distinct().ToList() ?? new();
-    private List<string> availableCouleurs => produit?.Variantes?.Where(v => !string.IsNullOrEmpty(v.Couleur)).Select(v => v.Couleur!).Distinct().ToList() ?? new();
+    private List<string> availableGenres
+    {
+        get
+        {
+            var list = produit?.Variantes?.Where(v => !string.IsNullOrWhiteSpace(v.Genre)).Select(v => v.Genre!.Trim()).ToList() ?? new();
+            if (!string.IsNullOrWhiteSpace(produit?.Genre) && !list.Contains(produit.Genre.Trim(), StringComparer.OrdinalIgnoreCase))
+            {
+                list.Add(produit.Genre.Trim());
+            }
+            return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+    }
+
+    private List<string> availableTailles
+    {
+        get
+        {
+            var list = produit?.Variantes?.Where(v => !string.IsNullOrWhiteSpace(v.Taille) && !string.Equals(v.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase)).Select(v => v.Taille!.Trim()).ToList() ?? new();
+            if (!string.IsNullOrWhiteSpace(produit?.Taille) && !string.Equals(produit.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase) && !list.Contains(produit.Taille.Trim(), StringComparer.OrdinalIgnoreCase))
+            {
+                list.Add(produit.Taille.Trim());
+            }
+            return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+    }
+
+    private List<string> availableCouleurs
+    {
+        get
+        {
+            var list = produit?.Variantes?.Where(v => !string.IsNullOrWhiteSpace(v.Couleur)).Select(v => v.Couleur!.Trim()).ToList() ?? new();
+            if (!string.IsNullOrWhiteSpace(produit?.Couleur) && !list.Contains(produit.Couleur.Trim(), StringComparer.OrdinalIgnoreCase))
+            {
+                list.Add(produit.Couleur.Trim());
+            }
+            return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+    }
 
     private VarianteDto? SelectedVariante
     {
@@ -634,9 +669,9 @@
             if (produit.Variantes != null && produit.Variantes.Any())
             {
                 var first = produit.Variantes.FirstOrDefault(v => v.QuantiteActuelle > 0) ?? produit.Variantes.First();
-                selectedGenre = first.Genre;
-                selectedTaille = first.Taille;
-                selectedCouleur = first.Couleur;
+                selectedGenre = !string.IsNullOrWhiteSpace(first.Genre) ? first.Genre : produit.Genre;
+                selectedTaille = !string.IsNullOrWhiteSpace(first.Taille) ? first.Taille : produit.Taille;
+                selectedCouleur = !string.IsNullOrWhiteSpace(first.Couleur) ? first.Couleur : produit.Couleur;
             }
             else
             {
