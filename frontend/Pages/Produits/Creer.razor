@@ -5,6 +5,8 @@
 @inject ProduitService ProduitService
 @inject AttributService AttributService
 @inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@using MudBlazor
 
 <HeadContent>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1445,10 +1447,31 @@
 
     private async Task Enregistrer()
     {
+        // Normaliser les champs optionnels : convertir "" en null avant envoi à l'API
+        produit.Genre = string.IsNullOrWhiteSpace(produit.Genre) ? null : produit.Genre.Trim();
+        produit.Taille = string.IsNullOrWhiteSpace(produit.Taille) ? null : produit.Taille.Trim();
+        produit.Couleur = string.IsNullOrWhiteSpace(produit.Couleur) ? null : produit.Couleur.Trim();
+
+        if (produit.Variantes != null)
+        {
+            foreach (var v in produit.Variantes)
+            {
+                v.Genre   = string.IsNullOrWhiteSpace(v.Genre)   ? null : v.Genre.Trim();
+                v.Taille  = string.IsNullOrWhiteSpace(v.Taille)  ? null : v.Taille.Trim();
+                v.Couleur = string.IsNullOrWhiteSpace(v.Couleur) ? null : v.Couleur.Trim();
+                if (string.IsNullOrWhiteSpace(v.Reference))
+                    AutoGenSKU(v);
+            }
+        }
+
         var succes = await ProduitService.Creer(produit);
         if (succes)
         {
             Navigation.NavigateTo("/produits");
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors de la création du produit. Vérifiez les champs requis.", Severity.Error);
         }
     }
 }

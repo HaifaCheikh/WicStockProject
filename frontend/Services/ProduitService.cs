@@ -26,6 +26,11 @@ namespace WicStock.Web.Services
         public async Task<bool> Creer(ProduitDto produit)
         {
             var reponse = await _http.PostAsJsonAsync("api/Produit", produit);
+            if (!reponse.IsSuccessStatusCode)
+            {
+                var body = await reponse.Content.ReadAsStringAsync();
+                Console.WriteLine($"[PRODUIT SERVICE ERROR] POST /api/Produit → {(int)reponse.StatusCode}: {body}");
+            }
             return reponse.IsSuccessStatusCode;
         }
 

@@ -274,6 +274,27 @@ namespace WicStock_.Controllers
         [Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
         public async Task<ActionResult<Produit>> CreerProduit(Produit produit)
         {
+            // Désactiver la validation automatique du modèle (gérée manuellement ci-dessous)
+            ModelState.Clear();
+
+            if (produit == null)
+                return BadRequest(new { message = "Le corps de la requête est vide." });
+
+            // Normaliser les chaînes vides en null pour les champs optionnels
+            produit.Genre   = string.IsNullOrWhiteSpace(produit.Genre)   ? null : produit.Genre.Trim();
+            produit.Taille  = string.IsNullOrWhiteSpace(produit.Taille)  ? null : produit.Taille.Trim();
+            produit.Couleur = string.IsNullOrWhiteSpace(produit.Couleur) ? null : produit.Couleur.Trim();
+
+            if (produit.Variantes != null)
+            {
+                foreach (var v in produit.Variantes)
+                {
+                    v.Genre   = string.IsNullOrWhiteSpace(v.Genre)   ? null : v.Genre.Trim();
+                    v.Taille  = string.IsNullOrWhiteSpace(v.Taille)  ? null : v.Taille.Trim();
+                    v.Couleur = string.IsNullOrWhiteSpace(v.Couleur) ? null : v.Couleur.Trim();
+                }
+            }
+
             // Valider les attributs généraux s'ils sont renseignés
             if (!string.IsNullOrEmpty(produit.Genre) && !await _attributService.EstValideAsync("Genre", produit.Genre))
                 return BadRequest(new { message = $"Le genre '{produit.Genre}' n'est pas une valeur valide ou active." });
@@ -368,6 +389,9 @@ namespace WicStock_.Controllers
         [Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
         public async Task<IActionResult> ModifierProduit(int id, Produit produit)
         {
+            // Désactiver la validation automatique du modèle (gérée manuellement ci-dessous)
+            ModelState.Clear();
+
             if (produit == null)
                 return BadRequest(new { message = "Le corps de la requête est vide." });
 
@@ -376,6 +400,21 @@ namespace WicStock_.Controllers
 
             if (id != produit.Id)
                 return BadRequest(new { message = $"L'ID de l'URL ({id}) ne correspond pas à l'ID du produit ({produit.Id})." });
+
+            // Normaliser les chaînes vides en null pour les champs optionnels
+            produit.Genre   = string.IsNullOrWhiteSpace(produit.Genre)   ? null : produit.Genre.Trim();
+            produit.Taille  = string.IsNullOrWhiteSpace(produit.Taille)  ? null : produit.Taille.Trim();
+            produit.Couleur = string.IsNullOrWhiteSpace(produit.Couleur) ? null : produit.Couleur.Trim();
+
+            if (produit.Variantes != null)
+            {
+                foreach (var v in produit.Variantes)
+                {
+                    v.Genre   = string.IsNullOrWhiteSpace(v.Genre)   ? null : v.Genre.Trim();
+                    v.Taille  = string.IsNullOrWhiteSpace(v.Taille)  ? null : v.Taille.Trim();
+                    v.Couleur = string.IsNullOrWhiteSpace(v.Couleur) ? null : v.Couleur.Trim();
+                }
+            }
 
             if (!string.IsNullOrEmpty(produit.Genre) && !await _attributService.EstValideAsync("Genre", produit.Genre))
                 return BadRequest(new { message = $"Le genre '{produit.Genre}' n'est pas une valeur valide ou active." });
