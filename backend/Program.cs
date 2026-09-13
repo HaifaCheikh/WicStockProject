@@ -109,13 +109,26 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-builder.Services.AddControllers()
+builder.Services.AddControllers(options =>
+{
+    // Désactiver la suppression des sources de liaison implicites pour éviter des comportements inattendus
+})
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
         options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+        // Ignorer silencieusement les propriétés JSON inconnues (ex: champs DTO non mappés dans le modèle)
+        options.JsonSerializerOptions.UnknownTypeHandling = System.Text.Json.Serialization.JsonUnknownTypeHandling.JsonNode;
     });
+
+// Désactiver la validation automatique du modèle de [ApiController] — les contrôleurs gèrent
+// eux-mêmes la validation pour permettre la normalisation des données avant tout rejet.
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
+{
+    options.SuppressModelStateInvalidFilter = true;
+});
+
 builder.Services.AddEndpointsApiExplorer();
 
 // Swagger avec support du bouton "Authorize"
