@@ -41,6 +41,7 @@ namespace WicStock_.Controllers
 
             var livraisons = await _context.HistoriqueVentes
                 .Include(h => h.Produit)
+                    .ThenInclude(p => p!.Variantes)
                 .Include(h => h.Utilisateur)
                 .Include(h => h.Livreur)
                 .Include(h => h.LigneCommandes)
@@ -63,6 +64,7 @@ namespace WicStock_.Controllers
             // Commandes sans livreur assigné qui sont prêtes et payées
             var disponibles = await _context.HistoriqueVentes
                 .Include(h => h.Produit)
+                    .ThenInclude(p => p!.Variantes)
                 .Include(h => h.Utilisateur)
                 .Include(h => h.Livreur)
                 .Include(h => h.LigneCommandes)
@@ -245,41 +247,137 @@ namespace WicStock_.Controllers
             return Ok(new { message = $"Commande #{commande.Id} assignée au livreur {livreur.Prenom} {livreur.Nom}." });
         }
 
+        private static (string? Genre, string? Taille, string? Couleur) ResolveAttributs(
+            string? genre,
+            string? taille,
+            string? couleur,
+            string? refStr,
+            string? nomStr,
+            VarianteProduit? variante,
+            Produit? produit)
+        {
+            var g = !string.IsNullOrWhiteSpace(genre) ? genre.Trim()
+                : (!string.IsNullOrWhiteSpace(variante?.Genre) ? variante.Genre.Trim()
+                : (!string.IsNullOrWhiteSpace(produit?.Genre) ? produit.Genre.Trim()
+                : (produit?.Variantes?.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v.Genre))?.Genre?.Trim())));
+
+            var t = !string.IsNullOrWhiteSpace(taille) ? taille.Trim()
+                : (!string.IsNullOrWhiteSpace(variante?.Taille) ? variante.Taille.Trim()
+                : (!string.IsNullOrWhiteSpace(produit?.Taille) ? produit.Taille.Trim()
+                : (produit?.Variantes?.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v.Taille))?.Taille?.Trim())));
+
+            var c = !string.IsNullOrWhiteSpace(couleur) ? couleur.Trim()
+                : (!string.IsNullOrWhiteSpace(variante?.Couleur) ? variante.Couleur.Trim()
+                : (!string.IsNullOrWhiteSpace(produit?.Couleur) ? produit.Couleur.Trim()
+                : (produit?.Variantes?.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v.Couleur))?.Couleur?.Trim())));
+
+            var textCombined = $"{(refStr ?? "")} {(nomStr ?? "")}".Trim();
+
+            if (string.IsNullOrWhiteSpace(g))
+            {
+                if (textCombined.Contains("Dress", StringComparison.OrdinalIgnoreCase) ||
+                    textCombined.Contains("Robe", StringComparison.OrdinalIgnoreCase) ||
+                    textCombined.Contains("Jupe", StringComparison.OrdinalIgnoreCase) ||
+                    textCombined.Contains("Femme", StringComparison.OrdinalIgnoreCase) ||
+                    textCombined.Contains("-F-", StringComparison.OrdinalIgnoreCase) ||
+                    textCombined.EndsWith("-F", StringComparison.OrdinalIgnoreCase))
+                {
+                    g = "Femme";
+                }
+                else if (textCombined.Contains("Homme", StringComparison.OrdinalIgnoreCase) ||
+                         textCombined.Contains("-H-", StringComparison.OrdinalIgnoreCase) ||
+                         textCombined.EndsWith("-H", StringComparison.OrdinalIgnoreCase))
+                {
+                    g = "Homme";
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(c))
+            {
+                if (textCombined.Contains("Indigo", StringComparison.OrdinalIgnoreCase)) c = "Bleu indigo";
+                else if (textCombined.Contains("Light Blue", StringComparison.OrdinalIgnoreCase) || textCombined.Contains("Bleu Ciel", StringComparison.OrdinalIgnoreCase)) c = "Bleu ciel";
+                else if (textCombined.Contains("Dark Blue", StringComparison.OrdinalIgnoreCase) || textCombined.Contains("Marine", StringComparison.OrdinalIgnoreCase)) c = "Bleu marine";
+                else if (textCombined.Contains("Bleu", StringComparison.OrdinalIgnoreCase) || textCombined.Contains("Blue", StringComparison.OrdinalIgnoreCase)) c = "Bleu";
+                else if (textCombined.Contains("Noir", StringComparison.OrdinalIgnoreCase) || textCombined.Contains("Black", StringComparison.OrdinalIgnoreCase)) c = "Noir";
+                else if (textCombined.Contains("Blanc", StringComparison.OrdinalIgnoreCase) || textCombined.Contains("White", StringComparison.OrdinalIgnoreCase)) c = "Blanc";
+                else if (textCombined.Contains("Gris", StringComparison.OrdinalIgnoreCase) || textCombined.Contains("Grey", StringComparison.OrdinalIgnoreCase)) c = "Gris";
+                else if (textCombined.Contains("Rouge", StringComparison.OrdinalIgnoreCase) || textCombined.Contains("Red", StringComparison.OrdinalIgnoreCase)) c = "Rouge";
+                else if (textCombined.Contains("Vert", StringComparison.OrdinalIgnoreCase) || textCombined.Contains("Green", StringComparison.OrdinalIgnoreCase)) c = "Vert";
+            }
+
+            if (string.IsNullOrWhiteSpace(t))
+            {
+                var parts = textCombined.Split(new[] { '-', ' ', '_' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var p in parts)
+                {
+                    var pUpper = p.ToUpperInvariant();
+                    if (pUpper is "XS" or "S" or "M" or "L" or "XL" or "XXL" or "36" or "38" or "40" or "42" or "44" or "46")
+                    {
+                        t = pUpper;
+                        break;
+                    }
+                }
+                if (string.IsNullOrWhiteSpace(t))
+                {
+                    t = "M";
+                }
+            }
+
+            return (g, t, c);
+        }
+
         private static LivraisonCommandeDto MapToLivraisonDto(HistoriqueVente h)
         {
-            var lignesDto = h.LigneCommandes != null && h.LigneCommandes.Any()
-                ? h.LigneCommandes.Select(l => new LigneCommandeResultDto
+            var lignesDto = new List<LigneCommandeResultDto>();
+
+            if (h.LigneCommandes != null && h.LigneCommandes.Any())
+            {
+                foreach (var l in h.LigneCommandes)
                 {
-                    ProduitId = l.ProduitId,
-                    VarianteProduitId = l.VarianteProduitId,
-                    ProduitNom = l.Produit?.Nom ?? string.Empty,
-                    ProduitReference = l.VarianteProduit?.Reference ?? l.Produit?.Reference ?? string.Empty,
-                    ProduitImageUrl = l.Produit?.ImageUrl,
-                    Genre = !string.IsNullOrWhiteSpace(l.Genre) ? l.Genre : l.Produit?.Genre,
-                    Taille = !string.IsNullOrWhiteSpace(l.Taille) ? l.Taille : l.Produit?.Taille,
-                    Couleur = !string.IsNullOrWhiteSpace(l.Couleur) ? l.Couleur : l.Produit?.Couleur,
-                    Quantite = l.Quantite,
-                    PrixUnitaire = l.PrixUnitaire,
-                    EstSurCommande = l.EstSurCommande
-                }).ToList()
-                : new List<LigneCommandeResultDto>();
+                    var refStr = l.VarianteProduit?.Reference ?? l.Produit?.Reference ?? h.Produit?.Reference ?? "";
+                    var nomStr = l.Produit?.Nom ?? h.Produit?.Nom ?? "";
+                    var (gL, tL, cL) = ResolveAttributs(l.Genre, l.Taille, l.Couleur, refStr, nomStr, l.VarianteProduit, l.Produit ?? h.Produit);
+
+                    lignesDto.Add(new LigneCommandeResultDto
+                    {
+                        ProduitId = l.ProduitId,
+                        VarianteProduitId = l.VarianteProduitId,
+                        ProduitNom = nomStr,
+                        ProduitReference = refStr,
+                        ProduitImageUrl = l.Produit?.ImageUrl ?? h.Produit?.ImageUrl,
+                        Genre = gL,
+                        Taille = tL,
+                        Couleur = cL,
+                        Quantite = l.Quantite,
+                        PrixUnitaire = l.PrixUnitaire,
+                        EstSurCommande = l.EstSurCommande
+                    });
+                }
+            }
+
+            var firstLine = lignesDto.FirstOrDefault();
+            var hRefStr = h.Produit?.Reference ?? firstLine?.ProduitReference ?? "";
+            var hNomStr = h.Produit?.Nom ?? firstLine?.ProduitNom ?? "Article";
+            var (hG, hT, hC) = ResolveAttributs(h.Genre, h.Taille, h.Couleur, hRefStr, hNomStr, null, h.Produit);
+
+            bool estMulti = h.EstMultiLignes && lignesDto.Count > 1;
 
             return new LivraisonCommandeDto
             {
                 Id = h.Id,
                 DateVente = h.DateVente,
-                QuantiteVendue = h.EstMultiLignes && lignesDto.Any() ? lignesDto.Sum(l => l.Quantite) : h.QuantiteVendue,
+                QuantiteVendue = estMulti ? lignesDto.Sum(l => l.Quantite) : h.QuantiteVendue,
                 PrixUnitaire = h.PrixUnitaire,
                 Statut = h.Statut?.ToString(),
                 StatutCommande = h.StatutCommande,
                 EstSurCommande = h.EstSurCommande,
-                ProduitNom = h.EstMultiLignes && lignesDto.Any() ? $"{lignesDto.Count} article{(lignesDto.Count > 1 ? "s" : "")}" : (h.Produit?.Nom ?? "Article"),
-                ProduitReference = h.Produit?.Reference ?? "",
-                ProduitImageUrl = h.Produit?.ImageUrl,
-                Genre = !string.IsNullOrWhiteSpace(h.Genre) ? h.Genre : h.Produit?.Genre,
-                Taille = !string.IsNullOrWhiteSpace(h.Taille) ? h.Taille : h.Produit?.Taille,
-                Couleur = !string.IsNullOrWhiteSpace(h.Couleur) ? h.Couleur : h.Produit?.Couleur,
-                EstMultiLignes = h.EstMultiLignes,
+                ProduitNom = estMulti ? $"{lignesDto.Count} articles" : hNomStr,
+                ProduitReference = hRefStr,
+                ProduitImageUrl = h.Produit?.ImageUrl ?? firstLine?.ProduitImageUrl,
+                Genre = hG,
+                Taille = hT,
+                Couleur = hC,
+                EstMultiLignes = estMulti,
                 Lignes = lignesDto,
                 ClientId = h.UtilisateurId,
                 ClientNom = h.Utilisateur != null ? $"{h.Utilisateur.Prenom} {h.Utilisateur.Nom}".Trim() : "Client",
