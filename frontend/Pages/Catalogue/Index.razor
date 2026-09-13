@@ -374,21 +374,19 @@
                                             if (!string.IsNullOrWhiteSpace(commande.Taille)) partsC.Add($"Taille {commande.Taille.Trim()}");
                                             var hexC = !string.IsNullOrEmpty(commande.Couleur) ? WicStock.Web.Models.AttributsProduit.GetHex(commande.Couleur) : null;
 
-                                            <span class="variant-tag" style="background:#F1F5F9; color:#2563EB; font-weight:600; padding:2px 8px; border-radius:4px; font-size:0.75rem; display:inline-flex; align-items:center; gap:4px;">
+                                            <span class="variant-tag">
                                                 @if (partsC.Count > 0)
                                                 {
                                                     <span>@string.Join(" · ", partsC)</span>
                                                 }
                                                 @if (!string.IsNullOrWhiteSpace(commande.Couleur))
                                                 {
-                                                    @if (partsC.Count > 0) { <span> · </span> }
-                                                    <span style="display:inline-flex; align-items:center; gap:4px;">
-                                                        @if (hexC != null)
-                                                        {
-                                                            <span style="width:8px; height:8px; border-radius:50%; background-color:@hexC; border:1px solid rgba(0,0,0,0.2);"></span>
-                                                        }
-                                                        <span>@commande.Couleur.Trim()</span>
-                                                    </span>
+                                                    @if (partsC.Count > 0) { <span>·</span> }
+                                                    @if (hexC != null)
+                                                    {
+                                                        <span class="variant-swatch" style="background-color:@hexC;"></span>
+                                                    }
+                                                    <span>@commande.Couleur.Trim()</span>
                                                 }
                                             </span>
                                         }
@@ -861,7 +859,7 @@
                         <div class="dialog-field mb-3">
                             <label class="field-label d-flex align-center gap-1">
                                 <MudIcon Icon="@Icons.Material.Filled.Palette" Size="Size.Small" Style="font-size:1rem;" />
-                                <span>Couleur désirée : <strong style="color:#2563EB;">@commandeCouleur</strong></span>
+                                <span>Couleur désirée : <strong style="color:var(--denim);">@commandeCouleur</strong></span>
                             </label>
                             <div class="d-flex flex-wrap gap-2 align-center mt-1">
                                 @foreach (var c in catCouleurs)
@@ -885,7 +883,7 @@
                         <div class="dialog-field mb-3">
                             <label class="field-label d-flex align-center gap-1">
                                 <MudIcon Icon="@Icons.Material.Filled.Straighten" Size="Size.Small" Style="font-size:1rem;" />
-                                <span>Taille désirée : <strong style="color:#2563EB;">@commandeTaille</strong></span>
+                                <span>Taille désirée : <strong style="color:var(--denim);">@commandeTaille</strong></span>
                             </label>
                             <div class="d-flex flex-wrap gap-2 mt-1">
                                 @foreach (var t in catTailles)
@@ -1771,6 +1769,26 @@
         width: fit-content;
     }
 
+    .variant-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--denim);
+        background: var(--denim-tint);
+        padding: 3px 9px;
+        border-radius: 6px;
+    }
+
+    .variant-tag .variant-swatch {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        border: 1px solid rgba(22, 35, 58, 0.2);
+        flex-shrink: 0;
+    }
+
     /* ===== Dialog Commander ===== */
     .dialog-overlay {
         position: fixed;
@@ -2088,25 +2106,25 @@
     .btn-attr-chip, .btn-size-chip {
         padding: 6px 14px;
         border-radius: 8px;
-        border: 1.5px solid #CBD5E1;
-        background: #FFFFFF;
-        color: #1E293B;
+        border: 1.5px solid var(--border);
+        background: var(--paper);
+        color: var(--ink);
         font-weight: 600;
         font-size: 0.85rem;
         cursor: pointer;
         transition: all 0.15s ease;
     }
     .btn-attr-chip:hover, .btn-size-chip:hover {
-        border-color: #2563EB;
-        color: #2563EB;
-        background: #EFF6FF;
+        border-color: var(--denim);
+        color: var(--denim);
+        background: var(--denim-tint);
     }
     .btn-attr-chip--active, .btn-size-chip--active {
-        border-color: #2563EB;
-        background: #2563EB;
+        border-color: var(--denim);
+        background: var(--denim);
         color: #FFFFFF !important;
         font-weight: 700;
-        box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+        box-shadow: 0 2px 6px rgba(43, 76, 126, 0.3);
     }
 
     .btn-color-swatch {
@@ -2115,24 +2133,24 @@
         gap: 6px;
         padding: 6px 12px;
         border-radius: 8px;
-        border: 1.5px solid #CBD5E1;
-        background: #FFFFFF;
-        color: #1E293B;
+        border: 1.5px solid var(--border);
+        background: var(--paper);
+        color: var(--ink);
         font-weight: 600;
         font-size: 0.85rem;
         cursor: pointer;
         transition: all 0.15s ease;
     }
     .btn-color-swatch:hover {
-        border-color: #2563EB;
-        background: #EFF6FF;
+        border-color: var(--denim);
+        background: var(--denim-tint);
     }
     .btn-color-swatch--active {
-        border-color: #2563EB;
-        background: #EFF6FF;
-        color: #1E40AF;
+        border-color: var(--denim);
+        background: var(--denim-tint);
+        color: var(--denim-dark);
         font-weight: 700;
-        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+        box-shadow: 0 0 0 2px rgba(43, 76, 126, 0.2);
     }
     .btn-color-swatch .color-dot {
         width: 12px;
