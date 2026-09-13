@@ -148,57 +148,54 @@
                         </span>
                     </div>
 
-                    @if (produit.Variantes != null && produit.Variantes.Any())
+                    @if (availableGenres.Any())
                     {
-                        @if (availableGenres.Any())
-                        {
-                            <div class="bp-variant-group mb-3">
-                                <span class="bp-label fw-bold d-block mb-1">Genre :</span>
-                                <div class="d-flex flex-wrap gap-2">
-                                    @foreach (var g in availableGenres)
-                                    {
-                                        <button type="button" class="btn btn-sm @(selectedGenre == g ? "btn-dark fw-bold" : "btn-outline-secondary") rounded-pill px-3"
-                                                @onclick="() => selectedGenre = g">
-                                            @g
-                                        </button>
-                                    }
-                                </div>
+                        <div class="bp-variant-group mb-3">
+                            <span class="bp-label fw-bold d-block mb-1">Genre :</span>
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach (var g in availableGenres)
+                                {
+                                    <button type="button" class="btn btn-sm @(selectedGenre == g ? "btn-dark fw-bold" : "btn-outline-secondary") rounded-pill px-3"
+                                            @onclick="() => selectedGenre = g">
+                                        @g
+                                    </button>
+                                }
                             </div>
-                        }
+                        </div>
+                    }
 
-                        @if (availableTailles.Any())
-                        {
-                            <div class="bp-variant-group mb-3">
-                                <span class="bp-label fw-bold d-block mb-1">Taille :</span>
-                                <div class="d-flex flex-wrap gap-2">
-                                    @foreach (var t in availableTailles)
-                                    {
-                                        <button type="button" class="btn btn-sm @(selectedTaille == t ? "btn-dark fw-bold" : "btn-outline-secondary") rounded-pill px-3"
-                                                @onclick="() => selectedTaille = t">
-                                            @t
-                                        </button>
-                                    }
-                                </div>
+                    @if (availableTailles.Any())
+                    {
+                        <div class="bp-variant-group mb-3">
+                            <span class="bp-label fw-bold d-block mb-1">Taille :</span>
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach (var t in availableTailles)
+                                {
+                                    <button type="button" class="btn btn-sm @(selectedTaille == t ? "btn-dark fw-bold" : "btn-outline-secondary") rounded-pill px-3"
+                                            @onclick="() => selectedTaille = t">
+                                        @t
+                                    </button>
+                                }
                             </div>
-                        }
+                        </div>
+                    }
 
-                        @if (availableCouleurs.Any())
-                        {
-                            <div class="bp-variant-group mb-3">
-                                <span class="bp-label fw-bold d-block mb-1">Couleur :</span>
-                                <div class="d-flex flex-wrap gap-2">
-                                    @foreach (var c in availableCouleurs)
-                                    {
-                                        var hex = WicStock.Web.Models.AttributsProduit.GetHex(c);
-                                        <button type="button" class="btn btn-sm @(selectedCouleur == c ? "btn-dark fw-bold" : "btn-outline-secondary") rounded-pill px-3 d-flex align-items-center gap-2"
-                                                @onclick="() => selectedCouleur = c">
-                                            <span style="width: 12px; height: 12px; border-radius: 50%; background-color: @hex; border: 1px solid rgba(0,0,0,0.2);"></span>
-                                            @c
-                                        </button>
-                                    }
-                                </div>
+                    @if (availableCouleurs.Any())
+                    {
+                        <div class="bp-variant-group mb-3">
+                            <span class="bp-label fw-bold d-block mb-1">Couleur :</span>
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach (var c in availableCouleurs)
+                                {
+                                    var hex = WicStock.Web.Models.AttributsProduit.GetHex(c);
+                                    <button type="button" class="btn btn-sm @(selectedCouleur == c ? "btn-dark fw-bold" : "btn-outline-secondary") rounded-pill px-3 d-flex align-items-center gap-2"
+                                            @onclick="() => selectedCouleur = c">
+                                        <span style="width: 12px; height: 12px; border-radius: 50%; background-color: @hex; border: 1px solid rgba(0,0,0,0.2);"></span>
+                                        @c
+                                    </button>
+                                }
                             </div>
-                        }
+                        </div>
                     }
                     else
                     {

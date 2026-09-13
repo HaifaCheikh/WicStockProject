@@ -221,38 +221,44 @@ public static class DatabaseSchemaBootstrap
                 logger.LogInformation("Migration automatique de {Count} produits existants vers 1 variante par défaut effectuée.", produitsSansVariantes.Count);
             }
 
-            // Nettoyage des attributs par défaut fictifs ("Bleu indigo", "Standard", "Unisex") si le produit parent n'a pas ces attributs
-            var dummyVariantes = await context.VariantesProduit
-                .Where(v => v.Couleur == "Bleu indigo" || v.Taille == "Standard" || v.Genre == "Unisex" || v.Genre == "Unisexe")
-                .ToListAsync();
-
+            // Synchronisation et consolidation des attributs entre Produits et VariantesProduit
+            var toutesVariantes = await context.VariantesProduit.ToListAsync();
             bool needsSave = false;
-            foreach (var v in dummyVariantes)
+            foreach (var v in toutesVariantes)
             {
                 var parentProd = await context.Produits.FindAsync(v.ProduitId);
                 if (parentProd != null)
                 {
-                    if (v.Couleur == "Bleu indigo" && string.IsNullOrEmpty(parentProd.Couleur))
+                    // Transmettre la couleur entre variante et produit parent si l'un possède l'info
+                    if (!string.IsNullOrEmpty(parentProd.Couleur) && string.IsNullOrEmpty(v.Couleur))
                     {
-                        v.Couleur = null;
+                        v.Couleur = parentProd.Couleur;
                         needsSave = true;
                     }
-                    if (v.Taille == "Standard" && string.IsNullOrEmpty(parentProd.Taille))
+                    else if (string.IsNullOrEmpty(parentProd.Couleur) && !string.IsNullOrEmpty(v.Couleur))
                     {
-                        v.Taille = null;
+                        parentProd.Couleur = v.Couleur;
                         needsSave = true;
                     }
-                    if ((v.Genre == "Unisex" || v.Genre == "Unisexe") && string.IsNullOrEmpty(parentProd.Genre))
+
+                    // Transmettre le genre entre variante et produit parent si l'un possède l'info
+                    if (!string.IsNullOrEmpty(parentProd.Genre) && string.IsNullOrEmpty(v.Genre))
                     {
-                        v.Genre = null;
+                        v.Genre = parentProd.Genre;
+                        needsSave = true;
+                    }
+                    else if (string.IsNullOrEmpty(parentProd.Genre) && !string.IsNullOrEmpty(v.Genre))
+                    {
+                        parentProd.Genre = v.Genre;
                         needsSave = true;
                     }
                 }
             }
+
             if (needsSave)
             {
                 await context.SaveChangesAsync();
-                logger.LogInformation("Nettoyage des attributs fictifs automatiques effectué avec succès.");
+                logger.LogInformation("Synchronisation des attributs (Couleurs, Genres, Tailles) effectuée avec succès.");
             }
 
             logger.LogInformation("Database schema bootstrap (PostgreSQL) completed.");
