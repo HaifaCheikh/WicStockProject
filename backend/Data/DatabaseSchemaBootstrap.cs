@@ -210,15 +210,49 @@ public static class DatabaseSchemaBootstrap
                     {
                         ProduitId = prod.Id,
                         Reference = sku,
-                        Genre = prod.Genre ?? "Unisex",
-                        Taille = prod.Taille ?? "Standard",
-                        Couleur = prod.Couleur ?? "Bleu indigo",
+                        Genre = prod.Genre,
+                        Taille = prod.Taille,
+                        Couleur = prod.Couleur,
                         QuantiteActuelle = qty,
                         SeuilAlerte = seuil
                     });
                 }
                 await context.SaveChangesAsync();
                 logger.LogInformation("Migration automatique de {Count} produits existants vers 1 variante par défaut effectuée.", produitsSansVariantes.Count);
+            }
+
+            // Nettoyage des attributs par défaut fictifs ("Bleu indigo", "Standard", "Unisex") si le produit parent n'a pas ces attributs
+            var dummyVariantes = await context.VariantesProduit
+                .Where(v => v.Couleur == "Bleu indigo" || v.Taille == "Standard" || v.Genre == "Unisex" || v.Genre == "Unisexe")
+                .ToListAsync();
+
+            bool needsSave = false;
+            foreach (var v in dummyVariantes)
+            {
+                var parentProd = await context.Produits.FindAsync(v.ProduitId);
+                if (parentProd != null)
+                {
+                    if (v.Couleur == "Bleu indigo" && string.IsNullOrEmpty(parentProd.Couleur))
+                    {
+                        v.Couleur = null;
+                        needsSave = true;
+                    }
+                    if (v.Taille == "Standard" && string.IsNullOrEmpty(parentProd.Taille))
+                    {
+                        v.Taille = null;
+                        needsSave = true;
+                    }
+                    if ((v.Genre == "Unisex" || v.Genre == "Unisexe") && string.IsNullOrEmpty(parentProd.Genre))
+                    {
+                        v.Genre = null;
+                        needsSave = true;
+                    }
+                }
+            }
+            if (needsSave)
+            {
+                await context.SaveChangesAsync();
+                logger.LogInformation("Nettoyage des attributs fictifs automatiques effectué avec succès.");
             }
 
             logger.LogInformation("Database schema bootstrap (PostgreSQL) completed.");
