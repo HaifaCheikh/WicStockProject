@@ -542,6 +542,15 @@ namespace WicStock_.Controllers
                 else
                     throw;
             }
+            catch (DbUpdateException dbEx)
+            {
+                var inner = dbEx.InnerException?.Message ?? dbEx.Message;
+                if (inner.Contains("UNIQUE") || inner.Contains("unique") || inner.Contains("duplicate") || inner.Contains("Duplicate"))
+                {
+                    return BadRequest(new { message = "Une variante avec la même référence (SKU) existe déjà. Modifiez la référence de la variante concernée." });
+                }
+                return BadRequest(new { message = $"Erreur de sauvegarde : {inner}" });
+            }
 
             return NoContent();
         }

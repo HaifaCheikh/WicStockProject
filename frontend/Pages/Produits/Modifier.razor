@@ -1595,6 +1595,29 @@
     {
         if (produit == null) return;
 
+        // Normaliser les champs optionnels : convertir "" en null, et s'assurer que chaque
+        // variante a une référence valide avant l'envoi à l'API.
+        produit.Genre = string.IsNullOrWhiteSpace(produit.Genre) ? null : produit.Genre.Trim();
+        produit.Taille = string.IsNullOrWhiteSpace(produit.Taille) ? null : produit.Taille.Trim();
+        produit.Couleur = string.IsNullOrWhiteSpace(produit.Couleur) ? null : produit.Couleur.Trim();
+
+        if (produit.Variantes != null)
+        {
+            foreach (var v in produit.Variantes)
+            {
+                // Normaliser les attributs optionnels de chaque variante
+                v.Genre   = string.IsNullOrWhiteSpace(v.Genre)   ? null : v.Genre.Trim();
+                v.Taille  = string.IsNullOrWhiteSpace(v.Taille)  ? null : v.Taille.Trim();
+                v.Couleur = string.IsNullOrWhiteSpace(v.Couleur) ? null : v.Couleur.Trim();
+
+                // Garantir que la référence SKU n'est jamais vide (requis en base)
+                if (string.IsNullOrWhiteSpace(v.Reference))
+                {
+                    AutoGenSKU(v);
+                }
+            }
+        }
+
         isSaving = true;
         var succes = await ProduitService.Modifier(Id, produit);
         isSaving = false;

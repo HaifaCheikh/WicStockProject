@@ -15,7 +15,7 @@ namespace WicStock_.Models
         /// <summary>
         /// SKU unique de la variante (ex: TIS-DNM-01-H-M-BLEUINDIGO).
         /// </summary>
-        [Required, MaxLength(100)]
+        [MaxLength(100)]
         public string Reference { get; set; } = string.Empty;
 
         [MaxLength(50)]
