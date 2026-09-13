@@ -43,6 +43,10 @@ namespace WicStock_.Controllers
                 .Include(h => h.Produit)
                 .Include(h => h.Utilisateur)
                 .Include(h => h.Livreur)
+                .Include(h => h.LigneCommandes)
+                    .ThenInclude(l => l.Produit)
+                .Include(h => h.LigneCommandes)
+                    .ThenInclude(l => l.VarianteProduit)
                 .Where(h => h.LivreurId == userId.Value)
                 .OrderByDescending(h => h.DateVente)
                 .Select(h => MapToLivraisonDto(h))
@@ -61,6 +65,10 @@ namespace WicStock_.Controllers
                 .Include(h => h.Produit)
                 .Include(h => h.Utilisateur)
                 .Include(h => h.Livreur)
+                .Include(h => h.LigneCommandes)
+                    .ThenInclude(l => l.Produit)
+                .Include(h => h.LigneCommandes)
+                    .ThenInclude(l => l.VarianteProduit)
                 .Where(h => h.LivreurId == null
                          && (h.Statut == StatutCommandeDetaille.PAYEE
                           || (h.StatutCommande == "ACCEPTEE" && h.DatePaiement != null && h.Statut != StatutCommandeDetaille.EN_LIVRAISON && h.Statut != StatutCommandeDetaille.LIVREE)))
@@ -239,18 +247,40 @@ namespace WicStock_.Controllers
 
         private static LivraisonCommandeDto MapToLivraisonDto(HistoriqueVente h)
         {
+            var lignesDto = h.LigneCommandes != null && h.LigneCommandes.Any()
+                ? h.LigneCommandes.Select(l => new LigneCommandeResultDto
+                {
+                    ProduitId = l.ProduitId,
+                    VarianteProduitId = l.VarianteProduitId,
+                    ProduitNom = l.Produit?.Nom ?? string.Empty,
+                    ProduitReference = l.VarianteProduit?.Reference ?? l.Produit?.Reference ?? string.Empty,
+                    ProduitImageUrl = l.Produit?.ImageUrl,
+                    Genre = l.Genre,
+                    Taille = l.Taille,
+                    Couleur = l.Couleur,
+                    Quantite = l.Quantite,
+                    PrixUnitaire = l.PrixUnitaire,
+                    EstSurCommande = l.EstSurCommande
+                }).ToList()
+                : new List<LigneCommandeResultDto>();
+
             return new LivraisonCommandeDto
             {
                 Id = h.Id,
                 DateVente = h.DateVente,
-                QuantiteVendue = h.QuantiteVendue,
+                QuantiteVendue = h.EstMultiLignes && lignesDto.Any() ? lignesDto.Sum(l => l.Quantite) : h.QuantiteVendue,
                 PrixUnitaire = h.PrixUnitaire,
                 Statut = h.Statut?.ToString(),
                 StatutCommande = h.StatutCommande,
                 EstSurCommande = h.EstSurCommande,
-                ProduitNom = h.Produit?.Nom ?? "Article",
+                ProduitNom = h.EstMultiLignes && lignesDto.Any() ? $"{lignesDto.Count} article{(lignesDto.Count > 1 ? "s" : "")}" : (h.Produit?.Nom ?? "Article"),
                 ProduitReference = h.Produit?.Reference ?? "",
                 ProduitImageUrl = h.Produit?.ImageUrl,
+                Genre = h.Genre,
+                Taille = h.Taille,
+                Couleur = h.Couleur,
+                EstMultiLignes = h.EstMultiLignes,
+                Lignes = lignesDto,
                 ClientId = h.UtilisateurId,
                 ClientNom = h.Utilisateur != null ? $"{h.Utilisateur.Prenom} {h.Utilisateur.Nom}".Trim() : "Client",
                 ClientEmail = h.Utilisateur?.Email ?? "",

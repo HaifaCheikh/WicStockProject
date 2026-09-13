@@ -14,6 +14,11 @@ namespace WicStock_.Models.Dtos
         public string ProduitNom { get; set; } = string.Empty;
         public string ProduitReference { get; set; } = string.Empty;
         public string? ProduitImageUrl { get; set; }
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
+        public bool EstMultiLignes { get; set; }
+        public List<LigneCommandeResultDto> Lignes { get; set; } = new();
 
         // Coordonnées client pour la livraison
         public int? ClientId { get; set; }

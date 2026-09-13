@@ -24,6 +24,7 @@ namespace WicStock_.Controllers
         }
 
         // GET: api/historiquevente (Vue globale pour Responsable Stock & Production)
+        // GET: api/historiquevente (Vue globale pour Responsable Stock & Production)
         [HttpGet]
         [Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
         public async Task<ActionResult<IEnumerable<object>>> GetHistoriqueVentes()
@@ -33,6 +34,10 @@ namespace WicStock_.Controllers
                 .Include(h => h.Utilisateur)
                 .Include(h => h.Responsable)
                 .Include(h => h.Livreur)
+                .Include(h => h.LigneCommandes)
+                    .ThenInclude(l => l.Produit)
+                .Include(h => h.LigneCommandes)
+                    .ThenInclude(l => l.VarianteProduit)
                 .OrderByDescending(h => h.DateVente)
                 .ToListAsync();
 
@@ -45,6 +50,10 @@ namespace WicStock_.Controllers
                 h.StatutCommande,
                 Statut = h.Statut?.ToString(),
                 h.EstSurCommande,
+                h.EstMultiLignes,
+                h.Genre,
+                h.Taille,
+                h.Couleur,
                 h.ProduitId,
                 ProduitNom = h.Produit?.Nom,
                 ProduitReference = h.Produit?.Reference,
@@ -57,7 +66,24 @@ namespace WicStock_.Controllers
                 h.LivreurId,
                 LivreurNom = h.Livreur != null ? $"{h.Livreur.Prenom} {h.Livreur.Nom}" : null,
                 ClientNom = h.Utilisateur != null ? $"{h.Utilisateur.Prenom} {h.Utilisateur.Nom}" : "Client anonyme",
-                ClientEmail = h.Utilisateur?.Email
+                ClientEmail = h.Utilisateur?.Email,
+                Lignes = (IEnumerable<object>)(h.LigneCommandes != null && h.LigneCommandes.Any()
+                    ? h.LigneCommandes.Select(l => (object)new
+                    {
+                        l.ProduitId,
+                        l.VarianteProduitId,
+                        ProduitNom = l.Produit?.Nom ?? string.Empty,
+                        ProduitReference = l.VarianteProduit?.Reference ?? l.Produit?.Reference ?? string.Empty,
+                        ProduitImageUrl = l.Produit?.ImageUrl,
+                        l.Genre,
+                        l.Taille,
+                        l.Couleur,
+                        l.Quantite,
+                        l.PrixUnitaire,
+                        SousTotal = l.Quantite * l.PrixUnitaire,
+                        l.EstSurCommande
+                    }).ToList()
+                    : new List<object>())
             });
 
             return Ok(result);
@@ -92,6 +118,9 @@ namespace WicStock_.Controllers
                 Statut = h.Statut?.ToString(),
                 h.EstSurCommande,
                 h.EstMultiLignes,
+                h.Genre,
+                h.Taille,
+                h.Couleur,
                 h.ProduitId,
                 ProduitNom = h.Produit?.Nom,
                 ProduitReference = h.Produit?.Reference,
@@ -190,8 +219,23 @@ namespace WicStock_.Controllers
                 EstSurCommande = estSurCommande,
                 DateVente = DateTime.Now,
                 UtilisateurId = utilisateurId,
-                DateSouhaitee = dto.DateSouhaitee?.Date
+                DateSouhaitee = dto.DateSouhaitee?.Date,
+                Genre = dto.Genre,
+                Taille = dto.Taille,
+                Couleur = dto.Couleur
             };
+
+            vente.LigneCommandes.Add(new LigneCommande
+            {
+                ProduitId = dto.ProduitId,
+                VarianteProduitId = dto.VarianteProduitId,
+                Quantite = dto.QuantiteVendue,
+                PrixUnitaire = dto.PrixUnitaire,
+                EstSurCommande = estSurCommande,
+                Genre = dto.Genre,
+                Taille = dto.Taille,
+                Couleur = dto.Couleur
+            });
 
             _context.HistoriqueVentes.Add(vente);
             await _context.SaveChangesAsync();
@@ -781,9 +825,13 @@ namespace WicStock_.Controllers
             var lignesDto = vente.LigneCommandes?.Select(l => new LigneCommandeResultDto
             {
                 ProduitId = l.ProduitId,
+                VarianteProduitId = l.VarianteProduitId,
                 ProduitNom = l.Produit?.Nom ?? string.Empty,
                 ProduitReference = l.Produit?.Reference ?? string.Empty,
                 ProduitImageUrl = l.Produit?.ImageUrl,
+                Genre = l.Genre,
+                Taille = l.Taille,
+                Couleur = l.Couleur,
                 Quantite = l.Quantite,
                 PrixUnitaire = l.PrixUnitaire,
                 EstSurCommande = l.EstSurCommande
@@ -801,6 +849,9 @@ namespace WicStock_.Controllers
                     : vente.Produit?.Nom,
                 ProduitReference = vente.EstMultiLignes ? null : vente.Produit?.Reference,
                 ProduitImageUrl = vente.EstMultiLignes ? null : vente.Produit?.ImageUrl,
+                Genre = vente.Genre,
+                Taille = vente.Taille,
+                Couleur = vente.Couleur,
                 QuantiteVendue = vente.EstMultiLignes && lignesDto.Count > 0
                     ? lignesDto.Sum(l => l.Quantite)
                     : vente.QuantiteVendue,
@@ -1175,6 +1226,10 @@ namespace WicStock_.Controllers
         public int QuantiteVendue { get; set; }
         public decimal PrixUnitaire { get; set; }
         public DateTime? DateSouhaitee { get; set; }
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
+        public int? VarianteProduitId { get; set; }
     }
 
     public class AccepterCommandeDto

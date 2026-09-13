@@ -387,28 +387,27 @@ namespace WicStock_.Controllers
         // PUT: api/produit/5
         [HttpPut("{id}")]
         [Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
-        public async Task<IActionResult> ModifierProduit(int id, Produit produit)
+        public async Task<IActionResult> ModifierProduit(int id, [FromBody] ProduitUpdateDto dto)
         {
-            // Désactiver la validation automatique du modèle (gérée manuellement ci-dessous)
             ModelState.Clear();
 
-            if (produit == null)
+            if (dto == null)
                 return BadRequest(new { message = "Le corps de la requête est vide." });
 
-            if (produit.Id == 0)
-                produit.Id = id;
+            if (dto.Id == 0)
+                dto.Id = id;
 
-            if (id != produit.Id)
-                return BadRequest(new { message = $"L'ID de l'URL ({id}) ne correspond pas à l'ID du produit ({produit.Id})." });
+            if (id != dto.Id)
+                return BadRequest(new { message = $"L'ID de l'URL ({id}) ne correspond pas à l'ID du produit ({dto.Id})." });
 
-            // Normaliser les chaînes vides en null pour les champs optionnels
-            produit.Genre   = string.IsNullOrWhiteSpace(produit.Genre)   ? null : produit.Genre.Trim();
-            produit.Taille  = string.IsNullOrWhiteSpace(produit.Taille)  ? null : produit.Taille.Trim();
-            produit.Couleur = string.IsNullOrWhiteSpace(produit.Couleur) ? null : produit.Couleur.Trim();
+            // Normaliser les chaînes vides en null
+            dto.Genre   = string.IsNullOrWhiteSpace(dto.Genre)   ? null : dto.Genre.Trim();
+            dto.Taille  = string.IsNullOrWhiteSpace(dto.Taille)  ? null : dto.Taille.Trim();
+            dto.Couleur = string.IsNullOrWhiteSpace(dto.Couleur) ? null : dto.Couleur.Trim();
 
-            if (produit.Variantes != null)
+            if (dto.Variantes != null)
             {
-                foreach (var v in produit.Variantes)
+                foreach (var v in dto.Variantes)
                 {
                     v.Genre   = string.IsNullOrWhiteSpace(v.Genre)   ? null : v.Genre.Trim();
                     v.Taille  = string.IsNullOrWhiteSpace(v.Taille)  ? null : v.Taille.Trim();
@@ -416,25 +415,25 @@ namespace WicStock_.Controllers
                 }
             }
 
-            if (!string.IsNullOrEmpty(produit.Genre) && !await _attributService.EstValideAsync("Genre", produit.Genre))
-                return BadRequest(new { message = $"Le genre '{produit.Genre}' n'est pas une valeur valide ou active." });
-            if (!string.IsNullOrEmpty(produit.Taille) && !await _attributService.EstValideAsync("Taille", produit.Taille))
-                return BadRequest(new { message = $"La taille '{produit.Taille}' n'est pas une valeur valide ou active." });
-            if (!string.IsNullOrEmpty(produit.Couleur) && !await _attributService.EstValideAsync("Couleur", produit.Couleur))
-                return BadRequest(new { message = $"La couleur '{produit.Couleur}' n'est pas une valeur valide ou active." });
+            if (!string.IsNullOrEmpty(dto.Genre) && !await _attributService.EstValideAsync("Genre", dto.Genre))
+                return BadRequest(new { message = $"Le genre '{dto.Genre}' n'est pas une valeur valide ou active." });
+            if (!string.IsNullOrEmpty(dto.Taille) && !await _attributService.EstValideAsync("Taille", dto.Taille))
+                return BadRequest(new { message = $"La taille '{dto.Taille}' n'est pas une valeur valide ou active." });
+            if (!string.IsNullOrEmpty(dto.Couleur) && !await _attributService.EstValideAsync("Couleur", dto.Couleur))
+                return BadRequest(new { message = $"La couleur '{dto.Couleur}' n'est pas une valeur valide ou active." });
 
-            if (!string.IsNullOrEmpty(produit.ImageBase64))
+            if (!string.IsNullOrEmpty(dto.ImageBase64))
             {
-                if (!string.IsNullOrEmpty(produit.ImageUrl))
+                if (!string.IsNullOrEmpty(dto.ImageUrl))
                 {
-                    var pathRelatif = produit.ImageUrl.Replace("/", Path.DirectorySeparatorChar.ToString()).TrimStart(Path.DirectorySeparatorChar);
+                    var pathRelatif = dto.ImageUrl.Replace("/", Path.DirectorySeparatorChar.ToString()).TrimStart(Path.DirectorySeparatorChar);
                     var oldFilePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", pathRelatif);
                     if (System.IO.File.Exists(oldFilePath))
                     {
                         try { System.IO.File.Delete(oldFilePath); } catch { }
                     }
                 }
-                produit.ImageUrl = SaveUploadedImage(produit.ImageBase64);
+                dto.ImageUrl = SaveUploadedImage(dto.ImageBase64);
             }
 
             var existingProduit = await _context.Produits
@@ -445,30 +444,32 @@ namespace WicStock_.Controllers
             if (existingProduit == null)
                 return NotFound();
 
-            existingProduit.Reference = produit.Reference;
-            existingProduit.Nom = produit.Nom;
-            existingProduit.TypeTissu = produit.TypeTissu;
-            existingProduit.Categorie = produit.Categorie;
-            existingProduit.Genre = produit.Genre;
-            existingProduit.Taille = produit.Taille;
-            existingProduit.Couleur = produit.Couleur;
-            existingProduit.CycleDeVie = produit.CycleDeVie;
-            existingProduit.PrixUnitaire = produit.PrixUnitaire;
-            existingProduit.DisponibleSurCommande = produit.DisponibleSurCommande;
-            if (!string.IsNullOrEmpty(produit.ImageUrl))
+            existingProduit.Reference = dto.Reference;
+            existingProduit.Nom = dto.Nom;
+            existingProduit.TypeTissu = dto.TypeTissu;
+            existingProduit.Categorie = dto.Categorie;
+            existingProduit.Genre = dto.Genre;
+            existingProduit.Taille = dto.Taille;
+            existingProduit.Couleur = dto.Couleur;
+            existingProduit.CycleDeVie = dto.CycleDeVie;
+            existingProduit.PrixUnitaire = dto.PrixUnitaire;
+            existingProduit.DisponibleSurCommande = dto.DisponibleSurCommande;
+            existingProduit.RemisePourcentage = dto.RemisePourcentage;
+            existingProduit.DateFinPromotion = dto.DateFinPromotion;
+            if (!string.IsNullOrEmpty(dto.ImageUrl))
             {
-                existingProduit.ImageUrl = produit.ImageUrl;
+                existingProduit.ImageUrl = dto.ImageUrl;
             }
 
             // Gestion des variantes
-            if (produit.Variantes != null)
+            if (dto.Variantes != null)
             {
                 // Supprimer les variantes absentes du payload
-                var idsMaintient = produit.Variantes.Where(v => v.Id > 0).Select(v => v.Id).ToList();
+                var idsMaintient = dto.Variantes.Where(v => v.Id.HasValue && v.Id.Value > 0).Select(v => v.Id!.Value).ToList();
                 var variantesASupprimer = existingProduit.Variantes.Where(v => !idsMaintient.Contains(v.Id)).ToList();
                 _context.VariantesProduit.RemoveRange(variantesASupprimer);
 
-                foreach (var v in produit.Variantes)
+                foreach (var v in dto.Variantes)
                 {
                     if (!string.IsNullOrEmpty(v.Genre) && !await _attributService.EstValideAsync("Genre", v.Genre))
                         return BadRequest(new { message = $"Genre invalide pour la variante : '{v.Genre}'." });
@@ -479,35 +480,38 @@ namespace WicStock_.Controllers
 
                     if (string.IsNullOrWhiteSpace(v.Reference))
                     {
-                        var genreCode = string.IsNullOrWhiteSpace(v.Genre) ? "U" : v.Genre.Substring(0, 1).ToUpperInvariant();
-                        var tailleCode = string.IsNullOrWhiteSpace(v.Taille) ? "STD" : v.Taille.Replace(" ", "").ToUpperInvariant();
+                        var genreCode  = string.IsNullOrWhiteSpace(v.Genre)   ? "U"   : v.Genre.Substring(0, 1).ToUpperInvariant();
+                        var tailleCode = string.IsNullOrWhiteSpace(v.Taille)  ? "STD" : v.Taille.Replace(" ", "").ToUpperInvariant();
                         var couleurCode = string.IsNullOrWhiteSpace(v.Couleur) ? "DEF" : System.Text.RegularExpressions.Regex.Replace(v.Couleur, @"[^a-zA-Z0-9]", "").ToUpperInvariant();
-                        v.Reference = $"{produit.Reference}-{genreCode}-{tailleCode}-{couleurCode}";
+                        v.Reference = $"{dto.Reference}-{genreCode}-{tailleCode}-{couleurCode}";
                     }
 
-                    var exV = existingProduit.Variantes.FirstOrDefault(ev => ev.Id == v.Id && v.Id > 0);
+                    var exV = v.Id.HasValue && v.Id.Value > 0
+                        ? existingProduit.Variantes.FirstOrDefault(ev => ev.Id == v.Id.Value)
+                        : null;
+
                     if (exV != null)
                     {
-                        exV.Reference = v.Reference;
-                        exV.Genre = v.Genre;
-                        exV.Taille = v.Taille;
-                        exV.Couleur = v.Couleur;
+                        exV.Reference       = v.Reference;
+                        exV.Genre           = v.Genre;
+                        exV.Taille          = v.Taille;
+                        exV.Couleur         = v.Couleur;
                         exV.QuantiteActuelle = v.QuantiteActuelle;
-                        exV.SeuilAlerte = v.SeuilAlerte;
-                        exV.PrixOverride = v.PrixOverride;
+                        exV.SeuilAlerte     = v.SeuilAlerte;
+                        exV.PrixOverride    = v.PrixOverride;
                     }
                     else
                     {
                         existingProduit.Variantes.Add(new VarianteProduit
                         {
-                            ProduitId = id,
-                            Reference = v.Reference,
-                            Genre = v.Genre,
-                            Taille = v.Taille,
-                            Couleur = v.Couleur,
+                            ProduitId        = id,
+                            Reference        = v.Reference,
+                            Genre            = v.Genre,
+                            Taille           = v.Taille,
+                            Couleur          = v.Couleur,
                             QuantiteActuelle = v.QuantiteActuelle,
-                            SeuilAlerte = v.SeuilAlerte,
-                            PrixOverride = v.PrixOverride
+                            SeuilAlerte      = v.SeuilAlerte,
+                            PrixOverride     = v.PrixOverride
                         });
                     }
                 }
@@ -515,7 +519,7 @@ namespace WicStock_.Controllers
 
             int stockTotalMaj = existingProduit.Variantes.Any()
                 ? existingProduit.Variantes.Sum(v => v.QuantiteActuelle)
-                : (produit.Stock?.QuantiteActuelle ?? 0);
+                : (dto.Stock?.QuantiteActuelle ?? 0);
 
             if (existingProduit.Stock != null)
             {
@@ -535,15 +539,15 @@ namespace WicStock_.Controllers
                     });
                 }
             }
-            else if (produit.Stock != null)
+            else if (dto.Stock != null)
             {
                 existingProduit.Stock = new Stock
                 {
-                    ProduitId = id,
+                    ProduitId        = id,
                     QuantiteActuelle = stockTotalMaj,
-                    SeuilAlerte = produit.Stock.SeuilAlerte > 0 ? produit.Stock.SeuilAlerte : 10,
-                    Emplacement = !string.IsNullOrEmpty(produit.Stock.Emplacement) ? produit.Stock.Emplacement : "Magasin principal",
-                    DateMiseAJour = DateTime.Now
+                    SeuilAlerte      = dto.Stock.SeuilAlerte > 0 ? dto.Stock.SeuilAlerte : 10,
+                    Emplacement      = !string.IsNullOrEmpty(dto.Stock.Emplacement) ? dto.Stock.Emplacement : "Magasin principal",
+                    DateMiseAJour    = DateTime.Now
                 };
                 await _context.SaveChangesAsync();
 
@@ -551,11 +555,11 @@ namespace WicStock_.Controllers
                 {
                     _context.MouvementsStock.Add(new MouvementStock
                     {
-                        StockId = existingProduit.Stock.Id,
-                        Type = Enums.TypeMouvement.ENTREE,
+                        StockId  = existingProduit.Stock.Id,
+                        Type     = Enums.TypeMouvement.ENTREE,
                         Quantite = existingProduit.Stock.QuantiteActuelle,
-                        Date = DateTime.Now,
-                        Motif = $"Initialisation stock - {existingProduit.Nom}"
+                        Date     = DateTime.Now,
+                        Motif    = $"Initialisation stock - {existingProduit.Nom}"
                     });
                 }
             }
@@ -568,7 +572,7 @@ namespace WicStock_.Controllers
                 {
                     await _notificationService.NotifierNouvelEvenementAsync(
                         Enums.TypeNotification.RUPTURE_STOCK,
-                        $"Alerte stock bas : Le produit '{existingProduit.Nom}' est sous le seuil d'alerte ({existingProduit.Stock.QuantiteActuelle} / {existingProduit.Stock.SeuilAlerte} unitÃƒÂ©(s)).",
+                        $"Alerte stock bas : Le produit '{existingProduit.Nom}' est sous le seuil d'alerte ({existingProduit.Stock.QuantiteActuelle} / {existingProduit.Stock.SeuilAlerte} unité(s)).",
                         $"/produits/modifier/{existingProduit.Id}",
                         Enums.RoleUtilisateur.RESPONSABLE_STOCK_PRODUCTION
                     );
@@ -593,6 +597,7 @@ namespace WicStock_.Controllers
 
             return NoContent();
         }
+
 
         private string? SaveUploadedImage(string? base64Data)
         {

@@ -367,6 +367,20 @@
                                         {
                                             <span class="table-cat-tag" style="background: @GetCategoryColor(commande.ProduitCategorie);">@commande.ProduitCategorie</span>
                                         }
+                                        @{
+                                            var descClient = !isMulti ? WicStock.Web.Models.AttributsProduit.FormatLigneDescription(commande.Genre, commande.Taille, commande.Couleur) : null;
+                                            var hexClient = !isMulti && !string.IsNullOrEmpty(commande.Couleur) ? WicStock.Web.Models.AttributsProduit.GetHex(commande.Couleur) : null;
+                                        }
+                                        @if (!string.IsNullOrEmpty(descClient))
+                                        {
+                                            <span class="variant-tag" style="background:#F1F5F9; color:#2563EB; font-weight:600; padding:2px 8px; border-radius:4px; font-size:0.75rem; display:inline-flex; align-items:center; gap:4px;">
+                                                @if (hexClient != null)
+                                                {
+                                                    <span style="width:8px; height:8px; border-radius:50%; background-color:@hexClient; border:1px solid rgba(0,0,0,0.2);"></span>
+                                                }
+                                                @descClient
+                                            </span>
+                                        }
                                         <span class="order-card-date">@commande.DateVente.ToString("dd/MM/yyyy HH:mm")</span>
                                     </div>
                                 </div>

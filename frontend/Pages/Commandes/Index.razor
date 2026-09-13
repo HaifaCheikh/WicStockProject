@@ -1,4 +1,4 @@
-﻿@page "/commandes"
+@page "/commandes"
 @using WicStock.Web.Models.Dtos
 @using WicStock.Web.Services
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
@@ -162,8 +162,49 @@
                             </td>
 
                             <td>
-                                <div class="cell-name">@context.ProduitNom</div>
-                                <span class="ref-code">@context.ProduitReference</span>
+                                @if (context.EstMultiLignes && context.Lignes != null && context.Lignes.Count > 0)
+                                {
+                                    <div class="d-flex flex-column gap-1">
+                                        <span class="multi-badge mb-1" style="display:inline-block; font-weight:600; font-size:0.75rem; color:#2563EB; background:#EFF6FF; padding:2px 8px; border-radius:12px;">@context.Lignes.Count article(s)</span>
+                                        @foreach (var l in context.Lignes)
+                                        {
+                                            var descL = WicStock.Web.Models.AttributsProduit.FormatLigneDescription(l.Genre, l.Taille, l.Couleur);
+                                            var hexL = !string.IsNullOrEmpty(l.Couleur) ? WicStock.Web.Models.AttributsProduit.GetHex(l.Couleur) : null;
+                                            <div style="font-size:0.8125rem; border-bottom:1px dashed #E2E8F0; padding-bottom:3px; margin-bottom:3px;">
+                                                <div class="cell-name" style="font-weight:600;">@l.ProduitNom <span style="font-weight:normal; color:#64748B;">(×@l.Quantite)</span></div>
+                                                <span class="ref-code">@l.ProduitReference</span>
+                                                @if (!string.IsNullOrEmpty(descL))
+                                                {
+                                                    <div style="font-size:0.75rem; color:#475569; font-weight:500; display:flex; align-items:center; gap:4px;">
+                                                        @if (hexL != null)
+                                                        {
+                                                            <span style="width:8px; height:8px; border-radius:50%; background-color:@hexL; border:1px solid rgba(0,0,0,0.2);"></span>
+                                                        }
+                                                        <span>@descL</span>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    var descS = WicStock.Web.Models.AttributsProduit.FormatLigneDescription(context.Genre, context.Taille, context.Couleur);
+                                    var hexS = !string.IsNullOrEmpty(context.Couleur) ? WicStock.Web.Models.AttributsProduit.GetHex(context.Couleur) : null;
+
+                                    <div class="cell-name">@context.ProduitNom</div>
+                                    <span class="ref-code">@context.ProduitReference</span>
+                                    @if (!string.IsNullOrEmpty(descS))
+                                    {
+                                        <div style="font-size:0.75rem; color:#2563EB; font-weight:600; margin-top:2px; display:inline-flex; align-items:center; gap:4px; background:#EFF6FF; padding:1px 6px; border-radius:4px;">
+                                            @if (hexS != null)
+                                            {
+                                                <span style="width:8px; height:8px; border-radius:50%; background-color:@hexS; border:1px solid rgba(0,0,0,0.2);"></span>
+                                            }
+                                            <span>@descS</span>
+                                        </div>
+                                    }
+                                }
                             </td>
 
                             <td>

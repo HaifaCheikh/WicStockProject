@@ -175,6 +175,20 @@
                         <div class="order-single-details">
                             <span class="ref-code">@suivi.ProduitReference</span>
                             <h2 class="order-card-title order-card-title--single">@suivi.ProduitNom</h2>
+                            @{
+                                var descSingleTrack = WicStock.Web.Models.AttributsProduit.FormatLigneDescription(suivi.Genre, suivi.Taille, suivi.Couleur);
+                                var hexSingleTrack = !string.IsNullOrEmpty(suivi.Couleur) ? WicStock.Web.Models.AttributsProduit.GetHex(suivi.Couleur) : null;
+                            }
+                            @if (!string.IsNullOrEmpty(descSingleTrack))
+                            {
+                                <div style="font-size: 0.875rem; font-weight: 600; color: #2563EB; margin-top: 4px; display: inline-flex; align-items: center; gap: 6px; background: #EFF6FF; padding: 2px 8px; border-radius: 4px;">
+                                    @if (hexSingleTrack != null)
+                                    {
+                                        <span style="width: 10px; height: 10px; border-radius: 50%; background-color: @hexSingleTrack; border: 1px solid rgba(0,0,0,0.2);"></span>
+                                    }
+                                    <span>@descSingleTrack</span>
+                                </div>
+                            }
                         </div>
                     </div>
 

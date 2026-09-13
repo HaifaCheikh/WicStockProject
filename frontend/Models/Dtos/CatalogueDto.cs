@@ -55,6 +55,10 @@ namespace WicStock.Web.Models.Dtos
         public int QuantiteVendue { get; set; }
         public decimal PrixUnitaire { get; set; }
         public DateTime? DateSouhaitee { get; set; }
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
+        public int? VarianteProduitId { get; set; }
     }
 
     public class MaCommandeDto
@@ -67,6 +71,9 @@ namespace WicStock.Web.Models.Dtos
         public string? Statut { get; set; }
         public bool EstSurCommande { get; set; }
         public bool EstMultiLignes { get; set; }
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
         public int ProduitId { get; set; }
         public string? ProduitNom { get; set; }
         public string? ProduitReference { get; set; }
@@ -110,6 +117,7 @@ namespace WicStock.Web.Models.Dtos
     public class LigneCommandeDisplayDto
     {
         public int ProduitId { get; set; }
+        public int? VarianteProduitId { get; set; }
         public string ProduitNom { get; set; } = string.Empty;
         public string ProduitReference { get; set; } = string.Empty;
         public string? ProduitImageUrl { get; set; }
@@ -132,6 +140,10 @@ namespace WicStock.Web.Models.Dtos
         public string StatutCommande { get; set; } = "ACCEPTEE";
         public string? Statut { get; set; }
         public bool EstSurCommande { get; set; }
+        public bool EstMultiLignes { get; set; }
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
         public int ProduitId { get; set; }
         public string? ProduitNom { get; set; }
         public string? ProduitReference { get; set; }
@@ -146,6 +158,7 @@ namespace WicStock.Web.Models.Dtos
         public string? LivreurNom { get; set; }
         public DateTime? DatePaiement { get; set; }
         public decimal TotalCommande => QuantiteVendue * PrixUnitaire;
+        public List<LigneCommandeDisplayDto> Lignes { get; set; } = new();
     }
 
     public class AssignerCommandeDto
@@ -171,6 +184,9 @@ namespace WicStock.Web.Models.Dtos
         public string? ProduitNom { get; set; }
         public string? ProduitReference { get; set; }
         public string? ProduitImageUrl { get; set; }
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
         public int QuantiteVendue { get; set; }
         public decimal PrixUnitaire { get; set; }
         public string Statut { get; set; } = string.Empty;

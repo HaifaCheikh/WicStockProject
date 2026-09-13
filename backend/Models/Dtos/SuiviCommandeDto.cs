@@ -10,6 +10,9 @@ namespace WicStock_.Models.Dtos
         public string? ProduitNom { get; set; }
         public string? ProduitReference { get; set; }
         public string? ProduitImageUrl { get; set; }
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
         public int QuantiteVendue { get; set; }
         public decimal PrixUnitaire { get; set; }
         public string Statut { get; set; } = string.Empty;
