@@ -151,12 +151,14 @@
                     @if (availableGenres.Any())
                     {
                         <div class="bp-variant-group">
-                            <span class="bp-variant-label">Genre</span>
-                            <div class="bp-variant-options">
+                            <div class="bp-variant-label-row">
+                                <span class="bp-variant-label">Genre</span>
+                            </div>
+                            <div class="bp-pill-options">
                                 @foreach (var g in availableGenres)
                                 {
                                     <button type="button"
-                                            class="bp-opt-btn @(selectedGenre == g ? "bp-opt-btn--active" : "")"
+                                            class="bp-pill @(selectedGenre == g ? "bp-pill--active" : "")"
                                             @onclick="() => selectedGenre = g">
                                         @g
                                     </button>
@@ -168,24 +170,30 @@
                     @if (availableTailles.Any())
                     {
                         <div class="bp-variant-group">
-                            <span class="bp-variant-label">Taille</span>
-                            <div class="bp-variant-options">
+                            <div class="bp-variant-label-row">
+                                <span class="bp-variant-label">Taille</span>
+                                @if (!string.IsNullOrEmpty(selectedTaille))
+                                {
+                                    <span class="bp-variant-selected-value">@selectedTaille</span>
+                                }
+                            </div>
+                            <div class="bp-size-options">
                                 @foreach (var t in availableTailles)
                                 {
                                     int tailleQty = GetTailleStock(t);
                                     bool tailleEpuisee = tailleQty == 0 && !(produit?.DisponibleSurCommande ?? false);
                                     <button type="button"
-                                            class="bp-opt-btn @(selectedTaille == t ? "bp-opt-btn--active" : "") @(tailleEpuisee ? "bp-opt-btn--epuise" : "")"
+                                            class="bp-size-box @(selectedTaille == t ? "bp-size-box--active" : "") @(tailleEpuisee ? "bp-size-box--epuise" : "")"
                                             @onclick="() => { if (!tailleEpuisee) selectedTaille = t; }"
                                             title="@(tailleEpuisee ? "Épuisé" : tailleQty > 0 ? $"{tailleQty} disponible(s)" : "Sur commande")">
-                                        @t
+                                        <span class="bp-size-box-label">@t</span>
                                         @if (tailleEpuisee)
                                         {
-                                            <span class="bp-opt-epuise-badge">✕</span>
+                                            <span class="bp-size-strike"></span>
                                         }
                                         else if (tailleQty == 0)
                                         {
-                                            <span class="bp-opt-cmd-badge">cmd</span>
+                                            <span class="bp-size-cmd-dot" title="Sur commande"></span>
                                         }
                                     </button>
                                 }
@@ -196,56 +204,83 @@
                     @if (availableCouleurs.Any())
                     {
                         <div class="bp-variant-group">
-                            <span class="bp-variant-label">Couleur</span>
-                            <div class="bp-variant-options">
+                            <div class="bp-variant-label-row">
+                                <span class="bp-variant-label">Couleur</span>
+                                @if (!string.IsNullOrEmpty(selectedCouleur))
+                                {
+                                    <span class="bp-variant-selected-value">@selectedCouleur</span>
+                                }
+                            </div>
+                            <div class="bp-color-options">
                                 @foreach (var c in availableCouleurs)
                                 {
                                     var hex = WicStock.Web.Models.AttributsProduit.GetHex(c);
                                     <button type="button"
-                                            class="bp-opt-btn bp-opt-btn--couleur @(selectedCouleur == c ? "bp-opt-btn--active" : "")"
+                                            class="bp-color-circle @(selectedCouleur == c ? "bp-color-circle--active" : "")"
+                                            style="--swatch-color: @hex;"
+                                            title="@c"
                                             @onclick="() => selectedCouleur = c">
-                                        <span class="bp-swatch" style="background-color: @hex;"></span>
-                                        @c
+                                        <span class="bp-color-circle-fill"></span>
                                     </button>
                                 }
                             </div>
                         </div>
                     }
-                    <div class="bp-details-meta mt-3">
-                        @if (!string.IsNullOrEmpty(produit.TypeTissu))
-                        {
-                            <p class="bp-tissu">
-                                <span class="bp-label">Tissu :</span> @produit.TypeTissu
-                            </p>
-                        }
-                        @if (!string.IsNullOrEmpty(produit.Categorie))
-                        {
-                            <p class="bp-categorie">
-                                <span class="bp-label">Catégorie :</span> @produit.Categorie
-                            </p>
-                        }
-                        @if (!availableGenres.Any() && !string.IsNullOrEmpty(produit.Genre))
-                        {
-                            <p class="bp-tissu">
-                                <span class="bp-label">Genre :</span> @produit.Genre
-                            </p>
-                        }
-                        @if (!availableTailles.Any() && !string.IsNullOrEmpty(produit.Taille) && !string.Equals(produit.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase))
-                        {
-                            <p class="bp-tissu">
-                                <span class="bp-label">Taille / Pointure :</span> <span class="bp-attr-tag">@produit.Taille</span>
-                            </p>
-                        }
-                        @if (!availableCouleurs.Any() && !string.IsNullOrEmpty(produit.Couleur))
-                        {
-                            var hex = !string.IsNullOrWhiteSpace(produit.CodeHexCouleur) ? produit.CodeHexCouleur! : WicStock.Web.Models.AttributsProduit.GetHex(produit.Couleur);
-                            <p class="bp-tissu" style="display: flex; align-items: center; gap: 8px;">
-                                <span class="bp-label">Couleur :</span>
-                                <span class="bp-color-dot" style="background-color: @hex;" title="@produit.Couleur"></span>
-                                <span>@produit.Couleur</span>
-                            </p>
-                        }
-                    </div>
+
+                    @if (!availableGenres.Any() && !string.IsNullOrEmpty(produit.Genre))
+                    {
+                        <div class="bp-variant-group">
+                            <div class="bp-variant-label-row">
+                                <span class="bp-variant-label">Genre</span>
+                                <span class="bp-variant-selected-value">@produit.Genre</span>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!availableTailles.Any() && !string.IsNullOrEmpty(produit.Taille) && !string.Equals(produit.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <div class="bp-variant-group">
+                            <div class="bp-variant-label-row">
+                                <span class="bp-variant-label">Taille</span>
+                                <span class="bp-variant-selected-value">@produit.Taille</span>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!availableCouleurs.Any() && !string.IsNullOrEmpty(produit.Couleur))
+                    {
+                        var hexSingle = !string.IsNullOrWhiteSpace(produit.CodeHexCouleur) ? produit.CodeHexCouleur! : WicStock.Web.Models.AttributsProduit.GetHex(produit.Couleur);
+                        <div class="bp-variant-group">
+                            <div class="bp-variant-label-row">
+                                <span class="bp-variant-label">Couleur</span>
+                                <span class="bp-variant-selected-value">@produit.Couleur</span>
+                            </div>
+                            <div class="bp-color-options">
+                                <span class="bp-color-circle bp-color-circle--active bp-color-circle--static" style="--swatch-color: @hexSingle;">
+                                    <span class="bp-color-circle-fill"></span>
+                                </span>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(produit.TypeTissu) || !string.IsNullOrEmpty(produit.Categorie))
+                    {
+                        <div class="bp-meta-chips">
+                            @if (!string.IsNullOrEmpty(produit.TypeTissu))
+                            {
+                                <span class="bp-meta-chip">
+                                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none">
+                                        <path d="M4 6 H20 M4 12 H20 M4 18 H20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                                    </svg>
+                                    @produit.TypeTissu
+                                </span>
+                            }
+                            @if (!string.IsNullOrEmpty(produit.Categorie))
+                            {
+                                <span class="bp-meta-chip bp-meta-chip--cat">@produit.Categorie</span>
+                            }
+                        </div>
+                    }
 
                     <!-- Prix -->
                     <div class="bp-prix-block">
@@ -493,8 +528,6 @@
     /* INFOS */
     .bp-ref { font-family: var(--font-mono); font-size: 0.75rem; font-weight: 600; color: var(--b-ink-muted); letter-spacing: 0.02em; text-transform: uppercase; margin-bottom: 8px; }
     .bp-name { font-family: var(--font-head); font-size: clamp(1.35rem, 2.8vw, 1.9rem); font-weight: 800; color: var(--b-ink); margin-bottom: 16px; line-height: 1.2; letter-spacing: -0.02em; }
-    .bp-tissu, .bp-categorie { font-size: 0.9rem; color: var(--b-ink-muted); margin-bottom: 6px; }
-    .bp-label { font-weight: 600; color: var(--b-ink); }
 
     .bp-prix-block { margin: 18px 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
     .bp-prix { font-size: 1.7rem; font-weight: 800; color: var(--b-denim); font-family: var(--font-head); }
@@ -543,53 +576,192 @@
         background: var(--b-denim-soft);
         border-color: #B2C4DC;
         color: var(--b-denim-dark);
-        box-shadow: 0 4px 12px -4px rgba(43,76,126,0.15);
+        box-shadow: 0 4px     /* ===== Sélecteurs de variantes : genre / taille / couleur (design premium) ===== */
+    .bp-variant-group { margin-bottom: 22px; }
+
+    .bp-variant-label-row {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 11px;
     }
 
-    .bp-attr-tag { display: inline-block; padding: 2px 10px; background: var(--b-denim-tint); color: var(--b-denim); font-weight: 700; border-radius: 6px; font-size: 0.85rem; }
-    .bp-color-dot { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.2); display: inline-block; flex-shrink: 0; }
+    .bp-variant-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--b-ink-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.09em;
+    }
 
-    /* ===== Sélecteurs de variantes : taille / couleur / genre ===== */
-    .bp-variant-group { margin-bottom: 20px; }
-    .bp-variant-label { display: block; font-size: 0.78rem; font-weight: 700; color: var(--b-ink-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
-    .bp-variant-options { display: flex; flex-wrap: wrap; gap: 8px; }
+    .bp-variant-selected-value {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--b-ink);
+    }
 
-    .bp-opt-btn {
-        display: inline-flex; align-items: center; gap: 6px;
-        padding: 8px 18px;
-        border: 2px solid var(--b-border);
-        border-radius: 10px;
+    /* Genre — pills */
+    .bp-pill-options { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .bp-pill {
+        padding: 8px 20px;
+        border: 1.5px solid var(--b-border);
+        border-radius: 999px;
         background: var(--b-paper);
         color: var(--b-ink);
-        font-family: var(--font-body); font-size: 0.875rem; font-weight: 600;
+        font-family: var(--font-body);
+        font-size: 0.85rem;
+        font-weight: 600;
         cursor: pointer;
-        transition: border-color 0.18s, background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.15s;
-        user-select: none;
+        transition: all 0.16s ease;
     }
-    .bp-opt-btn:hover:not(.bp-opt-btn--active):not(.bp-opt-btn--epuise) {
-        border-color: var(--b-denim);
-        color: var(--b-denim);
-        background: var(--b-denim-soft);
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px -4px rgba(43,76,126,0.2);
-    }
-    .bp-opt-btn--active {
+
+        .bp-pill:hover {
+            border-color: var(--b-denim);
+            color: var(--b-denim);
+            background: var(--b-denim-soft);
+        }
+
+    .bp-pill--active {
         border-color: var(--b-denim);
         background: var(--b-denim);
         color: #fff;
-        box-shadow: 0 4px 14px -4px rgba(43,76,126,0.45);
-        transform: translateY(-1px);
+        box-shadow: 0 4px 12px -4px rgba(43,76,126,0.4);
     }
-    .bp-opt-btn--epuise {
-        opacity: 0.38;
+
+        .bp-pill--active:hover {
+            background: var(--b-denim-dark);
+            color: #fff;
+        }
+
+    /* Taille — cases carrées */
+    .bp-size-options { display: flex; flex-wrap: wrap; gap: 9px; }
+
+    .bp-size-box {
+        position: relative;
+        width: 46px;
+        height: 46px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1.5px solid var(--b-border);
+        border-radius: 10px;
+        background: var(--b-paper);
+        color: var(--b-ink);
+        font-family: var(--font-body);
+        font-size: 0.85rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.16s ease;
+    }
+
+        .bp-size-box:hover:not(.bp-size-box--epuise) {
+            border-color: var(--b-denim);
+            color: var(--b-denim);
+            background: var(--b-denim-soft);
+        }
+
+    .bp-size-box--active {
+        border-color: var(--b-denim);
+        background: var(--b-denim);
+        color: #fff;
+        box-shadow: 0 4px 12px -4px rgba(43,76,126,0.4);
+    }
+
+    .bp-size-box--epuise {
+        opacity: 0.35;
         cursor: not-allowed;
-        text-decoration: line-through;
-        border-style: dashed;
+        color: var(--b-ink-muted);
     }
-    .bp-opt-epuise-badge { font-size: 0.65rem; font-weight: 800; color: var(--b-rust); }
-    .bp-opt-cmd-badge { font-size: 0.65rem; font-weight: 700; background: var(--b-denim-tint); color: var(--b-denim); padding: 1px 5px; border-radius: 4px; }
-    .bp-opt-btn--couleur { padding: 7px 14px; }
-    .bp-swatch { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid rgba(0,0,0,0.15); flex-shrink: 0; display: inline-block; }
+
+    .bp-size-strike {
+        position: absolute;
+        inset: 0;
+        border-radius: 10px;
+        background: linear-gradient(to top right, transparent calc(50% - 0.75px), var(--b-ink-muted) calc(50% - 0.75px), var(--b-ink-muted) calc(50% + 0.75px), transparent calc(50% + 0.75px));
+    }
+
+    .bp-size-cmd-dot {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--b-amber-soft);
+        border: 1.5px solid #F59E0B;
+    }
+
+    /* Couleur — pastilles pleines avec anneau de sélection */
+    .bp-color-options { display: flex; flex-wrap: wrap; gap: 12px; }
+
+    .bp-color-circle {
+        width: 34px;
+        height: 34px;
+        padding: 3px;
+        border-radius: 50%;
+        border: 1.5px solid transparent;
+        background: transparent;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.16s ease;
+    }
+
+        .bp-color-circle:hover {
+            border-color: var(--b-border);
+        }
+
+    .bp-color-circle-fill {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background-color: var(--swatch-color);
+        border: 1px solid rgba(0,0,0,0.12);
+        display: block;
+    }
+
+    .bp-color-circle--active {
+        border-color: var(--b-denim);
+        box-shadow: 0 0 0 2px var(--b-paper), 0 0 0 3px var(--b-denim);
+    }
+
+    .bp-color-circle--static {
+        cursor: default;
+    }
+
+        .bp-color-circle--static:hover {
+            border-color: var(--b-denim);
+        }
+
+    /* Meta chips — Tissu / Catégorie (remplace l'ancien texte brut) */
+    .bp-meta-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 4px;
+        margin-bottom: 4px;
+    }
+
+    .bp-meta-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 13px;
+        border-radius: 999px;
+        background: var(--b-sand);
+        border: 1px solid var(--b-border);
+        color: var(--b-ink-muted);
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .bp-meta-chip--cat {
+        background: var(--b-denim-tint);
+        border-color: rgba(43,76,126,0.15);
+        color: var(--b-denim);
+    }flex-shrink: 0; display: inline-block; }
 
     .bp-rupture-msg { background: var(--b-rust-soft); border: 1.5px solid #F0C7BB; border-radius: var(--b-radius-sm); padding: 20px; text-align: center; }
     .bp-rupture-msg p { color: var(--b-rust); font-size: 0.9rem; margin-bottom: 16px; }

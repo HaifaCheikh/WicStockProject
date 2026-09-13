@@ -111,21 +111,19 @@
                                     }
                                     @if (partsL.Count > 0 || !string.IsNullOrWhiteSpace(ligne.Couleur))
                                     {
-                                        <span class="order-line-attr d-inline-flex align-items-center gap-1" style="font-size: 0.8125rem; color: #64748B; margin-top: 2px;">
+                                        <span class="attr-badge">
                                             @if (partsL.Count > 0)
                                             {
                                                 <span>@string.Join(" · ", partsL)</span>
                                             }
                                             @if (!string.IsNullOrWhiteSpace(ligne.Couleur))
                                             {
-                                                @if (partsL.Count > 0) { <span> · </span> }
-                                                <span style="display:inline-flex; align-items:center; gap:4px;">
-                                                    @if (hexCol != null)
-                                                    {
-                                                        <span style="width: 9px; height: 9px; border-radius: 50%; background-color: @hexCol; border: 1px solid rgba(0,0,0,0.2); display: inline-block;" title="@ligne.Couleur"></span>
-                                                    }
-                                                    <span>@ligne.Couleur.Trim()</span>
-                                                </span>
+                                                @if (partsL.Count > 0) { <span>·</span> }
+                                                @if (hexCol != null)
+                                                {
+                                                    <span class="attr-swatch" style="background-color:@hexCol;"></span>
+                                                }
+                                                <span>@ligne.Couleur.Trim()</span>
                                             }
                                         </span>
                                     }
@@ -198,21 +196,19 @@
                             }
                             @if (partsS.Count > 0 || !string.IsNullOrWhiteSpace(suivi.Couleur))
                             {
-                                <div style="font-size: 0.875rem; font-weight: 600; color: #2563EB; margin-top: 4px; display: inline-flex; align-items: center; gap: 6px; background: #EFF6FF; padding: 2px 8px; border-radius: 4px;">
+                                <div class="attr-badge">
                                     @if (partsS.Count > 0)
                                     {
                                         <span>@string.Join(" · ", partsS)</span>
                                     }
                                     @if (!string.IsNullOrWhiteSpace(suivi.Couleur))
                                     {
-                                        @if (partsS.Count > 0) { <span> · </span> }
-                                        <span style="display:inline-flex; align-items:center; gap:4px;">
-                                            @if (hexS != null)
-                                            {
-                                                <span style="width: 9px; height: 9px; border-radius: 50%; background-color: @hexS; border: 1px solid rgba(0,0,0,0.2); display: inline-block;"></span>
-                                            }
-                                            <span>@suivi.Couleur.Trim()</span>
-                                        </span>
+                                        @if (partsS.Count > 0) { <span>·</span> }
+                                        @if (hexS != null)
+                                        {
+                                            <span class="attr-swatch" style="background-color:@hexS;"></span>
+                                        }
+                                        <span>@suivi.Couleur.Trim()</span>
                                     }
                                 </div>
                             }
@@ -843,6 +839,28 @@
         padding: 3px 10px;
         border-radius: 6px;
         width: fit-content;
+    }
+
+    .attr-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--denim);
+        background: var(--denim-tint);
+        padding: 3px 10px;
+        border-radius: 6px;
+        margin-top: 4px;
+        width: fit-content;
+    }
+
+    .attr-badge .attr-swatch {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        border: 1px solid rgba(22, 35, 58, 0.2);
+        flex-shrink: 0;
     }
 
     /* Total récap */
