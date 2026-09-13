@@ -368,8 +368,14 @@ namespace WicStock_.Controllers
         [Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
         public async Task<IActionResult> ModifierProduit(int id, Produit produit)
         {
+            if (produit == null)
+                return BadRequest(new { message = "Le corps de la requête est vide." });
+
+            if (produit.Id == 0)
+                produit.Id = id;
+
             if (id != produit.Id)
-                return BadRequest();
+                return BadRequest(new { message = $"L'ID de l'URL ({id}) ne correspond pas à l'ID du produit ({produit.Id})." });
 
             if (!string.IsNullOrEmpty(produit.Genre) && !await _attributService.EstValideAsync("Genre", produit.Genre))
                 return BadRequest(new { message = $"Le genre '{produit.Genre}' n'est pas une valeur valide ou active." });

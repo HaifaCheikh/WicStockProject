@@ -1377,7 +1377,9 @@
     private string GetFullImageUrl(string? url)
     {
         if (string.IsNullOrWhiteSpace(url)) return "";
-        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            url.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
             return url;
         var apiBase = Http.BaseAddress?.ToString() ?? "https://wicstock-api.onrender.com/";
         if (!apiBase.EndsWith("/")) apiBase += "/";
