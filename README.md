@@ -225,7 +225,7 @@ L'API expose des endpoints de santé au format JSON avec horodatage et durées d
 ### 3. Métriques Prometheus & Dashboard Grafana
 - **Endpoint Metrics** (`GET /metrics`) : Exporte les métriques système .NET et les métriques HTTP au format standard Prometheus.
 - **Métrique Custom** : `wicstock_products_total` (suivi du nombre de produits actifs en catalogue) et `wicstock_ai_requests_total`.
-- **Tableau de bord Grafana préconfiguré** : Auto-provisionné au démarrage sur `http://localhost:3000` (`admin` / `admin`).
+- **Tableau de bord Grafana préconfiguré** : Auto-provisionné au démarrage sur `http://localhost:3000`. Les identifiants sont définis via le fichier `.env` (voir `.env.example`, non versionné — aucun identifiant en dur dans le code).
 
 ```
 +------------------+         Scrape /metrics        +-------------------+
@@ -242,17 +242,23 @@ L'API expose des endpoints de santé au format JSON avec horodatage et durées d
 
 ### 🧪 Guide de Test Local
 
-1. **Lancer la stack complète avec Monitoring** :
-   ```bash
-   docker-compose up --build
-   ```
-2. **Tester les endpoints d'Observabilité** :
-   - **Liveness** : `http://localhost:8080/health/live`
-   - **Readiness** : `http://localhost:8080/health/ready`
-   - **Métriques Prometheus** : `http://localhost:8080/metrics`
-3. **Accéder aux Dashboards de Monitoring** :
-   - **Prometheus UI** : `http://localhost:9090`
-   - **Grafana Dashboard** : `http://localhost:3000` (Identifiants : `admin` / `admin`). Naviguez vers *Dashboards* -> *WicStock API Observability Dashboard*.
+```bash
+# 1. Copier et personnaliser les variables d'environnement (obligatoire)
+cp .env.example .env
+# Editez .env pour choisir vos identifiants Grafana
+
+# 2. Lancer la stack complète avec Monitoring
+docker-compose up --build
+```
+
+> **🔒 Gestion des secrets** : Les identifiants Grafana sont chargés depuis le fichier `.env` (non versionné). Copiez `.env.example` vers `.env` et personnalisez les valeurs — aucun identifiant ne doit apparaître dans Git.
+
+**Endpoints à tester :**
+- **Liveness API** : `http://localhost:8080/health/live`
+- **Readiness DB** : `http://localhost:8080/health/ready`
+- **Métriques Prometheus** : `http://localhost:8080/metrics`
+- **Prometheus UI** : `http://localhost:9090`
+- **Grafana Dashboard** : `http://localhost:3000` (identifiants définis dans votre `.env`) → *WicStock API Observability Dashboard*.
 
 ---
 
