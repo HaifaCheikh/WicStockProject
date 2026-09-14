@@ -66,8 +66,28 @@ def _simple_embedding(text: str, dim: int = 128) -> list:
     return [x / norm for x in vec]
 
 
+_OLLAMA_CHECKED = False
+
+
+def _check_ollama():
+    """Teste si Ollama est disponible au démarrage."""
+    global OLLAMA_AVAILABLE, _OLLAMA_CHECKED
+    if _OLLAMA_CHECKED:
+        return
+    _OLLAMA_CHECKED = True
+    try:
+        import ollama
+        ollama.embeddings(model=EMBEDDING_MODEL, prompt="test")
+        OLLAMA_AVAILABLE = True
+        print("[vectorstore] Ollama détecté — embeddings sémantiques activés.")
+    except Exception:
+        OLLAMA_AVAILABLE = False
+        print("[vectorstore] Ollama non disponible — embedding local activé (mode cloud).")
+
+
 def get_embedding(text: str) -> list:
     """Essaie Ollama, retombe sur l'embedding local si indisponible."""
+    _check_ollama()
     global OLLAMA_AVAILABLE
     if OLLAMA_AVAILABLE:
         try:
@@ -80,19 +100,6 @@ def get_embedding(text: str) -> list:
     return _simple_embedding(text)
 
 
-def _check_ollama():
-    """Teste si Ollama est disponible au démarrage."""
-    global OLLAMA_AVAILABLE
-    try:
-        import ollama
-        ollama.embeddings(model=EMBEDDING_MODEL, prompt="test")
-        OLLAMA_AVAILABLE = True
-        print("[vectorstore] Ollama détecté — embeddings sémantiques activés.")
-    except Exception:
-        OLLAMA_AVAILABLE = False
-        print("[vectorstore] Ollama non disponible — embedding local activé (mode cloud).")
-
-
 def get_chroma_client():
     return chromadb.PersistentClient(
         path=CHROMA_PATH,
@@ -103,7 +110,7 @@ def get_chroma_client():
 def build_vectorstore(force_rebuild: bool = False):
     _check_ollama()
     client = get_chroma_client()
-    existing_collections = [c.name for c in client.list_collections()]
+    existing_collections = [c.name if hasattr(c, 'name') else str(c) for c in client.list_collections()]
 
     if force_rebuild:
         for name in ["schema_knowledge", "sql_examples"]:
