@@ -10,86 +10,100 @@
   "liveNow": false,
   "panels": [
     {
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 0
-      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "id": 1,
       "title": "Taux de Requêtes HTTP (req/sec)",
       "type": "timeseries",
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "Prometheus"
-          },
-          "expr": "sum(rate(http_requests_received_total[1m])) by (code)",
-          "legendFormat": "HTTP {{code}}"
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum(rate(http_request_duration_seconds_count[1m])) by (code)",
+          "legendFormat": "HTTP {{code}}",
+          "refId": "A"
         }
       ]
     },
     {
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
-      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "id": 2,
       "title": "Latence Moyenne HTTP (secondes)",
       "type": "timeseries",
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "Prometheus"
-          },
-          "expr": "rate(http_request_duration_seconds_sum[1m]) / rate(http_request_duration_seconds_count[1m])",
-          "legendFormat": "Durée moyenne (s)"
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum(rate(http_request_duration_seconds_sum[1m])) by (code) / sum(rate(http_request_duration_seconds_count[1m])) by (code)",
+          "legendFormat": "Latence HTTP {{code}}",
+          "refId": "A"
         }
       ]
     },
     {
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "id": 3,
       "title": "Erreurs Serveur (HTTP 5xx)",
       "type": "timeseries",
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "color": { "fixedColor": "red", "mode": "fixed" } }
+      },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "Prometheus"
-          },
-          "expr": "sum(rate(http_requests_received_total{code=~\"5..\"}[1m]))",
-          "legendFormat": "Erreurs 5xx / sec"
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum(rate(http_request_duration_seconds_count{code=~\"5..\"}[1m]))",
+          "legendFormat": "Erreurs 5xx / sec",
+          "refId": "A"
         }
       ]
     },
     {
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 8
-      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
       "id": 4,
       "title": "Métrique Custom — Total Produits Catalogue",
+      "description": "Mis à jour à chaque appel GET /api/produit (admin/responsable seulement)",
       "type": "stat",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 100 },
+              { "color": "red", "value": 500 }
+            ]
+          }
+        }
+      },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "Prometheus"
-          },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
           "expr": "wicstock_products_total",
-          "legendFormat": "Produits actifs"
+          "legendFormat": "Produits actifs",
+          "refId": "A",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "id": 5,
+      "title": "Répartition des codes HTTP",
+      "type": "piechart",
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum(increase(http_request_duration_seconds_count[15m])) by (code)",
+          "legendFormat": "HTTP {{code}}",
+          "refId": "A"
         }
       ]
     }
@@ -106,5 +120,5 @@
   "timezone": "browser",
   "title": "WicStock API Observability Dashboard",
   "uid": "wicstock-observability",
-  "version": 1
+  "version": 2
 }

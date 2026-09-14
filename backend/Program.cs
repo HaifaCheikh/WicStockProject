@@ -291,11 +291,13 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // Format de réponse JSON clair pour les HealthChecks
+// Mapping explicite : Healthy=200, Degraded=200 (avertissement, pas panne), Unhealthy=503
 static Task WriteHealthReportResponse(HttpContext context, HealthReport result)
 {
     context.Response.ContentType = "application/json";
     var response = new
     {
+        // Utilise ToString() qui retourne "Healthy", "Degraded" ou "Unhealthy" (jamais ambigu)
         status = result.Status.ToString(),
         timestamp = DateTime.UtcNow,
         totalDurationMs = Math.Round(result.TotalDuration.TotalMilliseconds, 2),
@@ -303,9 +305,18 @@ static Task WriteHealthReportResponse(HttpContext context, HealthReport result)
             pair => pair.Key,
             pair => new
             {
-                status = pair.Value.Status.ToString(),
+                // Mapping explicite : évite tout bug si un check retourne Degraded
+                status = pair.Value.Status switch
+                {
+                    HealthStatus.Healthy   => "Healthy",
+                    HealthStatus.Degraded  => "Degraded",
+                    HealthStatus.Unhealthy => "Unhealthy",
+                    _                      => pair.Value.Status.ToString()
+                },
                 description = pair.Value.Description ?? "OK",
-                durationMs = Math.Round(pair.Value.Duration.TotalMilliseconds, 2)
+                durationMs = Math.Round(pair.Value.Duration.TotalMilliseconds, 2),
+                // Expose l'exception si présente (utile en développement)
+                exception = pair.Value.Exception?.Message
             }
         )
     };
@@ -320,17 +331,30 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions
 });
 
 // HealthCheck Readiness (API + Base de données opérationnelles)
+// Degraded → HTTP 200 (avertissement acceptable), Unhealthy → HTTP 503
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
     Predicate = _ => true,
-    ResponseWriter = WriteHealthReportResponse
+    ResponseWriter = WriteHealthReportResponse,
+    ResultStatusCodes =
+    {
+        [HealthStatus.Healthy]   = StatusCodes.Status200OK,
+        [HealthStatus.Degraded]  = StatusCodes.Status200OK,   // Dégradé ≠ panne
+        [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
+    }
 });
 
 // Alias /health (compatible avec Render.com par défaut)
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     Predicate = _ => true,
-    ResponseWriter = WriteHealthReportResponse
+    ResponseWriter = WriteHealthReportResponse,
+    ResultStatusCodes =
+    {
+        [HealthStatus.Healthy]   = StatusCodes.Status200OK,
+        [HealthStatus.Degraded]  = StatusCodes.Status200OK,
+        [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
+    }
 });
 
 app.MapGet("/", () => Results.Ok(new { status = "WicStock API Online", timestamp = DateTime.UtcNow }));
