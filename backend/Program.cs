@@ -1,16 +1,55 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
+using Prometheus;
+using Serilog;
+using Serilog.Events;
+using Serilog.Formatting.Compact;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using WicStock_.Hubs;
 using WicStock_.Services;
+
+/*
+ * =========================================================================================
+ * 🎓 CONCEPT D'OBSERVABILITÉ (Pour entretien / défense de projet) :
+ * 
+ * 1. LOG (Événement ponctuel) :
+ *    - Définition : Enregistrement discret horodaté d'un événement précis dans l'application.
+ *    - Exemple : "L'utilisateur admin@wicstock.com a créé la commande #1042 à 14:32:05".
+ *    - Usage : Débogage ciblé, audit de sécurité et traçabilité métier.
+ * 
+ * 2. MÉTRIQUE (Agrégation numérique) :
+ *    - Définition : Valeur numérique mesurée sur un intervalle de temps (Compteur, Jauge, Histogramme).
+ *    - Exemple : "Taux d'erreur HTTP 5xx = 0.5%", "Nombre moyen de requêtes = 45 req/sec", "Mémoire RAM = 120 Mo".
+ *    - Usage : Alerting automatique, tableaux de bord temps réel (Grafana) et analyse de tendance.
+ * 
+ * 3. TRACE (Parcours d'une requête distribuée) :
+ *    - Définition : Suivi du cheminement complet d'une requête à travers plusieurs microservices (CorrelationId).
+ *    - Exemple : Requête client -> API .NET (span 1) -> Service IA FastAPI (span 2) -> PostgreSQL (span 3).
+ *    - Usage : Identification des goulots d'étranglement de latence et diagnostic de pannes distribuées.
+ * =========================================================================================
+ */
+
+// Configure Serilog logger with CompactJsonFormatter console output
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Information)
+    .Enrich.FromLogContext()
+    .Enrich.WithProperty("Application", "WicStock.Api")
+    .WriteTo.Console(new CompactJsonFormatter())
+    .CreateLogger();
 
 // Allow legacy DateTime behavior (DateTime.Now) with Npgsql PostgreSQL
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseSerilog();
 
 // Disable reloadOnChange for file configuration sources to prevent Linux inotify limit crashes on Render/Docker
 foreach (var source in builder.Configuration.Sources.OfType<Microsoft.Extensions.Configuration.FileConfigurationSource>())
@@ -50,6 +89,11 @@ Console.WriteLine($"[CONFIG] Effective ConnectionString Host configured: {!strin
 // Base de données PostgreSQL (Aiven/Supabase/Render - gratuit)
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(effectiveConnStr));
+
+// HealthChecks : Live (API running) & Ready (API + EF Core DB connected)
+builder.Services.AddHealthChecks()
+    .AddCheck("liveness", () => HealthCheckResult.Healthy("API is alive"), tags: new[] { "live" })
+    .AddDbContextCheck<AppDbContext>("database", tags: new[] { "ready" });
 
 // Services métier
 builder.Services.AddScoped<JwtService>();
@@ -184,7 +228,29 @@ var app = builder.Build();
 // 1. CORS MUST be the very first middleware so ALL responses (including 500 errors) carry CORS headers
 app.UseCors("PermettreBlazor");
 
-// 2. Exception Handler ensures 500 errors return clear JSON instead of unhandled crashes
+// 2. Correlation ID Middleware (lit Header X-Correlation-Id ou génère un nouveau Guid)
+app.Use(async (context, next) =>
+{
+    const string HeaderName = "X-Correlation-Id";
+    string correlationId = context.Request.Headers[HeaderName].FirstOrDefault()
+        ?? Guid.NewGuid().ToString();
+
+    context.Response.Headers[HeaderName] = correlationId;
+
+    using (Serilog.Context.LogContext.PushProperty("CorrelationId", correlationId))
+    {
+        await next();
+    }
+});
+
+// 3. Serilog HTTP Request Logging (Timestamp, Route, Duration, StatusCode)
+app.UseSerilogRequestLogging();
+
+// 4. Prometheus metrics middleware & server (/metrics)
+app.UseMetricServer();
+app.UseHttpMetrics();
+
+// 5. Exception Handler ensures 500 errors return clear JSON instead of unhandled crashes
 app.UseExceptionHandler(errorApp =>
 {
     errorApp.Run(async context =>
@@ -223,6 +289,49 @@ app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Format de réponse JSON clair pour les HealthChecks
+static Task WriteHealthReportResponse(HttpContext context, HealthReport result)
+{
+    context.Response.ContentType = "application/json";
+    var response = new
+    {
+        status = result.Status.ToString(),
+        timestamp = DateTime.UtcNow,
+        totalDurationMs = Math.Round(result.TotalDuration.TotalMilliseconds, 2),
+        entries = result.Entries.ToDictionary(
+            pair => pair.Key,
+            pair => new
+            {
+                status = pair.Value.Status.ToString(),
+                description = pair.Value.Description ?? "OK",
+                durationMs = Math.Round(pair.Value.Duration.TotalMilliseconds, 2)
+            }
+        )
+    };
+    return context.Response.WriteAsJsonAsync(response);
+}
+
+// HealthCheck Liveness (API est vivante - idéal pour Render.com Health Check Path)
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("live"),
+    ResponseWriter = WriteHealthReportResponse
+});
+
+// HealthCheck Readiness (API + Base de données opérationnelles)
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = _ => true,
+    ResponseWriter = WriteHealthReportResponse
+});
+
+// Alias /health (compatible avec Render.com par défaut)
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = _ => true,
+    ResponseWriter = WriteHealthReportResponse
+});
 
 app.MapGet("/", () => Results.Ok(new { status = "WicStock API Online", timestamp = DateTime.UtcNow }));
 app.MapControllers();

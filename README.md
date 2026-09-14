@@ -189,6 +189,73 @@ dotnet run
 
 ---
 
+## 🐳 Containerisation & Pipeline CI/CD
+
+WicStock intègre une chaîne d'intégration et de déploiement continu complète (CI/CD) et containerisée :
+
+### 1. Docker & Docker Compose
+- **Backend API (.NET 8)** : Multi-stage build optimisé (`backend/Dockerfile`).
+- **Frontend WebAssembly (Blazor)** : Compilation & distribution via serveur Nginx web (`frontend/Dockerfile`).
+- **Services locaux** : Orchestration via `docker-compose.yml` (API, Frontend, SQL Server / PostgreSQL, Prometheus, Grafana, Microservices IA & WhatsApp).
+
+### 2. Pipelines GitHub Actions
+- **CI (`.github/workflows/ci.yml`)** : Se déclenche à chaque `push` ou `pull_request` sur `main`. Effectue le build .NET du backend, du frontend Blazor, la validation du microservice Python et la vérification des builds Docker.
+- **CD (`.github/workflows/deploy.yml`)** : Publie automatiquement l'application après succès des builds CI.
+
+### 3. Déploiement Cloud
+- **Frontend** : Hébergé sur **Vercel** (`vercel.json`) avec routage Single Page Application (SPA).
+- **Backend API & Base de données** : Hébergés sur **Render.com** (`render.yaml`) avec base PostgreSQL.
+
+---
+
+## 🔭 Observabilité & Monitoring
+
+Le backend API inclut une suite d'observabilité professionnelle conforme aux normes cloud-native :
+
+### 1. HealthChecks (Santé du service & dépendances)
+L'API expose des endpoints de santé au format JSON avec horodatage et durées d'exécution :
+- **Liveness** (`GET /health/live`) : Vérifie que le processus API répond (Requis pour le *Health Check Path* sur Render.com et Kubernetes).
+- **Readiness** (`GET /health/ready` ou `/health`) : Vérifie l'API ET la connectivité effective à la base de données (`AppDbContext`).
+
+### 2. Logging Structuré avec Serilog & Correlation ID
+- **Format JSON Structuré** : Production de logs au format `CompactJsonFormatter` en console.
+- **Correlation ID** : Chaque requête génère ou propage l'en-tête `X-Correlation-Id`, permettant le suivi bout en bout des requêtes distribuées.
+- **Contextualisation** : Inclusion automatique des paramètres HTTP (route, status code, latence en ms, IP client).
+
+### 3. Métriques Prometheus & Dashboard Grafana
+- **Endpoint Metrics** (`GET /metrics`) : Exporte les métriques système .NET et les métriques HTTP au format standard Prometheus.
+- **Métrique Custom** : `wicstock_products_total` (suivi du nombre de produits actifs en catalogue) et `wicstock_ai_requests_total`.
+- **Tableau de bord Grafana préconfiguré** : Auto-provisionné au démarrage sur `http://localhost:3000` (`admin` / `admin`).
+
+```
++------------------+         Scrape /metrics        +-------------------+
+|  WicStock API    | <---------------------------- |    Prometheus     |
+| (ASP.NET Core 8) |                                |   (Port 9090)     |
++------------------+                                +-------------------+
+         |                                                    |
+         | Health checks                                      v
+         v                                          +-------------------+
+/health/live & /health/ready                        |      Grafana      |
+  (Render.com / K8s)                                |   (Port 3000)     |
+                                                    +-------------------+
+```
+
+### 🧪 Guide de Test Local
+
+1. **Lancer la stack complète avec Monitoring** :
+   ```bash
+   docker-compose up --build
+   ```
+2. **Tester les endpoints d'Observabilité** :
+   - **Liveness** : `http://localhost:8080/health/live`
+   - **Readiness** : `http://localhost:8080/health/ready`
+   - **Métriques Prometheus** : `http://localhost:8080/metrics`
+3. **Accéder aux Dashboards de Monitoring** :
+   - **Prometheus UI** : `http://localhost:9090`
+   - **Grafana Dashboard** : `http://localhost:3000` (Identifiants : `admin` / `admin`). Naviguez vers *Dashboards* -> *WicStock API Observability Dashboard*.
+
+---
+
 ## 📄 License
 
 This is an academic/internship project developed for educational and demonstration purposes. No commercial license is granted.

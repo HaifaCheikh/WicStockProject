@@ -17,19 +17,22 @@ namespace WicStock_.Controllers
         private readonly IAnalyseSurstockService _analyseSurstockService;
         private readonly NotificationService _notificationService;
         private readonly IAttributService _attributService;
+        private readonly ILogger<ProduitController> _logger;
 
         public ProduitController(
             AppDbContext context,
             IMetriquesStockService metriquesService,
             IAnalyseSurstockService analyseSurstockService,
             NotificationService notificationService,
-            IAttributService attributService)
+            IAttributService attributService,
+            ILogger<ProduitController> logger)
         {
             _context = context;
             _metriquesService = metriquesService;
             _analyseSurstockService = analyseSurstockService;
             _notificationService = notificationService;
             _attributService = attributService;
+            _logger = logger;
         }
 
         // GET: api/produit (Vue interne)
@@ -37,12 +40,17 @@ namespace WicStock_.Controllers
         [Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
         public async Task<ActionResult<IEnumerable<Produit>>> GetProduits()
         {
+            _logger.LogInformation("Récupération de la liste complète des produits catalogue.");
+
             var produits = await _context.Produits
                 .Include(p => p.Stock)
                 .Include(p => p.Variantes)
                 .Include(p => p.Previsions)
                     .ThenInclude(pr => pr.ActionRecommandee)
                 .ToListAsync();
+
+            // Mettre à jour la métrique custom Prometheus
+            WicStockMetrics.ProductsTotal.Set(produits.Count(p => !p.EstArchive));
 
             var allAvis = await _context.Avis
                 .Where(a => a.Statut == Enums.StatutAvis.PUBLIE)
