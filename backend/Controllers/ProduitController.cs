@@ -37,12 +37,25 @@ namespace WicStock_.Controllers
         [Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
         public async Task<ActionResult<IEnumerable<Produit>>> GetProduits()
         {
-            return await _context.Produits
+            var produits = await _context.Produits
                 .Include(p => p.Stock)
                 .Include(p => p.Variantes)
                 .Include(p => p.Previsions)
                     .ThenInclude(pr => pr.ActionRecommandee)
                 .ToListAsync();
+
+            var allAvis = await _context.Avis
+                .Where(a => a.Statut == Enums.StatutAvis.PUBLIE)
+                .ToListAsync();
+
+            foreach (var p in produits)
+            {
+                var pAvis = allAvis.Where(a => a.ProduitId == p.Id).ToList();
+                p.NombreAvis = pAvis.Count;
+                p.NoteMoyenne = pAvis.Count > 0 ? Math.Round(pAvis.Average(a => a.Note), 1) : 0;
+            }
+
+            return produits;
         }
 
         // GET: api/produit/catalogue (Catalogue public — accessible sans token)

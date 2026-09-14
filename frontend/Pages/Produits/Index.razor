@@ -101,6 +101,8 @@
                     <option value="NOM">Trier : Nom (A-Z)</option>
                     <option value="STOCK_ASC">Trier : Stock ↑</option>
                     <option value="STOCK_DESC">Trier : Stock ↓</option>
+                    <option value="NOTE_DESC">Trier : Meilleurs avis (★ ↓)</option>
+                    <option value="NOTE_ASC">Trier : Moins bien notés (★ ↑)</option>
                 </select>
 
                 <div class="view-toggle">
@@ -360,7 +362,19 @@
                     <MudTd DataLabel="Référence">
                         <span class="ref-code">@context.Reference</span>
                     </MudTd>
-                    <MudTd DataLabel="Nom" Class="cell-name">@context.Nom</MudTd>
+                    <MudTd DataLabel="Nom" Class="cell-name">
+                        <div class="d-flex align-center gap-2 flex-wrap">
+                            <span>@context.Nom</span>
+                            @if (context.NombreAvis > 0)
+                            {
+                                <span class="prod-rating-badge" title="@context.NoteMoyenne.ToString("0.0") / 5 (@context.NombreAvis avis client)">
+                                    <span class="star-icon">★</span>
+                                    <span class="score">@context.NoteMoyenne.ToString("0.0")</span>
+                                    <span class="cnt">(@context.NombreAvis)</span>
+                                </span>
+                            }
+                        </div>
+                    </MudTd>
                     <MudTd DataLabel="Type">@context.TypeTissu</MudTd>
                     <MudTd DataLabel="Attributs">
                         <span style="font-size:0.8rem; color: var(--ink-muted);">
@@ -578,6 +592,31 @@
                 box-shadow: 0 4px 12px rgba(43, 76, 126, 0.35);
                 transform: translateY(-1px);
             }
+
+        .admin-page .prod-rating-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #92400E;
+            background: #FEF3C7;
+            border: 1px solid #FDE68A;
+            padding: 2px 7px;
+            border-radius: 999px;
+            line-height: 1.2;
+        }
+
+        .admin-page .prod-rating-badge .star-icon {
+            color: #D97706;
+            font-size: 0.8rem;
+        }
+
+        .admin-page .prod-rating-badge .cnt {
+            color: #B45309;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
 
         .admin-page .btn--outline {
             background: #fff;
@@ -1674,6 +1713,8 @@
                 "NOM" => list.OrderBy(p => p.Nom),
                 "STOCK_ASC" => list.OrderBy(p => p.Stock?.QuantiteActuelle ?? 0),
                 "STOCK_DESC" => list.OrderByDescending(p => p.Stock?.QuantiteActuelle ?? 0),
+                "NOTE_DESC" => list.OrderByDescending(p => p.NoteMoyenne).ThenByDescending(p => p.NombreAvis),
+                "NOTE_ASC" => list.OrderBy(p => p.NoteMoyenne).ThenBy(p => p.NombreAvis),
                 _ => list.OrderBy(p => p.StatutIAPriorite)
             };
         }

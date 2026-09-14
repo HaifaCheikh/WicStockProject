@@ -45,6 +45,10 @@ namespace WicStock.Web.Models.Dtos
         public int? RemisePourcentage { get; set; }
         public DateTime? DateFinPromotion { get; set; }
 
+        // Avis & notes clients
+        public double NoteMoyenne { get; set; } = 0;
+        public int NombreAvis { get; set; } = 0;
+
         public bool EstEnPromotion =>
             RemisePourcentage.HasValue && RemisePourcentage.Value > 0 &&
             DateFinPromotion.HasValue && DateFinPromotion.Value.Date >= DateTime.Today;

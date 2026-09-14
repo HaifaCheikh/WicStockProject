@@ -58,6 +58,12 @@ namespace WicStock_.Models
 
         // Propriétés calculées (non mappées)
         [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public double NoteMoyenne { get; set; } = 0;
+
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public int NombreAvis { get; set; } = 0;
+
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
         public bool EstEnPromotion =>
             RemisePourcentage.HasValue && RemisePourcentage.Value > 0 &&
             DateFinPromotion.HasValue && DateFinPromotion.Value.Date >= DateTime.Today;
