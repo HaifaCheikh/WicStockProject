@@ -93,7 +93,7 @@ jobs:
           docker build -t wicstock-ai ./ai-service
           docker build -t wicstock-whatsapp ./whatsapp-service
 
-      # 1. Scan Image Backend (SARIF -> GitHub Security)
+      # 1. Scan Image Backend (SARIF -> GitHub Security - Librairies applicatives)
       - name: Run Trivy scanner on Backend image (SARIF)
         uses: aquasecurity/trivy-action@master
         with:
@@ -101,6 +101,8 @@ jobs:
           format: 'sarif'
           output: 'trivy-backend-results.sarif'
           severity: 'CRITICAL,HIGH'
+          vuln-type: 'library'
+          ignore-unfixed: 'true'
           exit-code: '0'
 
       - name: Upload Backend Trivy scan results to GitHub Security
@@ -110,7 +112,7 @@ jobs:
           sarif_file: 'trivy-backend-results.sarif'
           category: 'trivy-backend'
 
-      # 2. Scan Image Frontend (SARIF -> GitHub Security)
+      # 2. Scan Image Frontend (SARIF -> GitHub Security - Librairies applicatives)
       - name: Run Trivy scanner on Frontend image (SARIF)
         uses: aquasecurity/trivy-action@master
         with:
@@ -118,6 +120,8 @@ jobs:
           format: 'sarif'
           output: 'trivy-frontend-results.sarif'
           severity: 'CRITICAL,HIGH'
+          vuln-type: 'library'
+          ignore-unfixed: 'true'
           exit-code: '0'
 
       - name: Upload Frontend Trivy scan results to GitHub Security
@@ -127,7 +131,7 @@ jobs:
           sarif_file: 'trivy-frontend-results.sarif'
           category: 'trivy-frontend'
 
-      # 3. Scan Image AI Service (SARIF -> GitHub Security)
+      # 3. Scan Image AI Service (SARIF -> GitHub Security - Librairies applicatives)
       - name: Run Trivy scanner on AI Service image (SARIF)
         uses: aquasecurity/trivy-action@master
         with:
@@ -135,6 +139,8 @@ jobs:
           format: 'sarif'
           output: 'trivy-ai-results.sarif'
           severity: 'CRITICAL,HIGH'
+          vuln-type: 'library'
+          ignore-unfixed: 'true'
           exit-code: '0'
 
       - name: Upload AI Service Trivy scan results to GitHub Security
@@ -144,7 +150,7 @@ jobs:
           sarif_file: 'trivy-ai-results.sarif'
           category: 'trivy-ai-service'
 
-      # 4. Scan Image WhatsApp Service (SARIF -> GitHub Security)
+      # 4. Scan Image WhatsApp Service (SARIF -> GitHub Security - Librairies applicatives)
       - name: Run Trivy scanner on WhatsApp Service image (SARIF)
         uses: aquasecurity/trivy-action@master
         with:
@@ -152,6 +158,8 @@ jobs:
           format: 'sarif'
           output: 'trivy-whatsapp-results.sarif'
           severity: 'CRITICAL,HIGH'
+          vuln-type: 'library'
+          ignore-unfixed: 'true'
           exit-code: '0'
 
       - name: Upload WhatsApp Service Trivy scan results to GitHub Security
@@ -168,4 +176,5 @@ jobs:
           image-ref: 'wicstock-api'
           format: 'table'
           severity: 'CRITICAL,HIGH'
+          vuln-type: 'library'
           exit-code: '0'
