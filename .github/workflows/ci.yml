@@ -73,6 +73,9 @@ jobs:
       - name: Build AI Service Docker Image
         run: docker build -t wicstock-ai ./ai-service
 
+      - name: Build WhatsApp Service Docker Image
+        run: docker build -t wicstock-whatsapp ./whatsapp-service
+
   trivy-scan:
     name: Trivy Security Scan (Docker Images)
     runs-on: ubuntu-latest
@@ -83,13 +86,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Backend Docker Image for Scan
-        run: docker build -t wicstock-api ./backend
+      - name: Build Docker Images for Scan
+        run: |
+          docker build -t wicstock-api ./backend
+          docker build -t wicstock-web ./frontend
+          docker build -t wicstock-ai ./ai-service
+          docker build -t wicstock-whatsapp ./whatsapp-service
 
-      - name: Build Frontend Docker Image for Scan
-        run: docker build -t wicstock-web ./frontend
-
-      # Scan Image Backend (SARIF -> Remonte dans Security > Code scanning)
+      # 1. Scan Image Backend (SARIF -> GitHub Security)
       - name: Run Trivy scanner on Backend image (SARIF)
         uses: aquasecurity/trivy-action@master
         with:
@@ -97,7 +101,6 @@ jobs:
           format: 'sarif'
           output: 'trivy-backend-results.sarif'
           severity: 'CRITICAL,HIGH'
-          # Remarque : Changer exit-code à '1' plus tard pour bloquer la CI en cas de vulnérabilités graves
           exit-code: '0'
 
       - name: Upload Backend Trivy scan results to GitHub Security
@@ -107,7 +110,7 @@ jobs:
           sarif_file: 'trivy-backend-results.sarif'
           category: 'trivy-backend'
 
-      # Scan Image Frontend (SARIF -> Remonte dans Security > Code scanning)
+      # 2. Scan Image Frontend (SARIF -> GitHub Security)
       - name: Run Trivy scanner on Frontend image (SARIF)
         uses: aquasecurity/trivy-action@master
         with:
@@ -115,7 +118,6 @@ jobs:
           format: 'sarif'
           output: 'trivy-frontend-results.sarif'
           severity: 'CRITICAL,HIGH'
-          # Remarque : Changer exit-code à '1' plus tard pour bloquer la CI en cas de vulnérabilités graves
           exit-code: '0'
 
       - name: Upload Frontend Trivy scan results to GitHub Security
@@ -124,6 +126,40 @@ jobs:
         with:
           sarif_file: 'trivy-frontend-results.sarif'
           category: 'trivy-frontend'
+
+      # 3. Scan Image AI Service (SARIF -> GitHub Security)
+      - name: Run Trivy scanner on AI Service image (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'wicstock-ai'
+          format: 'sarif'
+          output: 'trivy-ai-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: Upload AI Service Trivy scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-ai-results.sarif'
+          category: 'trivy-ai-service'
+
+      # 4. Scan Image WhatsApp Service (SARIF -> GitHub Security)
+      - name: Run Trivy scanner on WhatsApp Service image (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'wicstock-whatsapp'
+          format: 'sarif'
+          output: 'trivy-whatsapp-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: Upload WhatsApp Service Trivy scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-whatsapp-results.sarif'
+          category: 'trivy-whatsapp-service'
 
       # Log de synthèse dans les logs du job CI (Format Table)
       - name: Run Trivy scanner (Summary Table in Job Logs)
