@@ -104,7 +104,7 @@ jobs:
           exit-code: '0'
 
       - name: Upload Backend Trivy scan results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-backend-results.sarif'
@@ -121,7 +121,7 @@ jobs:
           exit-code: '0'
 
       - name: Upload Frontend Trivy scan results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-frontend-results.sarif'
@@ -138,7 +138,7 @@ jobs:
           exit-code: '0'
 
       - name: Upload AI Service Trivy scan results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-ai-results.sarif'
@@ -155,7 +155,7 @@ jobs:
           exit-code: '0'
 
       - name: Upload WhatsApp Service Trivy scan results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-whatsapp-results.sarif'
