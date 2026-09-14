@@ -279,6 +279,14 @@ WicStock intègre une suite de protections **DevSecOps automatisées** 100% clou
 3. **Trivy Scanner** : Inspecte le système de fichiers et les packages OS des images Docker construites en CI. Les rapports au format SARIF centralisent toutes les alertes au même endroit.
 4. **Politique de Protection `main`** : Interdiction des pushs directs et obligation de passer l'ensemble des validations de sécurité avant intégration.
 
+### ⚠️ Risques Résiduels Connus & Contexte d'Architecture (ChromaDB)
+- **Analyse de la Surface d'Attaque** : Les vulnérabilités signalées par Dependabot sur ChromaDB (ex: isolation multi-tenant, injection de code via serveur HTTP distant) concernent le serveur HTTP indépendant de ChromaDB lorsqu'il est exposé publiquement sur un réseau non sécurisé.
+- **Mitigation par l'Architecture WicStock** :
+  - ChromaDB est utilisé en **mode embarqué persistant local** (`chromadb.PersistentClient`), enfermé dans le conteneur privé `ai-service`.
+  - Le port ChromaDB n'est **jamais exposé sur Internet** ni accessible par des utilisateurs externes.
+  - L'application fonctionne en **mono-tenant**, éliminant les risques de fuite inter-tenants.
+  - La version de ChromaDB a été mise à jour vers la version **1.5.9** (dernière version stable sur PyPI).
+
 ---
 
 ## 📄 License
