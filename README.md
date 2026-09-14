@@ -262,6 +262,26 @@ docker-compose up --build
 
 ---
 
+## 🛡️ Sécurité & DevSecOps
+
+WicStock intègre une suite de protections **DevSecOps automatisées** 100% cloud-native et intégrées au workflow GitHub :
+
+| Outil DevSecOps | Champ d'Application | Fréquence & Déclencheur | Canal de Remontée |
+|---|---|---|---|
+| **Dependabot** | Dépendances NuGet, Pip, npm, Docker & GitHub Actions | Hebdomadaire (`weekly`) | Pull Requests (Groupées) & Security Tab |
+| **CodeQL (SAST)** | Analyse statique du code source C# (Backend API & Frontend Blazor) | Push, PR & Cron (Lundi 03:00 UTC) | GitHub Security > Code scanning |
+| **Trivy (Container Scan)** | Vulnérabilités (CRITICAL, HIGH) des 4 images Docker (`api`, `web`, `ai`, `whatsapp`) | CI Pipeline (`trivy-scan`) | GitHub Security SARIF & Logs CI |
+| **Branch Protection** | Branche `main` protégée (PR obligatoire & validation des checks CI/CodeQL/Trivy) | En continu | Règles GitHub Repository |
+
+### 🔍 Détails des Protections DevSecOps
+1. **Dependabot** : Mises à jour automatisées par écosystème avec règles `ignore` sur les versions majeures des SDKs critiques (`.NET SDK 8→10`, `Python 3.11→3.14`, `Node 20→26`) afin d'éviter les ruptures en production.
+2. **CodeQL** : Détection des vulnérabilités de code (injection SQL, failles d'autorisation, fuites de données) directement dans l'interface Security de GitHub.
+3. **Trivy Scanner** : Inspecte le système de fichiers et les packages OS des images Docker construites en CI. Les rapports au format SARIF centralisent toutes les alertes au même endroit.
+4. **Politique de Protection `main`** : Interdiction des pushs directs et obligation de passer l'ensemble des validations de sécurité avant intégration.
+
+---
+
 ## 📄 License
 
 This is an academic/internship project developed for educational and demonstration purposes. No commercial license is granted.
+
