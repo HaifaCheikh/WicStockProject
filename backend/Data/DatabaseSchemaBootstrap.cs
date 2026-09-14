@@ -262,6 +262,8 @@ public static class DatabaseSchemaBootstrap
             }
 
             logger.LogInformation("Database schema bootstrap (PostgreSQL) completed.");
+
+            logger.LogInformation("Database schema bootstrap (PostgreSQL) completed.");
         }
         catch (Exception ex)
         {

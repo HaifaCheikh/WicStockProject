@@ -72,3 +72,64 @@ jobs:
 
       - name: Build AI Service Docker Image
         run: docker build -t wicstock-ai ./ai-service
+
+  trivy-scan:
+    name: Trivy Security Scan (Docker Images)
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Backend Docker Image for Scan
+        run: docker build -t wicstock-api ./backend
+
+      - name: Build Frontend Docker Image for Scan
+        run: docker build -t wicstock-web ./frontend
+
+      # Scan Image Backend (SARIF -> Remonte dans Security > Code scanning)
+      - name: Run Trivy scanner on Backend image (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'wicstock-api'
+          format: 'sarif'
+          output: 'trivy-backend-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          # Remarque : Changer exit-code à '1' plus tard pour bloquer la CI en cas de vulnérabilités graves
+          exit-code: '0'
+
+      - name: Upload Backend Trivy scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-backend-results.sarif'
+          category: 'trivy-backend'
+
+      # Scan Image Frontend (SARIF -> Remonte dans Security > Code scanning)
+      - name: Run Trivy scanner on Frontend image (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'wicstock-web'
+          format: 'sarif'
+          output: 'trivy-frontend-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          # Remarque : Changer exit-code à '1' plus tard pour bloquer la CI en cas de vulnérabilités graves
+          exit-code: '0'
+
+      - name: Upload Frontend Trivy scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-frontend-results.sarif'
+          category: 'trivy-frontend'
+
+      # Log de synthèse dans les logs du job CI (Format Table)
+      - name: Run Trivy scanner (Summary Table in Job Logs)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'wicstock-api'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'

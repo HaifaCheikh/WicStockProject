@@ -110,8 +110,10 @@ builder.Services.AddHttpClient<LemonSqueezyService>();
 builder.Services.AddSignalR();
 
 // HttpClient pour l'IA
+var iaBaseUrl = builder.Configuration["WicStockIAUrl"] ?? builder.Configuration["AiBaseUrl"] ?? "http://ai:8000/";
+if (!iaBaseUrl.EndsWith("/")) iaBaseUrl += "/";
 builder.Services.AddHttpClient("WicStockIA", client =>
-    client.BaseAddress = new Uri("http://localhost:8001/"));
+    client.BaseAddress = new Uri(iaBaseUrl));
 
 // Authentification JWT
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "WicStockDefaultFallbackSecretKey2026Min32Chars!";
@@ -271,6 +273,8 @@ try
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await DatabaseSchemaBootstrap.ApplyAsync(db, scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseSchemaBootstrap"));
+        var totalProds = await db.Produits.CountAsync();
+        WicStockMetrics.ProductsTotal.Set(totalProds);
     }
 }
 catch (Exception ex)
@@ -313,7 +317,7 @@ static Task WriteHealthReportResponse(HttpContext context, HealthReport result)
                     HealthStatus.Unhealthy => "Unhealthy",
                     _                      => pair.Value.Status.ToString()
                 },
-                description = pair.Value.Description ?? "OK",
+                description = pair.Value.Description ?? (pair.Value.Status == HealthStatus.Healthy ? "OK" : pair.Value.Exception?.Message ?? pair.Value.Status.ToString()),
                 durationMs = Math.Round(pair.Value.Duration.TotalMilliseconds, 2),
                 // Expose l'exception si présente (utile en développement)
                 exception = pair.Value.Exception?.Message

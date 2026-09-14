@@ -49,8 +49,8 @@ namespace WicStock_.Controllers
                     .ThenInclude(pr => pr.ActionRecommandee)
                 .ToListAsync();
 
-            // Mettre à jour la métrique custom Prometheus
-            WicStockMetrics.ProductsTotal.Set(produits.Count(p => !p.EstArchive));
+            // Mettre à jour la métrique custom Prometheus (nombre total de produits en catalogue)
+            WicStockMetrics.ProductsTotal.Set(produits.Count);
 
             var allAvis = await _context.Avis
                 .Where(a => a.Statut == Enums.StatutAvis.PUBLIE)
@@ -77,6 +77,9 @@ namespace WicStock_.Controllers
                 .Include(p => p.Variantes)
                 .Where(p => !p.EstArchive)
                 .ToListAsync();
+
+            var totalCount = await _context.Produits.CountAsync();
+            WicStockMetrics.ProductsTotal.Set(totalCount);
 
             // Récupérer les actions de promotion confirmées
             var promoActions = await _context.ActionsRecommandees
