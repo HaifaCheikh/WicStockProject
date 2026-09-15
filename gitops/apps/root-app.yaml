@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/HaifaCheikh/WicStockProject.git
-    targetRevision: feat/k8s-namespaces-validation
+    targetRevision: main
     path: gitops/apps
   destination:
     server: https://kubernetes.default.svc
