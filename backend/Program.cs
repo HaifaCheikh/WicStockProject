@@ -361,7 +361,17 @@ app.MapHealthChecks("/health", new HealthCheckOptions
     }
 });
 
-app.MapGet("/", () => Results.Ok(new { status = "WicStock API Online", timestamp = DateTime.UtcNow }));
+// GitOps demo endpoint — version bumped automatically by CI/CD pipeline
+// Each deployment updates the image tag in gitops/environments/dev/values.yaml
+// Argo CD detects the Git change and rolls out the new pod automatically
+app.MapGet("/", () => Results.Ok(new
+{
+    status      = "WicStock API Online",
+    version     = "2.1.0-gitops",
+    k8s_managed = true,
+    deployed_at = "2026-09-15T23:47:00Z",   // bumped by CI job update-gitops-manifests
+    timestamp   = DateTime.UtcNow
+}));
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
 

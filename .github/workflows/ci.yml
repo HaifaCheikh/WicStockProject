@@ -14,10 +14,10 @@ jobs:
     name: Build Backend (.NET)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
@@ -31,10 +31,10 @@ jobs:
     name: Build Frontend (Blazor)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
@@ -48,10 +48,10 @@ jobs:
     name: Validate AI Service (Python)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -65,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [backend, frontend, ai-service]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: Build Backend Docker Image
         run: docker build -t wicstock-api ./backend
@@ -87,7 +87,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: Build Docker Images for Scan
         run: |
@@ -96,7 +96,6 @@ jobs:
           docker build -t wicstock-ai ./ai-service
           docker build -t wicstock-whatsapp ./whatsapp-service
 
-      # 1. Scan Image Backend (SARIF -> GitHub Security - Librairies applicatives)
       - name: Run Trivy scanner on Backend image (SARIF)
         uses: aquasecurity/trivy-action@master
         with:
@@ -109,13 +108,12 @@ jobs:
           exit-code: '0'
 
       - name: Upload Backend Trivy scan results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-backend-results.sarif'
           category: 'trivy-backend'
 
-      # 2. Scan Image Frontend (SARIF -> GitHub Security - Librairies applicatives)
       - name: Run Trivy scanner on Frontend image (SARIF)
         uses: aquasecurity/trivy-action@master
         with:
@@ -128,13 +126,12 @@ jobs:
           exit-code: '0'
 
       - name: Upload Frontend Trivy scan results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-frontend-results.sarif'
           category: 'trivy-frontend'
 
-      # 3. Scan Image AI Service (SARIF -> GitHub Security - Librairies applicatives)
       - name: Run Trivy scanner on AI Service image (SARIF)
         uses: aquasecurity/trivy-action@master
         with:
@@ -147,13 +144,12 @@ jobs:
           exit-code: '0'
 
       - name: Upload AI Service Trivy scan results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-ai-results.sarif'
           category: 'trivy-ai-service'
 
-      # 4. Scan Image WhatsApp Service (SARIF -> GitHub Security - Librairies applicatives)
       - name: Run Trivy scanner on WhatsApp Service image (SARIF)
         uses: aquasecurity/trivy-action@master
         with:
@@ -166,7 +162,7 @@ jobs:
           exit-code: '0'
 
       - name: Upload WhatsApp Service Trivy scan results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-whatsapp-results.sarif'
@@ -196,6 +192,7 @@ jobs:
           docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest ./backend
           docker push $IMAGE:${{ github.sha }}
           docker push $IMAGE:latest
+          echo "✅ Backend pushed: $IMAGE:${{ github.sha }}"
 
       - name: Build & Push Frontend Image
         run: |
@@ -203,6 +200,7 @@ jobs:
           docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest ./frontend
           docker push $IMAGE:${{ github.sha }}
           docker push $IMAGE:latest
+          echo "✅ Frontend pushed: $IMAGE:${{ github.sha }}"
 
       - name: Build & Push AI Service Image
         run: |
@@ -210,29 +208,108 @@ jobs:
           docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest ./ai-service
           docker push $IMAGE:${{ github.sha }}
           docker push $IMAGE:latest
+          echo "✅ AI Service pushed: $IMAGE:${{ github.sha }}"
 
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Phase 4 : GitOps tag-bump via Pull Request automatique
+  #
+  # Contrainte : main est protégée par une Classic Branch Protection Rule
+  # (Require PR before merging). Le GITHUB_TOKEN ne peut pas bypass cette règle
+  # sur un repo personnel. Solution : peter-evans/create-pull-request crée une
+  # branche gitops/update-<run_number> + ouvre une PR, puis gh pr merge --auto
+  # active l'auto-merge (merge dès que les checks de la PR passent).
+  #
+  # IMPORTANT : Pour que l'auto-merge fonctionne, "Allow auto-merge" doit être
+  # activé dans Settings → General → Pull Requests.
+  # La PR gitops/** ne déclenche PAS la CI (paths-ignore), donc elle est
+  # auto-mergeable immédiatement dès ouverture (aucun check requis).
+  # ─────────────────────────────────────────────────────────────────────────────
   update-gitops-manifests:
-    name: Update GitOps Image Tags
+    name: 🔄 Update GitOps Image Tags (PR auto-merge)
     runs-on: ubuntu-latest
     needs: [docker-push-ghcr]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
+      pull-requests: write
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Update tags with yq
+      - name: Install yq
         run: |
-          yq -i '.images.backend.tag = "${{ github.sha }}"' gitops/environments/dev/values.yaml
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Bump image tags in values.yaml
+        run: |
+          echo "📦 Bumping image tags to: ${{ github.sha }}"
+          yq -i '.images.backend.tag  = "${{ github.sha }}"' gitops/environments/dev/values.yaml
           yq -i '.images.frontend.tag = "${{ github.sha }}"' gitops/environments/dev/values.yaml
           yq -i '.images.aiService.tag = "${{ github.sha }}"' gitops/environments/dev/values.yaml
+          echo "✅ values.yaml updated:"
+          grep -A1 "backend:\|frontend:\|aiService:" gitops/environments/dev/values.yaml | grep "tag:"
 
-      - name: Commit and push updated image tags
+      - name: Create Pull Request with updated image tags
+        id: create-pr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: gitops/update-${{ github.run_number }}
+          delete-branch: true
+          commit-message: "chore(gitops): bump image tags to ${{ github.sha }}"
+          title: "chore(gitops): bump image tags → ${{ github.sha }}"
+          body: |
+            ## 🤖 Automated GitOps Image Tag Update
+
+            | Field | Value |
+            |---|---|
+            | **Triggered by commit** | `${{ github.sha }}` |
+            | **CI Run** | [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+            | **Updated file** | `gitops/environments/dev/values.yaml` |
+            | **New image tag** | `${{ github.sha }}` |
+
+            ### What this does
+            Updates `images.backend.tag`, `images.frontend.tag`, and `images.aiService.tag`
+            in the GitOps values file. Argo CD will detect this commit and automatically
+            roll out the new images to the Kind cluster (wicstock-core, wicstock-ai).
+
+            ---
+            *This PR was automatically created by the CI pipeline and will auto-merge.*
+          base: main
+          labels: |
+            gitops
+            automated
+            skip-changelog
+
+      - name: Enable auto-merge on GitOps PR
+        if: steps.create-pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore(gitops): bump image tags to ${{ github.sha }}" || echo "No changes to commit"
-          git push
+          PR_NUMBER="${{ steps.create-pr.outputs.pull-request-number }}"
+          PR_URL="${{ steps.create-pr.outputs.pull-request-url }}"
+          echo "🔀 Enabling auto-merge on PR #${PR_NUMBER}: ${PR_URL}"
+          gh pr merge --auto --squash "${PR_NUMBER}"
+          echo "✅ Auto-merge enabled — PR will merge as soon as all checks pass"
+          echo "PR_NUMBER=${PR_NUMBER}" >> $GITHUB_STEP_SUMMARY
+          echo "PR_URL=${PR_URL}" >> $GITHUB_STEP_SUMMARY
 
+      - name: Summary
+        if: steps.create-pr.outputs.pull-request-number != ''
+        run: |
+          echo "## 🎉 GitOps Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Images pushed to GHCR | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| values.yaml updated (tag: \`${{ github.sha }}\`) | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| PR #${{ steps.create-pr.outputs.pull-request-number }} created | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Auto-merge enabled | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 PR: ${{ steps.create-pr.outputs.pull-request-url }}" >> $GITHUB_STEP_SUMMARY
+          echo "⏳ Argo CD will sync ~3 min after auto-merge lands on main" >> $GITHUB_STEP_SUMMARY
