@@ -1,0 +1,16 @@
+apiVersion: v2
+name: wicstock
+description: Helm Chart pour la plateforme WicStock (Backend API .NET 8, Frontend Blazor WASM, Service IA FastAPI, Observabilité & PostgreSQL)
+type: application
+version: 1.0.0
+appVersion: "2.0.0"
+keywords:
+  - wicstock
+  - dotnet
+  - blazor
+  - fastapi
+  - postgresql
+  - prometheus
+  - devsecops
+maintainers:
+  - name: HaifaCheikh

@@ -1,0 +1,122 @@
+{{- if .Values.modules.ai.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "wicstock.fullname" . }}-chromadb-pvc
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: ai-service
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.persistence.chromadb.size }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "wicstock.fullname" . }}-ai-secret
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: ai-service
+type: Opaque
+stringData:
+  DB_PASSWORD: "wicstock_dev_password_2026!"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "wicstock.fullname" . }}-ai-configmap
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: ai-service
+data:
+  PORT: "8000"
+  ANONYMIZED_TELEMETRY: "False"
+  DB_HOST: "{{ include "wicstock.fullname" . }}-postgres-service"
+  DB_PORT: "5432"
+  DB_NAME: "wicstock_db"
+  DB_USER: "wicstock_user"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wicstock.fullname" . }}-ai-service
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: ai-service
+spec:
+  replicas: {{ .Values.replicas.aiService }}
+  selector:
+    matchLabels:
+      app: ai-service
+  template:
+    metadata:
+      labels:
+        app: ai-service
+    spec:
+      containers:
+        - name: ai-service
+          image: "{{ .Values.images.registry }}/{{ .Values.images.aiService.repository }}:{{ .Values.images.aiService.tag }}"
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - secretRef:
+                name: {{ include "wicstock.fullname" . }}-ai-secret
+            - configMapRef:
+                name: {{ include "wicstock.fullname" . }}-ai-configmap
+          resources:
+            {{- if eq .Values.resources.profile "dev" }}
+            requests:
+              cpu: {{ .Values.resources.dev.aiService.requests.cpu }}
+              memory: {{ .Values.resources.dev.aiService.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.dev.aiService.limits.cpu }}
+              memory: {{ .Values.resources.dev.aiService.limits.memory }}
+            {{- else }}
+            requests:
+              cpu: {{ .Values.resources.prod.aiService.requests.cpu }}
+              memory: {{ .Values.resources.prod.aiService.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.prod.aiService.limits.cpu }}
+              memory: {{ .Values.resources.prod.aiService.limits.memory }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          volumeMounts:
+            - name: chromadb-storage
+              mountPath: /app/chroma_db
+      volumes:
+        - name: chromadb-storage
+          persistentVolumeClaim:
+            claimName: {{ include "wicstock.fullname" . }}-chromadb-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "wicstock.fullname" . }}-ai-service
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: ai-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+  selector:
+    app: ai-service
+{{- end }}

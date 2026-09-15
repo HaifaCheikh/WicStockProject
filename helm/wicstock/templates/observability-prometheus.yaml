@@ -1,0 +1,92 @@
+{{- if .Values.modules.observability.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "wicstock.fullname" . }}-prometheus-configmap
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: prometheus
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      - job_name: "wicstock-backend"
+        metrics_path: "/metrics"
+        static_configs:
+          - targets: ["{{ include "wicstock.fullname" . }}-backend-service:8080"]
+            labels:
+              application: "wicstock-api"
+              environment: "{{ .Values.environment }}"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wicstock.fullname" . }}-prometheus
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.51.0
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time={{ .Values.persistence.prometheus.retentionTime }}"
+            - "--web.enable-lifecycle"
+          ports:
+            - containerPort: 9090
+              name: http
+          resources:
+            requests:
+              cpu: {{ .Values.resources.dev.prometheus.requests.cpu }}
+              memory: {{ .Values.resources.dev.prometheus.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.dev.prometheus.limits.cpu }}
+              memory: {{ .Values.resources.dev.prometheus.limits.memory }}
+          volumeMounts:
+            - name: prometheus-config
+              mountPath: /etc/prometheus
+            - name: prometheus-storage
+              mountPath: /prometheus
+      volumes:
+        - name: prometheus-config
+          configMap:
+            name: {{ include "wicstock.fullname" . }}-prometheus-configmap
+        - name: prometheus-storage
+          {{- if .Values.persistence.prometheus.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "wicstock.fullname" . }}-prometheus-pvc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "wicstock.fullname" . }}-prometheus-service
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: prometheus
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9090
+      targetPort: 9090
+      name: http
+  selector:
+    app: prometheus
+{{- end }}

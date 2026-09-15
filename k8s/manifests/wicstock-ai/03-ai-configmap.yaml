@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-configmap
+  namespace: wicstock-ai
+  labels:
+    app: ai-service
+    app.kubernetes.io/part-of: wicstock
+data:
+  PORT: "8000"
+  ANONYMIZED_TELEMETRY: "False"
+  DB_HOST: "postgres-service.wicstock-core.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "wicstock_db"
+  DB_USER: "wicstock_user"
