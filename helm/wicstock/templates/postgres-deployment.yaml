@@ -1,0 +1,105 @@
+{{- if .Values.modules.core.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "wicstock.fullname" . }}-postgres-pvc
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: postgres
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.persistence.postgres.size }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "wicstock.fullname" . }}-postgres-secret
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: postgres
+type: Opaque
+stringData:
+  POSTGRES_USER: "wicstock_user"
+  POSTGRES_PASSWORD: "wicstock_dev_password_2026!"
+  POSTGRES_DB: "wicstock_db"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wicstock.fullname" . }}-postgres
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: postgres
+spec:
+  replicas: {{ .Values.replicas.postgres }}
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          ports:
+            - containerPort: 5432
+              name: postgres
+          envFrom:
+            - secretRef:
+                name: {{ include "wicstock.fullname" . }}-postgres-secret
+          resources:
+            {{- if eq .Values.resources.profile "dev" }}
+            requests:
+              cpu: {{ .Values.resources.dev.postgres.requests.cpu }}
+              memory: {{ .Values.resources.dev.postgres.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.dev.postgres.limits.cpu }}
+              memory: {{ .Values.resources.dev.postgres.limits.memory }}
+            {{- else }}
+            requests:
+              cpu: {{ .Values.resources.prod.postgres.requests.cpu }}
+              memory: {{ .Values.resources.prod.postgres.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.prod.postgres.limits.cpu }}
+              memory: {{ .Values.resources.prod.postgres.limits.memory }}
+            {{- end }}
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "wicstock_user", "-d", "wicstock_db"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "wicstock_user", "-d", "wicstock_db"]
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: {{ include "wicstock.fullname" . }}-postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "wicstock.fullname" . }}-postgres-service
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: postgres
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+  selector:
+    app: postgres
+{{- end }}

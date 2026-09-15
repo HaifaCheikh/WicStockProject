@@ -289,6 +289,69 @@ WicStock intègre une suite de protections **DevSecOps automatisées** 100% clou
 
 ---
 
+## ☸️ Architecture Kubernetes & Package Manager Helm
+
+WicStock dispose d'une infrastructure **Kubernetes native** organisée par **namespaces modulaires à la demande** et gérée par **Helm 3**. Cette architecture permet de minimiser l'empreinte mémoire RAM/CPU en développement local tout en garantissant des profils de production scalables.
+
+### 🏢 1. Découpage par Namespaces Modulaires
+| Namespace | Composants | Description & Stratégie Dev |
+|---|---|---|
+| **`wicstock-core`** | PostgreSQL + Backend API + Frontend Blazor + Ingress | **Socle quotidien** : toujours allumé (~288Mi RAM) |
+| **`wicstock-ai`** | Microservice IA FastAPI + Vectorstore ChromaDB | **À la demande** : allumé uniquement pour tester les fonctions IA (~256Mi RAM) |
+| **`wicstock-observability`** | Prometheus + Grafana | **À la demande** : allumé pour démo/métriques (~192Mi RAM) |
+
+> **🔒 Sécurité des Secrets Kubernetes** : Sur d'anciens environnements de démo, les secrets peuvent être initialisés via des manifests. Pour la production ou un dépôt public, les secrets sont injectés dynamiquement via `kubectl create secret` ou un gestionnaire externe (*Sealed Secrets*, *External Secrets Operator* / Vault). Aucun secret de production n'est committé en clair.
+
+### 📊 2. Profils de Ressources & Limites (`resources.requests/limits`)
+| Composant | Profil Dev (Requests / Limits) | Profil Prod (Requests / Limits) | Health Probes (Liveness / Readiness) |
+|---|---|---|---|
+| **PostgreSQL** | `50m / 250m` CPU · `128Mi / 256Mi` RAM | `250m / 1000m` CPU · `512Mi / 2Gi` RAM | `pg_isready -U wicstock_user -d wicstock_db` |
+| **Backend API** | `50m / 300m` CPU · `128Mi / 256Mi` RAM | `200m / 1000m` CPU · `512Mi / 1Gi` RAM | `GET /health/live` & `GET /health/ready` (port 8080) |
+| **Frontend Blazor** | `20m / 100m` CPU · `32Mi / 64Mi` RAM | `50m / 250m` CPU · `128Mi / 256Mi` RAM | `GET /` (port 80) |
+| **AI Service (FastAPI)** | `100m / 500m` CPU · `256Mi / 768Mi` RAM | `500m / 2000m` CPU · `1Gi / 4Gi` RAM | `GET /health` (port 8000) |
+| **Prometheus** | `50m / 200m` CPU · `128Mi / 256Mi` RAM | `200m / 1000m` CPU · `512Mi / 2Gi` RAM | `emptyDir` (dev) vs `PVC` + 15d (prod) |
+| **Grafana** | `20m / 100m` CPU · `64Mi / 128Mi` RAM | `100m / 500m` CPU · `256Mi / 512Mi` RAM | `GET /api/health` (port 3000) |
+
+### 🛠️ 3. Guide de Démarrage Rapide Kubernetes (kind)
+
+```bash
+# 1. Créer le cluster kind (2 nœuds : 1 control-plane + 1 worker avec ports 80/443)
+kind create cluster --config k8s/kind-config.yaml
+
+# (Optionnel : cluster 3 nœuds pour démo multi-nœuds / screenshots)
+# kind create cluster --config k8s/kind-config-demo.yaml
+
+# 2. Installer NGINX Ingress Controller
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=120s
+
+# 3. Lancer le socle quotidien wicstock-core (Postgres + API + Frontend)
+kubectl apply -f k8s/manifests/wicstock-core/
+
+# 4. (Optionnel) Lancer le module IA et/ou Observabilité à la demande
+kubectl apply -f k8s/manifests/wicstock-ai/
+kubectl apply -f k8s/manifests/wicstock-observability/
+
+# 5. Script d'administration interactif (Bash ou PowerShell)
+./k8s/manage.sh status     # PowerShell: .\k8s\manage.ps1 status
+./k8s/manage.sh top        # Consommation CPU / RAM en temps réel
+```
+
+> **💡 Note d'accès sous Windows / Kind** : Selon la configuration réseau Docker Desktop / WSL2, l'accès local aux services Ingress ou Grafana / Prometheus peut s'effectuer via `kubectl port-forward` (ex: `kubectl port-forward svc/grafana-service 3000:3000 -n wicstock-observability`).
+
+
+### ☸️ 4. Déploiement via Helm 3 (`helm/wicstock`)
+
+```bash
+# Déploiement du Chart Helm en profil Dev (Ultra-Léger)
+helm install wicstock ./helm/wicstock --set resources.profile=dev
+
+# Déploiement en profil Prod (Ressources élevées + Persistence PVC)
+helm install wicstock-prod ./helm/wicstock --set resources.profile=prod --set environment=prod
+```
+
+---
+
 ## 📄 License
 
 This is an academic/internship project developed for educational and demonstration purposes. No commercial license is granted.

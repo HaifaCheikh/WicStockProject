@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chromadb-pvc
+  namespace: wicstock-ai
+  labels:
+    app: ai-service
+    app.kubernetes.io/part-of: wicstock
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi # Volume de dev local pour la base vectorielle ChromaDB

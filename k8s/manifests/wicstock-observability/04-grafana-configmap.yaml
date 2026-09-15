@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-configmap
+  namespace: wicstock-observability
+  labels:
+    app: grafana
+    app.kubernetes.io/part-of: wicstock
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus-service.wicstock-observability.svc.cluster.local:9090
+        isDefault: true
+        editable: false
+
+  dashboards-provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: 'wicstock-dashboards'
+        orgId: 1
+        folder: 'WicStock'
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /etc/grafana/provisioning/dashboards/json
+
+  wicstock-overview.json: |
+    {
+      "id": null,
+      "uid": "wicstock-overview",
+      "title": "WicStock - Vue d'ensemble",
+      "tags": ["wicstock", "kubernetes"],
+      "timezone": "browser",
+      "schemaVersion": 38,
+      "version": 1,
+      "refresh": "30s",
+      "panels": [
+        {
+          "id": 1,
+          "title": "Pods UP (wicstock-core)",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+          "targets": [{
+            "expr": "count(kube_pod_status_ready{namespace=\"wicstock-core\", condition=\"true\"})",
+            "legendFormat": "Pods Ready",
+            "refId": "A"
+          }],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background"},
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"value": null, "color": "red"}, {"value": 1, "color": "yellow"}, {"value": 3, "color": "green"}]}}}
+        },
+        {
+          "id": 2,
+          "title": "Taux de requêtes HTTP (backend)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 10, "x": 4, "y": 0},
+          "targets": [{
+            "expr": "rate(http_requests_received_total{job=\"wicstock-backend\"}[2m])",
+            "legendFormat": "{{method}} {{route}} {{status_code}}",
+            "refId": "A"
+          }],
+          "fieldConfig": {"defaults": {"unit": "reqps", "color": {"mode": "palette-classic"}}}
+        },
+        {
+          "id": 3,
+          "title": "Latence p95 (backend)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 10, "x": 14, "y": 0},
+          "targets": [{
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=\"wicstock-backend\"}[5m]))",
+            "legendFormat": "p95 latency",
+            "refId": "A"
+          }],
+          "fieldConfig": {"defaults": {"unit": "s", "color": {"mode": "palette-classic"}}}
+        },
+        {
+          "id": 4,
+          "title": "CPU (cores) — wicstock-core",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "targets": [{
+            "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"wicstock-core\", container!=\"\"}[2m])) by (pod)",
+            "legendFormat": "{{pod}}",
+            "refId": "A"
+          }],
+          "fieldConfig": {"defaults": {"unit": "cores", "color": {"mode": "palette-classic"}}}
+        },
+        {
+          "id": 5,
+          "title": "RAM (bytes) — wicstock-core",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "targets": [{
+            "expr": "sum(container_memory_working_set_bytes{namespace=\"wicstock-core\", container!=\"\"}) by (pod)",
+            "legendFormat": "{{pod}}",
+            "refId": "A"
+          }],
+          "fieldConfig": {"defaults": {"unit": "bytes", "color": {"mode": "palette-classic"}}}
+        }
+      ],
+      "time": {"from": "now-30m", "to": "now"}
+    }

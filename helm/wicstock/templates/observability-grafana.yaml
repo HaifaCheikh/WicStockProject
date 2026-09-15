@@ -1,0 +1,90 @@
+{{- if .Values.modules.observability.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "wicstock.fullname" . }}-grafana-configmap
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: grafana
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://{{ include "wicstock.fullname" . }}-prometheus-service:9090
+        isDefault: true
+        editable: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "wicstock.fullname" . }}-grafana-secret
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: grafana
+type: Opaque
+stringData:
+  GF_SECURITY_ADMIN_USER: {{ .Values.grafana.adminUser | default "admin" | quote }}
+  GF_SECURITY_ADMIN_PASSWORD: {{ .Values.grafana.adminPassword | default "CHANGE_ME_LOCAL_DEV_PASSWORD" | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wicstock.fullname" . }}-grafana
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:10.4.0
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          ports:
+            - containerPort: 3000
+              name: http
+          envFrom:
+            - secretRef:
+                name: {{ include "wicstock.fullname" . }}-grafana-secret
+          resources:
+            requests:
+              cpu: {{ .Values.resources.dev.grafana.requests.cpu }}
+              memory: {{ .Values.resources.dev.grafana.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.dev.grafana.limits.cpu }}
+              memory: {{ .Values.resources.dev.grafana.limits.memory }}
+          volumeMounts:
+            - name: grafana-datasources
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+              subPath: datasources.yaml
+      volumes:
+        - name: grafana-datasources
+          configMap:
+            name: {{ include "wicstock.fullname" . }}-grafana-configmap
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "wicstock.fullname" . }}-grafana-service
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: grafana
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      name: http
+  selector:
+    app: grafana
+{{- end }}

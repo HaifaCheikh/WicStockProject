@@ -1,0 +1,26 @@
+# k8s/kind-config-demo.yaml
+# Configuration kind multi-nœud complète (1 control-plane, 2 workers) pour démo et captures d'écran.
+# Utiliser uniquement pour valider le scheduling multi-nœud et la tolérance aux pannes.
+
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: wicstock-demo-cluster
+
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP
+
+  - role: worker
+  - role: worker
