@@ -278,7 +278,7 @@ jobs:
           yq -i '.images.frontend.tag = "${{ github.sha }}"' gitops/environments/dev/values.yaml
           yq -i '.images.aiService.tag = "${{ github.sha }}"' gitops/environments/dev/values.yaml
           echo "✅ values.yaml updated:"
-          grep -A1 "backend:\|frontend:\|aiService:" gitops/environments/dev/values.yaml | grep "tag:"
+          yq '.images' gitops/environments/dev/values.yaml
 
       - name: Create Pull Request with updated image tags
         id: create-pr
