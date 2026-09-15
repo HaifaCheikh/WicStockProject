@@ -9,10 +9,10 @@ spec:
   project: default
   sources:
     - repoURL: https://github.com/HaifaCheikh/WicStockProject.git
-      targetRevision: feat/k8s-namespaces-validation
+      targetRevision: main
       ref: values
     - repoURL: https://github.com/HaifaCheikh/WicStockProject.git
-      targetRevision: feat/k8s-namespaces-validation
+      targetRevision: main
       path: helm/wicstock
       helm:
         valueFiles:
