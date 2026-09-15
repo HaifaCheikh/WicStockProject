@@ -32,7 +32,7 @@ venv/
 .venv/
 __pycache__/
 
-## Fichiers uploadés
-**/wwwroot/uploads/
-.pytest_cache/
-chroma_db/
+## Sealed Secrets Master Key (NEVER COMMIT TO GIT)
+sealed-secrets-master.key
+*.key
+

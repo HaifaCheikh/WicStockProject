@@ -3,6 +3,9 @@ name: CI
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'gitops/**'
+      - 'README.md'
   pull_request:
     branches: [ main ]
 
@@ -169,12 +172,67 @@ jobs:
           sarif_file: 'trivy-whatsapp-results.sarif'
           category: 'trivy-whatsapp-service'
 
-      # Log de synthèse dans les logs du job CI (Format Table)
-      - name: Run Trivy scanner (Summary Table in Job Logs)
-        uses: aquasecurity/trivy-action@master
+  docker-push-ghcr:
+    name: Build & Push Images to GHCR
+    runs-on: ubuntu-latest
+    needs: [trivy-scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          image-ref: 'wicstock-api'
-          format: 'table'
-          severity: 'CRITICAL,HIGH'
-          vuln-type: 'library'
-          exit-code: '0'
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push Backend API Image
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/wicstock-api"
+          docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest ./backend
+          docker push $IMAGE:${{ github.sha }}
+          docker push $IMAGE:latest
+
+      - name: Build & Push Frontend Image
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/wicstock-web"
+          docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest ./frontend
+          docker push $IMAGE:${{ github.sha }}
+          docker push $IMAGE:latest
+
+      - name: Build & Push AI Service Image
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/wicstock-ai"
+          docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest ./ai-service
+          docker push $IMAGE:${{ github.sha }}
+          docker push $IMAGE:latest
+
+  update-gitops-manifests:
+    name: Update GitOps Image Tags
+    runs-on: ubuntu-latest
+    needs: [docker-push-ghcr]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update tags with yq
+        run: |
+          yq -i '.images.backend.tag = "${{ github.sha }}"' gitops/environments/dev/values.yaml
+          yq -i '.images.frontend.tag = "${{ github.sha }}"' gitops/environments/dev/values.yaml
+          yq -i '.images.aiService.tag = "${{ github.sha }}"' gitops/environments/dev/values.yaml
+
+      - name: Commit and push updated image tags
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(gitops): bump image tags to ${{ github.sha }}" || echo "No changes to commit"
+          git push
+

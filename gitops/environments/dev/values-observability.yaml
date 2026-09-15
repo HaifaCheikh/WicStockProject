@@ -1,0 +1,16 @@
+# gitops/environments/dev/values-observability.yaml
+# Values spécifiques au module observability (Prometheus, Grafana)
+# Désactive ingress et les modules core/ai
+
+modules:
+  core:
+    enabled: false
+  ai:
+    enabled: false
+  observability:
+    enabled: true
+
+ingress:
+  enabled: false
+  className: "nginx"
+  host: "wicstock.local"

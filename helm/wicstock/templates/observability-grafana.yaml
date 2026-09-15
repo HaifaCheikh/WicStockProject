@@ -26,8 +26,8 @@ metadata:
     app: grafana
 type: Opaque
 stringData:
-  GF_SECURITY_ADMIN_USER: {{ .Values.grafana.adminUser | default "admin" | quote }}
-  GF_SECURITY_ADMIN_PASSWORD: {{ .Values.grafana.adminPassword | default "CHANGE_ME_LOCAL_DEV_PASSWORD" | quote }}
+  GF_SECURITY_ADMIN_USER: {{ (index .Values "grafana" | default dict).adminUser | default "admin" | quote }}
+  GF_SECURITY_ADMIN_PASSWORD: {{ (index .Values "grafana" | default dict).adminPassword | default "CHANGE_ME_LOCAL_DEV_PASSWORD" | quote }}
 ---
 apiVersion: apps/v1
 kind: Deployment

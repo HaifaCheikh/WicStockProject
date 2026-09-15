@@ -352,7 +352,56 @@ helm install wicstock-prod ./helm/wicstock --set resources.profile=prod --set en
 
 ---
 
+## 🔄 GitOps avec Argo CD & Bitnami Sealed Secrets
+
+WicStock met en œuvre une architecture **GitOps déclarative et sécurisée (Pull-based)** avec **Argo CD** et **Bitnami Sealed Secrets** sur Kubernetes :
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as Développeur
+    participant Git as GitHub (Repo WicStock)
+    participant CI as GitHub Actions (CI)
+    participant GHCR as GHCR Container Registry
+    participant Argo as Argo CD Controller (Kind)
+    participant K8s as Cluster Kubernetes
+
+    Dev->>Git: 1. Push du code source sur main
+    Git->>CI: 2. Déclenchement Pipeline CI & Trivy Scan
+    CI->>GHCR: 3. Build & Push de l'image (tag: ${{ github.sha }})
+    CI->>Git: 4. Job update-gitops-manifests (Mise à jour tag dans /gitops)
+    loop Réconciliation (Poll/Webhook)
+        Argo->>Git: 5. Détection de dérive (OutOfSync sur /gitops)
+        Argo->>K8s: 6. Auto-Sync & Self-Healing (Prune, Sync-Waves, CreateNamespace)
+    end
+```
+
+### 🧠 1. Modèle Push-Based (Ancien) vs Pull-Based GitOps (Nouveau)
+- **Modèle Push-Based (CI/CD classique)** : La CI exécute `kubectl apply` ou ssh vers le cluster. Nécessite d'exposer les accès et credentials administrateur du cluster à la CI (risque de sécurité).
+- **Modèle Pull-Based GitOps (Argo CD)** : Le cluster est autonome. Un contrôleur interne (**Argo CD**) scrute en continu le dépôt Git (déclaré comme **Source Unique de Vérité**). Aucun identifiant du cluster n'est exposé à l'extérieur.
+
+### 🛡️ 2. Gestion des Secrets avec Bitnami Sealed Secrets
+- **Secrets Scellés Chiffrés** : Les fichiers `SealedSecret` sont chiffrés asymétriquement par `kubeseal` et versionnés dans Git sans risque.
+- **Déchiffrement In-Cluster** : Seul le contrôleur **Sealed Secrets** hébergé dans le namespace `kube-system` possède la clé privée maître pour restaurer le secret natif Kubernetes.
+
+### 🛠️ 3. Guide d'Accès à l'UI Argo CD en Local
+
+```powershell
+# 1. Ouvrir le port-forward local sécurisé
+.\k8s\manage.ps1 start-argocd-ui
+
+# 2. Récupérer le mot de passe admin initial
+.\k8s\manage.ps1 get-argocd-pass
+
+# Accès Web UI : https://localhost:8443 (Utilisateur : admin)
+```
+
+> **📌 Séparation des Environnements** : Argo CD et le cluster Kind local servent de démonstration de compétences DevOps avancées. Les hébergements de production existants (Vercel, Render.com) demeurent indépendants et opérationnels.
+
+---
+
 ## 📄 License
 
 This is an academic/internship project developed for educational and demonstration purposes. No commercial license is granted.
+
 

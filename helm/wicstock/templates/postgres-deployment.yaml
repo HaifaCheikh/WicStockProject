@@ -3,6 +3,9 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ include "wicstock.fullname" . }}-postgres-pvc
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+    argocd.argoproj.io/sync-wave: "-2"
   labels:
     {{- include "wicstock.labels" . | nindent 4 }}
     app: postgres
@@ -17,6 +20,8 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: {{ include "wicstock.fullname" . }}-postgres-secret
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
   labels:
     {{- include "wicstock.labels" . | nindent 4 }}
     app: postgres
@@ -30,6 +35,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "wicstock.fullname" . }}-postgres
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
   labels:
     {{- include "wicstock.labels" . | nindent 4 }}
     app: postgres
@@ -91,6 +98,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "wicstock.fullname" . }}-postgres-service
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
   labels:
     {{- include "wicstock.labels" . | nindent 4 }}
     app: postgres

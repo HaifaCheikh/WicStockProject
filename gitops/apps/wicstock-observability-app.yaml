@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: wicstock-observability
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/HaifaCheikh/WicStockProject.git
+      targetRevision: feat/k8s-namespaces-validation
+      ref: values
+    - repoURL: https://github.com/HaifaCheikh/WicStockProject.git
+      targetRevision: feat/k8s-namespaces-validation
+      path: helm/wicstock
+      helm:
+        valueFiles:
+          - $values/gitops/environments/dev/values.yaml
+          - $values/gitops/environments/dev/values-observability.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: wicstock-observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
