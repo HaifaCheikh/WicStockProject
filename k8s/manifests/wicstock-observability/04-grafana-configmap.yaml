@@ -85,12 +85,12 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "color": { "mode": "palette-classic" },
+              "color": { "mode": "fixed", "fixedColor": "cyan" },
               "custom": {
                 "drawStyle": "line",
                 "lineInterpolation": "smooth",
                 "lineWidth": 2,
-                "fillOpacity": 15,
+                "fillOpacity": 20,
                 "gradientMode": "opacity",
                 "showPoints": "never"
               },
@@ -117,12 +117,12 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "color": { "mode": "palette-classic" },
+              "color": { "mode": "fixed", "fixedColor": "purple" },
               "custom": {
                 "drawStyle": "line",
                 "lineInterpolation": "smooth",
                 "lineWidth": 2,
-                "fillOpacity": 15,
+                "fillOpacity": 20,
                 "gradientMode": "opacity",
                 "showPoints": "never"
               },
@@ -149,12 +149,12 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "color": { "mode": "palette-classic" },
+              "color": { "mode": "fixed", "fixedColor": "orange" },
               "custom": {
                 "drawStyle": "line",
                 "lineInterpolation": "smooth",
                 "lineWidth": 2,
-                "fillOpacity": 20,
+                "fillOpacity": 25,
                 "gradientMode": "opacity",
                 "showPoints": "never"
               },
@@ -183,7 +183,7 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "color": { "mode": "palette-classic" },
+              "color": { "mode": "fixed", "fixedColor": "light-blue" },
               "custom": {
                 "drawStyle": "line",
                 "lineInterpolation": "smooth",
@@ -214,5 +214,5 @@ data:
       "timezone": "browser",
       "title": "WicStock - Vue d'ensemble",
       "uid": "wicstock-overview",
-      "version": 20
+      "version": 25
     }
