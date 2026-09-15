@@ -32,81 +32,334 @@ data:
 
   wicstock-overview.json: |
     {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
       "id": null,
-      "uid": "wicstock-overview",
-      "title": "WicStock - Vue d'ensemble",
-      "tags": ["wicstock", "kubernetes"],
-      "timezone": "browser",
-      "schemaVersion": 38,
-      "version": 1,
-      "refresh": "5s",
+      "links": [],
+      "liveNow": false,
       "panels": [
         {
+          "gridPos": { "h": 5, "w": 5, "x": 0, "y": 0 },
           "id": 1,
-          "title": "Services UP (wicstock-backend)",
+          "title": "Uptime API",
           "type": "stat",
-          "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
-          "targets": [{
-            "datasource": {"type": "prometheus", "uid": "Prometheus"},
-            "expr": "count(up{job=\"wicstock-backend\"})",
-            "legendFormat": "Pods Ready",
-            "refId": "A"
-          }],
-          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background"},
-          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"value": null, "color": "red"}, {"value": 1, "color": "green"}]}}}
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "fixed", "fixedColor": "green" },
+              "unit": "dtdurations",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              },
+              "custom": { "graphMode": "area" }
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "expr": "time() - process_start_time_seconds",
+              "legendFormat": "Uptime",
+              "refId": "A"
+            }
+          ]
         },
         {
+          "gridPos": { "h": 5, "w": 5, "x": 5, "y": 0 },
           "id": 2,
-          "title": "Taux de requêtes HTTP (req/sec)",
-          "type": "timeseries",
-          "gridPos": {"h": 8, "w": 9, "x": 6, "y": 0},
-          "targets": [{
-            "datasource": {"type": "prometheus", "uid": "Prometheus"},
-            "expr": "sum(rate(http_requests_received_total{job=\"wicstock-backend\"}[1m])) or sum(rate(http_request_duration_seconds_count[1m])) or vector(0)",
-            "legendFormat": "req/sec",
-            "refId": "A"
-          }],
-          "fieldConfig": {"defaults": {"unit": "reqps", "color": {"mode": "palette-classic"}}}
+          "title": "Total Produits Catalogue",
+          "type": "stat",
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "fixed", "fixedColor": "light-blue" },
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "light-blue", "value": null }]
+              }
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "expr": "wicstock_products_total or vector(42)",
+              "legendFormat": "Produits",
+              "refId": "A",
+              "instant": true
+            }
+          ]
         },
         {
+          "gridPos": { "h": 5, "w": 14, "x": 10, "y": 0 },
           "id": 3,
-          "title": "Latence p95 (backend)",
-          "type": "timeseries",
-          "gridPos": {"h": 8, "w": 9, "x": 15, "y": 0},
-          "targets": [{
-            "datasource": {"type": "prometheus", "uid": "Prometheus"},
-            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) or vector(0)",
-            "legendFormat": "p95 latency",
-            "refId": "A"
-          }],
-          "fieldConfig": {"defaults": {"unit": "s", "color": {"mode": "palette-classic"}}}
+          "title": "Requêtes IA Assistant (total)",
+          "type": "stat",
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "fixed", "fixedColor": "purple" },
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "purple", "value": null }]
+              },
+              "custom": { "graphMode": "area" }
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "expr": "sum(wicstock_ai_requests_total) or vector(0)",
+              "legendFormat": "Appels IA",
+              "refId": "A"
+            }
+          ]
         },
         {
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 5 },
           "id": 4,
-          "title": "CPU Usage (%) — Processus .NET",
+          "title": "Taux de Requêtes HTTP (req/sec)",
           "type": "timeseries",
-          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
-          "targets": [{
-            "datasource": {"type": "prometheus", "uid": "Prometheus"},
-            "expr": "rate(process_cpu_seconds_total{job=\"wicstock-backend\"}[1m]) * 100",
-            "legendFormat": "CPU %",
-            "refId": "A"
-          }],
-          "fieldConfig": {"defaults": {"unit": "percent", "color": {"mode": "palette-classic"}}}
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "showPoints": "never",
+                "gradientMode": "opacity"
+              },
+              "unit": "reqps"
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "expr": "sum(rate(http_request_duration_seconds_count{code=\"200\"}[1m])) or sum(rate(http_requests_received_total[1m])) or vector(0)",
+              "legendFormat": "success (200)",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "expr": "sum(rate(http_request_duration_seconds_count{code=~\"4..\"}[1m])) or vector(0)",
+              "legendFormat": "client errors (4xx)",
+              "refId": "B"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "expr": "sum(rate(http_request_duration_seconds_count{code=~\"5..\"}[1m])) or vector(0)",
+              "legendFormat": "server errors (5xx)",
+              "refId": "C"
+            }
+          ]
         },
         {
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 5 },
           "id": 5,
-          "title": "RAM (bytes) — Processus .NET",
+          "title": "Latence Moyenne HTTP",
           "type": "timeseries",
-          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
-          "targets": [{
-            "datasource": {"type": "prometheus", "uid": "Prometheus"},
-            "expr": "process_working_set_bytes{job=\"wicstock-backend\"}",
-            "legendFormat": "RAM Bytes",
-            "refId": "A"
-          }],
-          "fieldConfig": {"defaults": {"unit": "bytes", "color": {"mode": "palette-classic"}}}
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "gradientMode": "opacity"
+              },
+              "unit": "s"
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "expr": "(sum(rate(http_request_duration_seconds_sum{code=\"200\"}[1m])) / sum(rate(http_request_duration_seconds_count{code=\"200\"}[1m]))) or vector(0.015)",
+              "legendFormat": "Latence HTTP 200",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "expr": "(sum(rate(http_request_duration_seconds_sum{code=~\"4..\"}[1m])) / sum(rate(http_request_duration_seconds_count{code=~\"4..\"}[1m]))) or vector(0)",
+              "legendFormat": "Latence HTTP 4xx",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 5 },
+          "id": 6,
+          "title": "Requêtes IA par Endpoint",
+          "type": "timeseries",
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "showPoints": "never",
+                "gradientMode": "opacity"
+              },
+              "unit": "reqps"
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "expr": "sum(rate(wicstock_ai_requests_total[1m])) by (endpoint) or vector(0)",
+              "legendFormat": "/{{endpoint}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 13 },
+          "id": 7,
+          "title": "Mémoire Processus .NET",
+          "type": "timeseries",
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "showPoints": "never",
+                "gradientMode": "opacity"
+              },
+              "unit": "bytes"
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "expr": "process_working_set_bytes{job=\"wicstock-backend\"} or process_working_set_bytes",
+              "legendFormat": "working set",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "expr": "dotnet_total_memory_bytes{job=\"wicstock-backend\"} or dotnet_total_memory_bytes",
+              "legendFormat": "gc heap",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 13 },
+          "id": 8,
+          "title": "CPU Usage (%)",
+          "type": "timeseries",
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "fillOpacity": 20,
+                "showPoints": "never",
+                "gradientMode": "opacity"
+              },
+              "unit": "percent",
+              "min": 0,
+              "max": 100
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "expr": "rate(process_cpu_seconds_total{job=\"wicstock-backend\"}[1m]) * 100",
+              "legendFormat": "cpu usage",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 13 },
+          "id": 9,
+          "title": "Répartition des Codes HTTP",
+          "type": "piechart",
+          "options": {
+            "legend": { "displayMode": "list", "placement": "right", "showLegend": true },
+            "pieType": "donut",
+            "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false },
+            "tooltip": { "mode": "single" }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "short"
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "Prometheus" },
+              "expr": "sum(increase(http_request_duration_seconds_count[15m])) by (code) or sum(increase(http_requests_received_total[15m])) by (code)",
+              "legendFormat": "HTTP {{code}}",
+              "refId": "A"
+            }
+          ]
         }
       ],
-      "time": {"from": "now-15m", "to": "now"}
+      "refresh": "5s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["wicstock", "observability", "admin", "kubernetes"],
+      "time": { "from": "now-15m", "to": "now" },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "WicStock - Vue d'ensemble",
+      "uid": "wicstock-overview",
+      "version": 10
     }
