@@ -2,9 +2,13 @@
 
 > Academic / internship project focused on intelligent textile inventory management, AI-assisted analytics, multi-agent systems, and real-time operations.
 
+[![CI Pipeline](https://github.com/HaifaCheikh/WicStockProject/actions/workflows/ci.yml/badge.svg)](https://github.com/HaifaCheikh/WicStockProject/actions/workflows/ci.yml)
 [![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat&logo=dotnet)](https://dotnet.microsoft.com/)
 [![Blazor](https://img.shields.io/badge/Blazor-WebAssembly-512BD4?style=flat&logo=blazor)](https://dotnet.microsoft.com/apps/aspnet/web-apps/blazor)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Argo CD](https://img.shields.io/badge/GitOps-Argo%20CD-EF6C00?style=flat&logo=argo)](https://argoproj.github.io/cd/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-Kind-326CE5?style=flat&logo=kubernetes)](https://kubernetes.io/)
+[![Helm 3](https://img.shields.io/badge/Helm-v3-0F1689?style=flat&logo=helm)](https://helm.sh/)
 [![Ollama](https://img.shields.io/badge/Ollama-Qwen3-black?style=flat)](https://ollama.com/)
 [![ChromaDB](https://img.shields.io/badge/VectorDB-ChromaDB-FF6F00?style=flat)](https://www.trychroma.com/)
 [![Entity Framework](https://img.shields.io/badge/EF%20Core-8.0-6C287E?style=flat)](https://learn.microsoft.com/ef/core/)
