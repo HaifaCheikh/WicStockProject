@@ -3,6 +3,8 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ include "wicstock.fullname" . }}-chromadb-pvc
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
   labels:
     {{- include "wicstock.labels" . | nindent 4 }}
     app: ai-service
