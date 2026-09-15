@@ -1,0 +1,16 @@
+# gitops/environments/dev/values-ai.yaml
+# Values spécifiques au module ai (FastAPI, ChromaDB)
+# Désactive ingress et les modules core/observability
+
+modules:
+  core:
+    enabled: false
+  ai:
+    enabled: true
+  observability:
+    enabled: false
+
+ingress:
+  enabled: false
+  className: "nginx"
+  host: "wicstock.local"

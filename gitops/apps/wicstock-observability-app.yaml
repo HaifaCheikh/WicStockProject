@@ -17,6 +17,7 @@ spec:
       helm:
         valueFiles:
           - $values/gitops/environments/dev/values.yaml
+          - $values/gitops/environments/dev/values-observability.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: wicstock-observability
