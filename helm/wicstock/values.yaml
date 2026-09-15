@@ -90,3 +90,7 @@ ingress:
   enabled: true
   className: "nginx"
   host: "wicstock.local"
+
+grafana:
+  adminUser: "admin"
+  adminPassword: "CHANGE_ME_LOCAL_DEV_PASSWORD"
