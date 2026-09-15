@@ -5,7 +5,7 @@ metadata:
   name: {{ include "wicstock.fullname" . }}-postgres-pvc
   annotations:
     argocd.argoproj.io/sync-options: Prune=false
-    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-wave: "-2"
   labels:
     {{- include "wicstock.labels" . | nindent 4 }}
     app: postgres
@@ -21,7 +21,7 @@ kind: Secret
 metadata:
   name: {{ include "wicstock.fullname" . }}-postgres-secret
   annotations:
-    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-wave: "-2"
   labels:
     {{- include "wicstock.labels" . | nindent 4 }}
     app: postgres
