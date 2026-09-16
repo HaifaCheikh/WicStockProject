@@ -130,8 +130,24 @@ namespace WicStock_.Controllers
                     return Unauthorized("Email ou mot de passe incorrect.");
 
                 Console.WriteLine($"[LOGIN] Vérification du mot de passe");
-                bool motDePasseValide = BCrypt.Net.BCrypt.Verify(
-                    dto.MotDePasse, utilisateur.MotDePasseHash);
+                bool motDePasseValide = false;
+                try
+                {
+                    if (!string.IsNullOrEmpty(utilisateur.MotDePasseHash))
+                    {
+                        motDePasseValide = BCrypt.Net.BCrypt.Verify(dto.MotDePasse, utilisateur.MotDePasseHash);
+                    }
+                }
+                catch (FormatException exBcrypt)
+                {
+                    Console.WriteLine($"[LOGIN] Erreur BCrypt verify: {exBcrypt.Message}");
+                    return Unauthorized("Email ou mot de passe incorrect.");
+                }
+                catch (ArgumentException exBcrypt)
+                {
+                    Console.WriteLine($"[LOGIN] Erreur BCrypt verify: {exBcrypt.Message}");
+                    return Unauthorized("Email ou mot de passe incorrect.");
+                }
 
                 Console.WriteLine($"[LOGIN] Mot de passe valide: {motDePasseValide}");
 
@@ -238,11 +254,19 @@ namespace WicStock_.Controllers
                 return BadRequest("Code de réinitialisation incorrect ou expiré.");
 
             var cleanIdent = (dto.Identifiant ?? "").Trim().ToLower();
-            var digitsOnly = new string(cleanIdent.Where(char.IsDigit).ToArray());
 
-            Utilisateur? utilisateur = await _context.Utilisateurs
-                .FirstOrDefaultAsync(u => u.Email.ToLower() == cleanIdent || 
-                                          (digitsOnly.Length > 0 && u.Telephone != null && u.Telephone.Replace(" ", "").Replace("+", "").EndsWith(digitsOnly)));
+            Utilisateur? utilisateur = null;
+            if (cleanIdent.Contains("@"))
+            {
+                utilisateur = await _context.Utilisateurs
+                    .FirstOrDefaultAsync(u => u.Email.ToLower() == cleanIdent);
+            }
+            else
+            {
+                var digitsOnly = new string(cleanIdent.Where(char.IsDigit).ToArray());
+                utilisateur = await _context.Utilisateurs
+                    .FirstOrDefaultAsync(u => digitsOnly.Length > 0 && u.Telephone != null && u.Telephone.Replace(" ", "").Replace("+", "").EndsWith(digitsOnly));
+            }
 
             if (utilisateur == null)
                 return NotFound("Utilisateur introuvable.");
