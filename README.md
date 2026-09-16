@@ -69,12 +69,20 @@ Full agent diagram and responsibilities → [`docs/architecture.md`](docs/archit
 
 ```
 WicStockProject/
-├── backend/              # ASP.NET Core Web API (.NET 8)
-├── frontend/             # Blazor WebAssembly client
+├── .github/              # GitHub Actions workflows (CI, CD, CodeQL, Dependabot)
 ├── ai-service/           # FastAPI AI microservice (4 agents + ChromaDB + Ollama)
-├── k8s/                  # Kubernetes manifests, kind configs, Helm chart
-├── gitops/               # Argo CD application manifests
+├── backend/              # ASP.NET Core Web API (.NET 8)
 ├── docs/                 # Detailed documentation (architecture, k8s, gitops, security...)
+├── frontend/             # Blazor WebAssembly client
+├── gitops/               # Argo CD application manifests
+├── helm/wicstock/        # Helm chart (dev/prod resource profiles)
+├── k8s/                  # Kubernetes manifests, kind configs
+├── monitoring/           # Prometheus & Grafana provisioning
+├── whatsapp-service/     # Node.js notification microservice
+├── .env.example
+├── .gitignore
+├── docker-compose.yml
+├── SECURITY.md
 ├── WicStock.sln
 └── README.md
 ```

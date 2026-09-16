@@ -79,3 +79,4 @@ Pour activer l'affichage vert des badges dans le `README.md` :
    - Créez votre organisation (`haifacheikh`) et importez `HaifaCheikh/WicStockProject`.
    - Générez un token sous **My Account ➔ Security**.
    - Dans GitHub : **Settings ➔ Secrets and variables ➔ Actions ➔ New repository secret** ➔ Nom : `SONAR_TOKEN`.
+
