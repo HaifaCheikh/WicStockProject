@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Include>[WicStock]WicStock_.Services.*,[WicStock]WicStock_.Models.*</Include>
+          <Exclude>[WicStock]WicStock_.Controllers.*,[WicStock]WicStock_.Models.Dtos.*,[WicStock]WicStock_.Migrations.*,[WicStock]Program*,[WicStock]WicStock_.Services.LemonSqueezy*,[WicStock]WicStock_.Services.EmailService*,[WicStock]WicStock_.Services.WhatsAppService*</Exclude>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

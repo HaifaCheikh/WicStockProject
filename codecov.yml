@@ -1,0 +1,24 @@
+codecov:
+  require_ci_to_pass: yes
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        paths:
+          - "backend/Services/"
+          - "backend/Models/"
+
+ignore:
+  - "backend/Controllers/"
+  - "backend/Models/Dtos/"
+  - "backend/Migrations/"
+  - "backend/Program.cs"
+  - "frontend/"
+  - "ai-service/"
+  - "whatsapp-service/"
+  - "k8s/"
+  - "gitops/"
+  - "docs/"
+  - "helm/"

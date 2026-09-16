@@ -12,6 +12,8 @@
 [![Argo CD](https://img.shields.io/badge/GitOps-Argo%20CD-EF6C00?style=flat&logo=argo)](https://argoproj.github.io/cd/)
 [![Helm 3](https://img.shields.io/badge/Helm-v3-0F1689?style=flat&logo=helm)](https://helm.sh/)
 
+> 🧪 *Couverture de code mesurée sur la couche métier (`backend/Services`, `backend/Models`) — contrôleurs, DTOs, migrations et scripts générés exclus.*
+
 ---
 
 ## 📊 Overview

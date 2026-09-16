@@ -32,6 +32,7 @@ jobs:
           dotnet test backend/WicStock.Api.Tests/WicStock.Api.Tests.csproj \
             --configuration Release \
             --no-build \
+            --settings backend/coverlet.runsettings \
             --collect:"XPlat Code Coverage" \
             --results-directory ./coverage-results
 
