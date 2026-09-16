@@ -22,7 +22,16 @@ namespace WicStock.Web.Services
             var reponse = await _http.PostAsJsonAsync("api/Auth/login", dto);
 
             if (!reponse.IsSuccessStatusCode)
-                return (false, "Email ou mot de passe incorrect.");
+            {
+                if (reponse.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    return (false, "Email ou mot de passe incorrect.");
+
+                var contentErreur = await reponse.Content.ReadAsStringAsync();
+                if (!string.IsNullOrWhiteSpace(contentErreur))
+                    return (false, contentErreur);
+
+                return (false, $"Erreur serveur ({reponse.StatusCode}).");
+            }
 
             var resultat = await reponse.Content.ReadFromJsonAsync<AuthResponseDto>();
             if (resultat == null)
