@@ -84,9 +84,7 @@ def fetch_surstock_metrics(
     Exécute les requêtes SQL nécessaires pour constituer le dictionnaire de 13 métriques
     destiné à SurstockAgent.diagnostiquer().
     """
-    # Assainissement anti-injection SQL des paramètres
     product_id_clean = int(product_id)
-    categorie_clean = str(categorie if 'categorie' in locals() and categorie else '').replace("'", "''")
 
     # 1. Infos produit et stock courant
     sql_prod = (

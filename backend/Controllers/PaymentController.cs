@@ -226,9 +226,15 @@ namespace WicStock_.Controllers
 
             // Rediriger vers la page de confirmation de paiement du frontend
             // (qui fait ensuite une navigation interne Blazor vers suivi-commande)
-            string targetFrontend = !string.IsNullOrWhiteSpace(origin)
-                ? origin.TrimEnd('/')
-                : (_configuration["AppSettings:FrontendUrl"]?.TrimEnd('/') ?? "https://localhost:7121");
+            string defaultFrontend = _configuration["AppSettings:FrontendUrl"]?.TrimEnd('/') ?? "https://localhost:7121";
+            string targetFrontend = defaultFrontend;
+            if (!string.IsNullOrWhiteSpace(origin) && Uri.TryCreate(origin, UriKind.Absolute, out var parsedUri))
+            {
+                if (parsedUri.Host.Equals(new Uri(defaultFrontend).Host, StringComparison.OrdinalIgnoreCase) || parsedUri.IsLoopback)
+                {
+                    targetFrontend = origin.TrimEnd('/');
+                }
+            }
 
             return Redirect($"{targetFrontend}/mes-commandes/suivi/{commandeId}?payment=success");
         }

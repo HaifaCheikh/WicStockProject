@@ -17,7 +17,11 @@ namespace WicStock_.Services
 
         public string GenererToken(Utilisateur utilisateur)
         {
-            var jwtKey = _config["Jwt:Key"] ?? "WicStockDefaultFallbackSecretKey2026Min32Chars!";
+            var jwtKey = _config["Jwt:Key"];
+            if (string.IsNullOrWhiteSpace(jwtKey))
+            {
+                throw new InvalidOperationException("Jwt:Key configuration is missing in application settings.");
+            }
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
 
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

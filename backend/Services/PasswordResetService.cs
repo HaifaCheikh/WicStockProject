@@ -10,8 +10,7 @@ namespace WicStock_.Services
 
         public string GenerateCode(string identifier)
         {
-            var random = new Random();
-            var code = random.Next(100000, 999999).ToString();
+            var code = System.Security.Cryptography.RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
             var expiration = DateTime.UtcNow.AddMinutes(15);
             
             var key = CleanKey(identifier);
