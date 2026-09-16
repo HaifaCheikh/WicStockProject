@@ -10,6 +10,9 @@ using Xunit;
 
 namespace WicStock.Api.Tests
 {
+    /// <summary>
+    /// Unit tests for AnalyseSurstockService logic, fallback actions, and degraded mode.
+    /// </summary>
     public class AnalyseSurstockServiceTests
     {
         private readonly Mock<IHttpClientFactory> _httpClientFactoryMock;
