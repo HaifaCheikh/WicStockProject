@@ -282,7 +282,7 @@ jobs:
   # auto-mergeable immédiatement dès ouverture (aucun check requis).
   # ─────────────────────────────────────────────────────────────────────────────
   update-gitops-manifests:
-    name: 🔄 Update GitOps Image Tags (PR auto-merge)
+    name: Update GitOps Image Tags (PR auto-merge)
     runs-on: ubuntu-latest
     needs: [docker-push-ghcr]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -304,11 +304,11 @@ jobs:
 
       - name: Bump image tags in values.yaml
         run: |
-          echo "📦 Bumping image tags to: ${{ github.sha }}"
+          echo "Bumping image tags to: ${{ github.sha }}"
           yq -i '.images.backend.tag  = "${{ github.sha }}"' gitops/environments/dev/values.yaml
           yq -i '.images.frontend.tag = "${{ github.sha }}"' gitops/environments/dev/values.yaml
           yq -i '.images.aiService.tag = "${{ github.sha }}"' gitops/environments/dev/values.yaml
-          echo "✅ values.yaml updated:"
+          echo "values.yaml updated:"
           yq '.images' gitops/environments/dev/values.yaml
 
       - name: Create Pull Request with updated image tags
@@ -321,7 +321,7 @@ jobs:
           commit-message: "chore(gitops): bump image tags to ${{ github.sha }}"
           title: "chore(gitops): bump image tags → ${{ github.sha }}"
           body: |
-            ## 🤖 Automated GitOps Image Tag Update
+            ##  Automated GitOps Image Tag Update
 
             | Field | Value |
             |---|---|
@@ -350,23 +350,23 @@ jobs:
         run: |
           PR_NUMBER="${{ steps.create-pr.outputs.pull-request-number }}"
           PR_URL="${{ steps.create-pr.outputs.pull-request-url }}"
-          echo "🔀 Enabling auto-merge on PR #${PR_NUMBER}: ${PR_URL}"
+          echo " Enabling auto-merge on PR #${PR_NUMBER}: ${PR_URL}"
           gh pr merge --auto --squash "${PR_NUMBER}"
-          echo "✅ Auto-merge enabled — PR will merge as soon as all checks pass"
+          echo "Auto-merge enabled — PR will merge as soon as all checks pass"
           echo "PR_NUMBER=${PR_NUMBER}" >> $GITHUB_STEP_SUMMARY
           echo "PR_URL=${PR_URL}" >> $GITHUB_STEP_SUMMARY
 
       - name: Summary
         if: steps.create-pr.outputs.pull-request-number != ''
         run: |
-          echo "## 🎉 GitOps Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## GitOps Update Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Images pushed to GHCR | ✅ |" >> $GITHUB_STEP_SUMMARY
-          echo "| values.yaml updated (tag: \`${{ github.sha }}\`) | ✅ |" >> $GITHUB_STEP_SUMMARY
-          echo "| PR #${{ steps.create-pr.outputs.pull-request-number }} created | ✅ |" >> $GITHUB_STEP_SUMMARY
-          echo "| Auto-merge enabled | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Images pushed to GHCR |" >> $GITHUB_STEP_SUMMARY
+          echo "| values.yaml updated (tag: \`${{ github.sha }}\`) |" >> $GITHUB_STEP_SUMMARY
+          echo "| PR #${{ steps.create-pr.outputs.pull-request-number }} created |" >> $GITHUB_STEP_SUMMARY
+          echo "| Auto-merge enabled |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🔗 PR: ${{ steps.create-pr.outputs.pull-request-url }}" >> $GITHUB_STEP_SUMMARY
-          echo "⏳ Argo CD will sync ~3 min after auto-merge lands on main" >> $GITHUB_STEP_SUMMARY
+          echo "PR: ${{ steps.create-pr.outputs.pull-request-url }}" >> $GITHUB_STEP_SUMMARY
+          echo "Argo CD will sync ~3 min after auto-merge lands on main" >> $GITHUB_STEP_SUMMARY
