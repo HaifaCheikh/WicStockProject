@@ -138,7 +138,12 @@ namespace WicStock_.Controllers
                         motDePasseValide = BCrypt.Net.BCrypt.Verify(dto.MotDePasse, utilisateur.MotDePasseHash);
                     }
                 }
-                catch (Exception exBcrypt)
+                catch (FormatException exBcrypt)
+                {
+                    Console.WriteLine($"[LOGIN] Erreur BCrypt verify: {exBcrypt.Message}");
+                    return Unauthorized("Email ou mot de passe incorrect.");
+                }
+                catch (ArgumentException exBcrypt)
                 {
                     Console.WriteLine($"[LOGIN] Erreur BCrypt verify: {exBcrypt.Message}");
                     return Unauthorized("Email ou mot de passe incorrect.");
