@@ -1,6 +1,6 @@
-# 🚀 WicStock - Integration & Déploiement Continus (CI/CD) et Qualité du Code
+# 🚀 WicStock - Intégration & Déploiement Continus (CI/CD), Qualité du Code & Coverage
 
-Ce document détaille l'architecture et le fonctionnement de la chaîne d'Intégration et de Déploiement Continus (**CI/CD**), la stratégie de **Tests Unitaires**, et l'analyse de la **Qualité du Code** (SAST & Couverture).
+Ce document détaille l'architecture et le fonctionnement de la chaîne d'Intégration et de Déploiement Continus (**CI/CD**), la stratégie de **Tests Unitaires**, et l'analyse de la **Qualité du Code** (SAST & Couverture Codecov / SonarCloud).
 
 ---
 
