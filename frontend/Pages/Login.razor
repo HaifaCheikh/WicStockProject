@@ -379,7 +379,6 @@
             var redirectTo = ObtenirParametreRedirect();
             if (!string.IsNullOrWhiteSpace(redirectTo))
             {
-                await JS.InvokeVoidAsync("sessionStorage.removeItem", "checkout_intent");
                 Navigation.NavigateTo(redirectTo);
                 return;
             }

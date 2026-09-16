@@ -1,0 +1,96 @@
+# helm/wicstock/values.yaml
+# Valeurs par défaut du Chart Helm WicStock
+# Profil Dev Ultra-Léger vs Profil Prod
+
+environment: "dev" # "dev" ou "prod"
+
+# --- 1. Images Docker ---
+images:
+  registry: "ghcr.io/haifacheikh/wicstockproject"
+  pullPolicy: "IfNotPresent"
+  backend:
+    repository: "wicstock-api"
+    tag: "latest"
+  frontend:
+    repository: "wicstock-web"
+    tag: "latest"
+  aiService:
+    repository: "wicstock-ai"
+    tag: "latest"
+
+# --- 2. Profil de Ressources Dev (Serré & Économique) ---
+resources:
+  profile: "dev" # "dev" ou "prod"
+  dev:
+    postgres:
+      requests: { cpu: "50m", memory: "128Mi" }
+      limits: { cpu: "250m", memory: "256Mi" }
+    backend:
+      requests: { cpu: "50m", memory: "128Mi" }
+      limits: { cpu: "300m", memory: "256Mi" }
+    frontend:
+      requests: { cpu: "20m", memory: "32Mi" }
+      limits: { cpu: "100m", memory: "64Mi" }
+    aiService:
+      requests: { cpu: "100m", memory: "256Mi" }
+      limits: { cpu: "500m", memory: "768Mi" }
+    prometheus:
+      requests: { cpu: "50m", memory: "128Mi" }
+      limits: { cpu: "200m", memory: "256Mi" }
+    grafana:
+      requests: { cpu: "20m", memory: "64Mi" }
+      limits: { cpu: "100m", memory: "128Mi" }
+  prod:
+    postgres:
+      requests: { cpu: "250m", memory: "512Mi" }
+      limits: { cpu: "1000m", memory: "2Gi" }
+    backend:
+      requests: { cpu: "200m", memory: "512Mi" }
+      limits: { cpu: "1000m", memory: "1Gi" }
+    frontend:
+      requests: { cpu: "50m", memory: "128Mi" }
+      limits: { cpu: "250m", memory: "256Mi" }
+    aiService:
+      requests: { cpu: "500m", memory: "1Gi" }
+      limits: { cpu: "2000m", memory: "4Gi" }
+
+# --- 3. Nombre de Répliques ---
+replicas:
+  backend: 1
+  frontend: 1
+  aiService: 1
+  postgres: 1
+
+# --- 4. Activation Sélective des Modules (Dev à la demande) ---
+modules:
+  core:
+    enabled: true
+  ai:
+    enabled: true
+  observability:
+    enabled: true
+
+# --- 5. Stockage Persistant ---
+persistence:
+  postgres:
+    enabled: true
+    storageClass: ""
+    size: "1Gi"
+  chromadb:
+    enabled: true
+    storageClass: ""
+    size: "1Gi"
+  prometheus:
+    enabled: false # false = emptyDir (dev), true = PVC (prod)
+    retentionTime: "2h" # 2h pour dev, 15d pour prod
+    size: "5Gi"
+
+# --- 6. Ingress ---
+ingress:
+  enabled: true
+  className: "nginx"
+  host: "wicstock.local"
+
+grafana:
+  adminUser: "admin"
+  adminPassword: "CHANGE_ME_LOCAL_DEV_PASSWORD"

@@ -18,6 +18,10 @@ namespace WicStock_.Models
         public int ProduitId { get; set; }
         public Produit? Produit { get; set; }
 
+        // FK vers la variante spécifique (optionnelle pour compatibilité historique)
+        public int? VarianteProduitId { get; set; }
+        public VarianteProduit? VarianteProduit { get; set; }
+
         /// <summary>Quantité commandée pour ce produit.</summary>
         public int Quantite { get; set; }
 
@@ -33,5 +37,10 @@ namespace WicStock_.Models
 
         /// <summary>Indique si ce produit était en rupture et commandé sur commande.</summary>
         public bool EstSurCommande { get; set; } = false;
+
+        /// <summary>Snapshot des attributs choisis par le client au moment de la commande.</summary>
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
     }
 }

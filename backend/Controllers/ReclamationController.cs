@@ -99,7 +99,7 @@ namespace WicStock_.Controllers
             var reclamation = new Reclamation
             {
                 CommandeId = commande.Id,
-                ProduitId = commande.ProduitId,
+                ProduitId = (dto.ProduitId.HasValue && dto.ProduitId.Value > 0) ? dto.ProduitId.Value : commande.ProduitId,
                 ClientId = userId,
                 Motif = dto.Motif.Trim(),
                 Description = dto.Description.Trim(),

@@ -31,6 +31,10 @@ namespace WicStock.Web.Models.Dtos
         public string Nom { get; set; } = string.Empty;
         public string TypeTissu { get; set; } = string.Empty;
         public string Categorie { get; set; } = string.Empty;
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
+        public string? CodeHexCouleur { get; set; }
         public string CycleDeVie { get; set; } = string.Empty;
         public decimal PrixUnitaire { get; set; } = 0;
         public DateTime DateCreation { get; set; }
@@ -40,6 +44,10 @@ namespace WicStock.Web.Models.Dtos
         public bool EstArchive { get; set; } = false;
         public int? RemisePourcentage { get; set; }
         public DateTime? DateFinPromotion { get; set; }
+
+        // Avis & notes clients
+        public double NoteMoyenne { get; set; } = 0;
+        public int NombreAvis { get; set; } = 0;
 
         public bool EstEnPromotion =>
             RemisePourcentage.HasValue && RemisePourcentage.Value > 0 &&
@@ -66,6 +74,9 @@ namespace WicStock.Web.Models.Dtos
         }
 
         public StockDto? Stock { get; set; } = new StockDto();
+        public List<VarianteDto> Variantes { get; set; } = new();
+        public decimal PrixMinimum { get; set; }
+        public int QuantiteTotalStock => Variantes != null && Variantes.Any() ? Variantes.Sum(v => v.QuantiteActuelle) : (Stock?.QuantiteActuelle ?? 0);
         public List<PrevisionEtatProduitDto> Previsions { get; set; } = new();
 
         public PrevisionEtatProduitDto? DernierePrevision => Previsions?.OrderByDescending(p => p.DateCalcul).FirstOrDefault();

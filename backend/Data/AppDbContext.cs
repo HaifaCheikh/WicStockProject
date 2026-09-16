@@ -17,6 +17,8 @@ public class AppDbContext : DbContext
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<Avis> Avis { get; set; }
     public DbSet<Reclamation> Reclamations { get; set; }
+    public DbSet<AttributValeur> AttributsValeurs { get; set; }
+    public DbSet<VarianteProduit> VariantesProduit { get; set; }
     public DbSet<LigneCommande> LigneCommandes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -150,6 +152,37 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(a => a.ClientId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Configuration AttributValeur : Index unique sur (Type, Valeur)
+        modelBuilder.Entity<AttributValeur>()
+            .HasIndex(a => new { a.Type, a.Valeur })
+            .IsUnique();
+
+        // Configuration VarianteProduit : Index unique sur Reference et sur (ProduitId, Genre, Taille, Couleur)
+        modelBuilder.Entity<VarianteProduit>()
+            .HasIndex(v => v.Reference)
+            .IsUnique();
+
+        modelBuilder.Entity<VarianteProduit>()
+            .HasIndex(v => new { v.ProduitId, v.Genre, v.Taille, v.Couleur })
+            .IsUnique();
+
+        modelBuilder.Entity<VarianteProduit>()
+            .HasOne(v => v.Produit)
+            .WithMany(p => p.Variantes)
+            .HasForeignKey(v => v.ProduitId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<VarianteProduit>()
+            .Property(v => v.PrixOverride)
+            .HasPrecision(18, 2);
+
+        // LigneCommande <-> VarianteProduit
+        modelBuilder.Entity<LigneCommande>()
+            .HasOne(l => l.VarianteProduit)
+            .WithMany()
+            .HasForeignKey(l => l.VarianteProduitId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // Configuration Reclamation
         modelBuilder.Entity<Reclamation>()

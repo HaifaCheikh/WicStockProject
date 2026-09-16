@@ -12,17 +12,13 @@ namespace WicStock_.Services
         {
             _httpClient = httpClient;
             _configuration = configuration;
-
-            var apiKey = _configuration["LemonSqueezy:ApiKey"];
-            if (!string.IsNullOrEmpty(apiKey))
-            {
-                _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
-                _httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.api+json");
-            }
+            // Les headers Authorization et Accept sont définis dans CreateCheckoutAsync
+            // pour pouvoir utiliser la clé la plus à jour (config ou env var)
         }
 
-        public string? GetStoreId() => _configuration["LemonSqueezy:StoreId"];
-        public string? GetVariantId() => _configuration["LemonSqueezy:VariantId"];
+        public string? GetStoreId() => (_configuration["LemonSqueezy:StoreId"] ?? Environment.GetEnvironmentVariable("LEMONSQUEEZY_STORE_ID"))?.Trim();
+        public string? GetVariantId() => (_configuration["LemonSqueezy:VariantId"] ?? Environment.GetEnvironmentVariable("LEMONSQUEEZY_VARIANT_ID"))?.Trim();
+        public string? GetApiKey() => (_configuration["LemonSqueezy:ApiKey"] ?? Environment.GetEnvironmentVariable("LEMONSQUEEZY_API_KEY"))?.Trim();
 
         public async Task<CheckoutResponse?> CreateCheckoutAsync(
             decimal amount,
@@ -38,20 +34,35 @@ namespace WicStock_.Services
         {
             var storeId = GetStoreId();
             var variantId = GetVariantId();
+            var apiKey = GetApiKey();
 
-            if (string.IsNullOrEmpty(storeId) || string.IsNullOrEmpty(variantId))
+            if (string.IsNullOrEmpty(storeId) || string.IsNullOrEmpty(variantId) || string.IsNullOrEmpty(apiKey)
+                || apiKey.Contains("VOTRE_CLE") || storeId.Contains("VOTRE_STORE") || variantId.Contains("VOTRE_VARIANT")
+                || apiKey == "12345" || storeId == "12345" || variantId == "67890"
+                || apiKey.Length < 20)
+            {
                 return null;
+            }
 
-            // custom_price = prix unitaire en centimes (PrixUnitaire × 100)
-            // LemonSqueezy calcule automatiquement : Total = custom_price × quantity
+            // custom_price = prix unitaire en centimes (ex: 160 TND = 16000 centimes)
             var prixUnitaireCentimes = (long)Math.Round((amount / (quantite > 0 ? quantite : 1)) * 100);
+
+            // Valider code pays ISO-2
+            string? validCountry = null;
+            if (!string.IsNullOrWhiteSpace(country))
+            {
+                var c = country.Trim().ToUpper();
+                if (c.Length == 2) validCountry = c;
+                else if (c == "TUNISIE" || c == "TUNISIA") validCountry = "TN";
+                else if (c == "FRANCE") validCountry = "FR";
+            }
 
             var checkoutDataInfo = new CheckoutDataInfo
             {
-                Name = clientName,
-                Email = clientEmail,
-                BillingAddress = (!string.IsNullOrWhiteSpace(country) || !string.IsNullOrWhiteSpace(zip))
-                    ? new BillingAddressInfo { Country = country, Zip = zip }
+                Name = string.IsNullOrWhiteSpace(clientName) ? null : clientName.Trim(),
+                Email = string.IsNullOrWhiteSpace(clientEmail) ? null : clientEmail.Trim(),
+                BillingAddress = (!string.IsNullOrWhiteSpace(validCountry))
+                    ? new BillingAddressInfo { Country = validCountry, Zip = string.IsNullOrWhiteSpace(zip) ? null : zip.Trim() }
                     : null,
                 Custom = new Dictionary<string, string>
                 {
@@ -59,28 +70,26 @@ namespace WicStock_.Services
                 }
             };
 
-            var request = new CheckoutRequest
+            var requestData = new CheckoutRequest
             {
                 Data = new CheckoutData
                 {
                     Type = "checkouts",
                     Attributes = new CheckoutAttributes
                     {
-                        // Prix unitaire en centimes — LemonSqueezy multiplie par quantity pour le total
                         CustomPrice = prixUnitaireCentimes,
                         CheckoutData = checkoutDataInfo,
                         ProductOptions = new ProductOptions
                         {
                             Name = productName,
-                            Description = $"Paiement sécurisé sur WicStock — {productName}",
+                            Description = $"{productName} — WicStock",
                             ReceiptButtonText = "Retour à WicStock",
                             RedirectUrl = successUrl
                         },
                         CheckoutOptions = new CheckoutOptions
                         {
                             ButtonColor = "#1E6B4C",
-                            Embed = false,
-                            Quantity = quantite > 0 ? quantite : 1
+                            Embed = false
                         }
                     },
                     Relationships = new CheckoutRelationships
@@ -103,10 +112,16 @@ namespace WicStock_.Services
                 PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
             };
 
-            var json = JsonSerializer.Serialize(request, jsonOptions);
-            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/vnd.api+json");
+            var json = JsonSerializer.Serialize(requestData, jsonOptions);
 
-            var response = await _httpClient.PostAsync("https://api.lemonsqueezy.com/v1/checkouts", content);
+            var reqMsg = new HttpRequestMessage(HttpMethod.Post, "https://api.lemonsqueezy.com/v1/checkouts")
+            {
+                Content = new StringContent(json, System.Text.Encoding.UTF8, "application/vnd.api+json")
+            };
+            reqMsg.Headers.TryAddWithoutValidation("Authorization", $"Bearer {apiKey}");
+            reqMsg.Headers.TryAddWithoutValidation("Accept", "application/vnd.api+json");
+
+            var response = await _httpClient.SendAsync(reqMsg);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -120,7 +135,15 @@ namespace WicStock_.Services
 
         public async Task<OrderResponse?> GetOrderAsync(string orderId)
         {
-            var response = await _httpClient.GetAsync($"https://api.lemonsqueezy.com/v1/orders/{orderId}");
+            var apiKey = GetApiKey();
+            var reqMsg = new HttpRequestMessage(HttpMethod.Get, $"https://api.lemonsqueezy.com/v1/orders/{orderId}");
+            if (!string.IsNullOrEmpty(apiKey))
+            {
+                reqMsg.Headers.TryAddWithoutValidation("Authorization", $"Bearer {apiKey}");
+            }
+            reqMsg.Headers.TryAddWithoutValidation("Accept", "application/vnd.api+json");
+
+            var response = await _httpClient.SendAsync(reqMsg);
             if (!response.IsSuccessStatusCode)
                 return null;
 
@@ -211,9 +234,6 @@ namespace WicStock_.Services
 
         [JsonPropertyName("embed")]
         public bool Embed { get; set; }
-
-        [JsonPropertyName("quantity")]
-        public int? Quantity { get; set; }
     }
 
     public class CheckoutRelationships

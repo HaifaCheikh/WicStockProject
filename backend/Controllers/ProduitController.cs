@@ -16,17 +16,23 @@ namespace WicStock_.Controllers
         private readonly IMetriquesStockService _metriquesService;
         private readonly IAnalyseSurstockService _analyseSurstockService;
         private readonly NotificationService _notificationService;
+        private readonly IAttributService _attributService;
+        private readonly ILogger<ProduitController> _logger;
 
         public ProduitController(
             AppDbContext context,
             IMetriquesStockService metriquesService,
             IAnalyseSurstockService analyseSurstockService,
-            NotificationService notificationService)
+            NotificationService notificationService,
+            IAttributService attributService,
+            ILogger<ProduitController> logger)
         {
             _context = context;
             _metriquesService = metriquesService;
             _analyseSurstockService = analyseSurstockService;
             _notificationService = notificationService;
+            _attributService = attributService;
+            _logger = logger;
         }
 
         // GET: api/produit (Vue interne)
@@ -34,11 +40,30 @@ namespace WicStock_.Controllers
         [Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
         public async Task<ActionResult<IEnumerable<Produit>>> GetProduits()
         {
-            return await _context.Produits
+            _logger.LogInformation("Récupération de la liste complète des produits catalogue.");
+
+            var produits = await _context.Produits
                 .Include(p => p.Stock)
+                .Include(p => p.Variantes)
                 .Include(p => p.Previsions)
                     .ThenInclude(pr => pr.ActionRecommandee)
                 .ToListAsync();
+
+            // Mettre à jour la métrique custom Prometheus (nombre total de produits en catalogue)
+            WicStockMetrics.ProductsTotal.Set(produits.Count);
+
+            var allAvis = await _context.Avis
+                .Where(a => a.Statut == Enums.StatutAvis.PUBLIE)
+                .ToListAsync();
+
+            foreach (var p in produits)
+            {
+                var pAvis = allAvis.Where(a => a.ProduitId == p.Id).ToList();
+                p.NombreAvis = pAvis.Count;
+                p.NoteMoyenne = pAvis.Count > 0 ? Math.Round(pAvis.Average(a => a.Note), 1) : 0;
+            }
+
+            return produits;
         }
 
         // GET: api/produit/catalogue (Catalogue public — accessible sans token)
@@ -49,13 +74,22 @@ namespace WicStock_.Controllers
             var today = DateTime.Today;
             var produits = await _context.Produits
                 .Include(p => p.Stock)
+                .Include(p => p.Variantes)
                 .Where(p => !p.EstArchive)
                 .ToListAsync();
 
-            // RÃƒÂ©cupÃƒÂ©rer les actions de promotion confirmÃƒÂ©es
+            var totalCount = await _context.Produits.CountAsync();
+            WicStockMetrics.ProductsTotal.Set(totalCount);
+
+            // Récupérer les actions de promotion confirmées
             var promoActions = await _context.ActionsRecommandees
                 .Where(a => a.TypeAction == Enums.TypeAction.PROMOTION_CIBLEE)
                 .OrderByDescending(a => a.DateGeneration)
+                .ToListAsync();
+
+            // Récupérer tous les avis publiés pour calculer les notes moyennes
+            var allAvis = await _context.Avis
+                .Where(a => a.Statut == Enums.StatutAvis.PUBLIE)
                 .ToListAsync();
 
             var result = new List<object>();
@@ -65,13 +99,12 @@ namespace WicStock_.Controllers
                 int remise = p.RemisePourcentage ?? 0;
                 DateTime? dateFin = p.DateFinPromotion;
 
-                // Si pas de remise enregistrÃƒÂ©e directement sur le produit, chercher dans les ActionsRecommandees (backfill)
                 if (remise == 0)
                 {
                     var lastPromo = promoActions.FirstOrDefault(a => a.ProduitId == p.Id);
                     if (lastPromo != null && (DateTime.Now - lastPromo.DateGeneration).TotalDays <= 30)
                     {
-                        remise = 20; // valeur par dÃƒÂ©faut
+                        remise = 20;
                         if (!string.IsNullOrEmpty(lastPromo.TexteGenere))
                         {
                             var match = System.Text.RegularExpressions.Regex.Match(lastPromo.TexteGenere, @"Promotion de (\d+)%");
@@ -81,21 +114,23 @@ namespace WicStock_.Controllers
                             }
                         }
                         dateFin = lastPromo.DateGeneration.AddDays(14);
-
-                        // Synchroniser les valeurs sur l'entitÃƒÂ© Produit en base
                         p.RemisePourcentage = remise;
                         p.DateFinPromotion = dateFin;
                     }
                 }
 
                 bool estEnPromo = remise > 0 && dateFin.HasValue && dateFin.Value.Date >= today;
-                decimal prixPromo = estEnPromo ? Math.Round(p.PrixUnitaire * (1 - (decimal)remise / 100m), 2) : p.PrixUnitaire;
-                int quantiteDisponible = p.Stock?.QuantiteActuelle ?? 0;
+                decimal prixBase = p.PrixMinimum;
+                decimal prixPromo = estEnPromo ? Math.Round(prixBase * (1 - (decimal)remise / 100m), 2) : prixBase;
+                int quantiteDisponible = p.QuantiteTotalStock;
                 int seuilAlerte = p.Stock?.SeuilAlerte ?? 10;
                 bool estStockFaible = quantiteDisponible > 0 && quantiteDisponible <= seuilAlerte;
                 string statutStock = quantiteDisponible <= 0
                     ? (p.DisponibleSurCommande ? "SUR_COMMANDE" : "RUPTURE")
                     : (estStockFaible ? "STOCK_FAIBLE" : "DISPONIBLE");
+
+                var productAvis = allAvis.Where(a => a.ProduitId == p.Id).ToList();
+                double noteMoyenne = productAvis.Count > 0 ? productAvis.Average(a => a.Note) : 0;
 
                 result.Add(new
                 {
@@ -104,7 +139,12 @@ namespace WicStock_.Controllers
                     p.Nom,
                     p.TypeTissu,
                     p.Categorie,
-                    p.PrixUnitaire,
+                    p.Genre,
+                    p.Taille,
+                    p.Couleur,
+                    p.CodeHexCouleur,
+                    PrixUnitaire = prixBase,
+                    PrixMinimum = p.PrixMinimum,
                     p.ImageUrl,
                     StatutStock = statutStock,
                     RemisePourcentage = remise,
@@ -116,7 +156,23 @@ namespace WicStock_.Controllers
                     QuantiteActuelle = quantiteDisponible,
                     SeuilAlerte = seuilAlerte,
                     EstStockFaible = estStockFaible,
-                    p.DisponibleSurCommande
+                    p.DisponibleSurCommande,
+                    NoteMoyenne = Math.Round(noteMoyenne, 1),
+                    NombreAvis = productAvis.Count,
+                    Variantes = p.Variantes.Select(v => new
+                    {
+                        v.Id,
+                        v.ProduitId,
+                        v.Reference,
+                        v.Genre,
+                        v.Taille,
+                        v.Couleur,
+                        v.CodeHexCouleur,
+                        v.QuantiteActuelle,
+                        v.SeuilAlerte,
+                        v.PrixOverride,
+                        PrixEffectif = v.PrixEffectif
+                    }).ToList()
                 });
             }
 
@@ -133,6 +189,7 @@ namespace WicStock_.Controllers
             var today = DateTime.Today;
             var p = await _context.Produits
                 .Include(p => p.Stock)
+                .Include(p => p.Variantes)
                 .FirstOrDefaultAsync(p => p.Id == id && !p.EstArchive);
 
             if (p == null)
@@ -162,8 +219,9 @@ namespace WicStock_.Controllers
             }
 
             bool estEnPromo = remise > 0 && dateFin.HasValue && dateFin.Value.Date >= today;
-            decimal prixPromo = estEnPromo ? Math.Round(p.PrixUnitaire * (1 - (decimal)remise / 100m), 2) : p.PrixUnitaire;
-            int quantiteDisponible = p.Stock?.QuantiteActuelle ?? 0;
+            decimal prixBase = p.PrixMinimum;
+            decimal prixPromo = estEnPromo ? Math.Round(prixBase * (1 - (decimal)remise / 100m), 2) : prixBase;
+            int quantiteDisponible = p.QuantiteTotalStock;
             int seuilAlerte = p.Stock?.SeuilAlerte ?? 10;
             bool estStockFaible = quantiteDisponible > 0 && quantiteDisponible <= seuilAlerte;
             string statutStock = quantiteDisponible <= 0
@@ -183,7 +241,12 @@ namespace WicStock_.Controllers
                 p.Nom,
                 p.TypeTissu,
                 p.Categorie,
-                p.PrixUnitaire,
+                p.Genre,
+                p.Taille,
+                p.Couleur,
+                p.CodeHexCouleur,
+                PrixUnitaire = prixBase,
+                PrixMinimum = p.PrixMinimum,
                 p.ImageUrl,
                 p.DisponibleSurCommande,
                 StatutStock = statutStock,
@@ -195,7 +258,21 @@ namespace WicStock_.Controllers
                 SeuilAlerte = seuilAlerte,
                 EstStockFaible = estStockFaible,
                 NoteMoyenne = Math.Round(noteMoyenne, 1),
-                NombreAvis = avis.Count
+                NombreAvis = avis.Count,
+                Variantes = p.Variantes.Select(v => new
+                {
+                    v.Id,
+                    v.ProduitId,
+                    v.Reference,
+                    v.Genre,
+                    v.Taille,
+                    v.Couleur,
+                    v.CodeHexCouleur,
+                    v.QuantiteActuelle,
+                    v.SeuilAlerte,
+                    v.PrixOverride,
+                    PrixEffectif = v.PrixEffectif
+                }).ToList()
             });
         }
 
@@ -206,6 +283,7 @@ namespace WicStock_.Controllers
         {
             var produit = await _context.Produits
                 .Include(p => p.Stock)
+                .Include(p => p.Variantes)
                 .Include(p => p.Alertes)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
@@ -220,16 +298,71 @@ namespace WicStock_.Controllers
         [Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
         public async Task<ActionResult<Produit>> CreerProduit(Produit produit)
         {
+            // Désactiver la validation automatique du modèle (gérée manuellement ci-dessous)
+            ModelState.Clear();
+
+            if (produit == null)
+                return BadRequest(new { message = "Le corps de la requête est vide." });
+
+            // Normaliser les chaînes vides en null pour les champs optionnels
+            produit.Genre   = string.IsNullOrWhiteSpace(produit.Genre)   ? null : produit.Genre.Trim();
+            produit.Taille  = string.IsNullOrWhiteSpace(produit.Taille)  ? null : produit.Taille.Trim();
+            produit.Couleur = string.IsNullOrWhiteSpace(produit.Couleur) ? null : produit.Couleur.Trim();
+
+            if (produit.Variantes != null)
+            {
+                foreach (var v in produit.Variantes)
+                {
+                    v.Genre   = string.IsNullOrWhiteSpace(v.Genre)   ? null : v.Genre.Trim();
+                    v.Taille  = string.IsNullOrWhiteSpace(v.Taille)  ? null : v.Taille.Trim();
+                    v.Couleur = string.IsNullOrWhiteSpace(v.Couleur) ? null : v.Couleur.Trim();
+                }
+            }
+
+            // Valider les attributs généraux s'ils sont renseignés
+            if (!string.IsNullOrEmpty(produit.Genre) && !await _attributService.EstValideAsync("Genre", produit.Genre))
+                return BadRequest(new { message = $"Le genre '{produit.Genre}' n'est pas une valeur valide ou active." });
+            if (!string.IsNullOrEmpty(produit.Taille) && !await _attributService.EstValideAsync("Taille", produit.Taille))
+                return BadRequest(new { message = $"La taille '{produit.Taille}' n'est pas une valeur valide ou active." });
+            if (!string.IsNullOrEmpty(produit.Couleur) && !await _attributService.EstValideAsync("Couleur", produit.Couleur))
+                return BadRequest(new { message = $"La couleur '{produit.Couleur}' n'est pas une valeur valide ou active." });
+
+            // Valider et initialiser les variantes
+            if (produit.Variantes != null && produit.Variantes.Any())
+            {
+                foreach (var v in produit.Variantes)
+                {
+                    if (!string.IsNullOrEmpty(v.Genre) && !await _attributService.EstValideAsync("Genre", v.Genre))
+                        return BadRequest(new { message = $"Genre invalide pour la variante : '{v.Genre}'." });
+                    if (!string.IsNullOrEmpty(v.Taille) && !await _attributService.EstValideAsync("Taille", v.Taille))
+                        return BadRequest(new { message = $"Taille invalide pour la variante : '{v.Taille}'." });
+                    if (!string.IsNullOrEmpty(v.Couleur) && !await _attributService.EstValideAsync("Couleur", v.Couleur))
+                        return BadRequest(new { message = $"Couleur invalide pour la variante : '{v.Couleur}'." });
+
+                    if (string.IsNullOrWhiteSpace(v.Reference))
+                    {
+                        var genreCode = string.IsNullOrWhiteSpace(v.Genre) ? "U" : v.Genre.Substring(0, 1).ToUpperInvariant();
+                        var tailleCode = string.IsNullOrWhiteSpace(v.Taille) ? "STD" : v.Taille.Replace(" ", "").ToUpperInvariant();
+                        var couleurCode = string.IsNullOrWhiteSpace(v.Couleur) ? "DEF" : System.Text.RegularExpressions.Regex.Replace(v.Couleur, @"[^a-zA-Z0-9]", "").ToUpperInvariant();
+                        v.Reference = $"{produit.Reference}-{genreCode}-{tailleCode}-{couleurCode}";
+                    }
+                }
+            }
+
             if (!string.IsNullOrEmpty(produit.ImageBase64))
             {
                 produit.ImageUrl = SaveUploadedImage(produit.ImageBase64);
             }
 
+            int stockTotal = produit.Variantes != null && produit.Variantes.Any()
+                ? produit.Variantes.Sum(v => v.QuantiteActuelle)
+                : (produit.Stock?.QuantiteActuelle ?? 0);
+
             if (produit.Stock == null)
             {
                 produit.Stock = new Stock
                 {
-                    QuantiteActuelle = 0,
+                    QuantiteActuelle = stockTotal,
                     SeuilAlerte = 10,
                     Emplacement = "Magasin principal",
                     DateMiseAJour = DateTime.Now
@@ -237,14 +370,16 @@ namespace WicStock_.Controllers
             }
             else
             {
+                produit.Stock.QuantiteActuelle = stockTotal;
                 produit.Stock.DateMiseAJour = DateTime.Now;
             }
+
             _context.Produits.Add(produit);
             await _context.SaveChangesAsync();
 
             if (produit.Stock != null)
             {
-                var qte = produit.Stock.QuantiteActuelle > 0 ? produit.Stock.QuantiteActuelle : 1;
+                var qte = stockTotal > 0 ? stockTotal : 1;
                 _context.MouvementsStock.Add(new MouvementStock
                 {
                     StockId = produit.Stock.Id,
@@ -254,28 +389,10 @@ namespace WicStock_.Controllers
                     Motif = $"Ajout du produit - {produit.Nom}"
                 });
                 await _context.SaveChangesAsync();
-
-                try
-                {
-                    if (produit.Stock.EstSousLeSeuil() && !produit.DisponibleSurCommande)
-                    {
-                        await _notificationService.NotifierNouvelEvenementAsync(
-                            Enums.TypeNotification.RUPTURE_STOCK,
-                            $"Alerte stock bas : Le produit '{produit.Nom}' est sous le seuil d'alerte ({produit.Stock.QuantiteActuelle} / {produit.Stock.SeuilAlerte} unité(s)).",
-                            $"/produits/modifier/{produit.Id}",
-                            Enums.RoleUtilisateur.RESPONSABLE_STOCK_PRODUCTION
-                        );
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[NOTIFICATION ERROR] {ex.Message}");
-                }
             }
 
             try
             {
-                // Notifier les CLIENTS qu'un nouveau produit est disponible
                 await _notificationService.NotifierNouvelEvenementAsync(
                     Enums.TypeNotification.NOUVEAU_PRODUIT,
                     $"Nouveau produit disponible ! Découvrez notre nouvel article '{produit.Nom}' dans le catalogue.",
@@ -294,91 +411,180 @@ namespace WicStock_.Controllers
         // PUT: api/produit/5
         [HttpPut("{id}")]
         [Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
-        public async Task<IActionResult> ModifierProduit(int id, Produit produit)
+        public async Task<IActionResult> ModifierProduit(int id, [FromBody] ProduitUpdateDto dto)
         {
-            if (id != produit.Id)
-                return BadRequest();
+            ModelState.Clear();
 
-            if (!string.IsNullOrEmpty(produit.ImageBase64))
+            if (dto == null)
+                return BadRequest(new { message = "Le corps de la requête est vide." });
+
+            if (dto.Id == 0)
+                dto.Id = id;
+
+            if (id != dto.Id)
+                return BadRequest(new { message = $"L'ID de l'URL ({id}) ne correspond pas à l'ID du produit ({dto.Id})." });
+
+            // Normaliser les chaînes vides en null
+            dto.Genre   = string.IsNullOrWhiteSpace(dto.Genre)   ? null : dto.Genre.Trim();
+            dto.Taille  = string.IsNullOrWhiteSpace(dto.Taille)  ? null : dto.Taille.Trim();
+            dto.Couleur = string.IsNullOrWhiteSpace(dto.Couleur) ? null : dto.Couleur.Trim();
+
+            if (dto.Variantes != null)
             {
-                // Supprimer l'ancienne image si elle existe
-                if (!string.IsNullOrEmpty(produit.ImageUrl))
+                foreach (var v in dto.Variantes)
                 {
-                    var pathRelatif = produit.ImageUrl.Replace("/", Path.DirectorySeparatorChar.ToString()).TrimStart(Path.DirectorySeparatorChar);
+                    v.Genre   = string.IsNullOrWhiteSpace(v.Genre)   ? null : v.Genre.Trim();
+                    v.Taille  = string.IsNullOrWhiteSpace(v.Taille)  ? null : v.Taille.Trim();
+                    v.Couleur = string.IsNullOrWhiteSpace(v.Couleur) ? null : v.Couleur.Trim();
+                }
+            }
+
+            if (!string.IsNullOrEmpty(dto.Genre) && !await _attributService.EstValideAsync("Genre", dto.Genre))
+                return BadRequest(new { message = $"Le genre '{dto.Genre}' n'est pas une valeur valide ou active." });
+            if (!string.IsNullOrEmpty(dto.Taille) && !await _attributService.EstValideAsync("Taille", dto.Taille))
+                return BadRequest(new { message = $"La taille '{dto.Taille}' n'est pas une valeur valide ou active." });
+            if (!string.IsNullOrEmpty(dto.Couleur) && !await _attributService.EstValideAsync("Couleur", dto.Couleur))
+                return BadRequest(new { message = $"La couleur '{dto.Couleur}' n'est pas une valeur valide ou active." });
+
+            if (!string.IsNullOrEmpty(dto.ImageBase64))
+            {
+                if (!string.IsNullOrEmpty(dto.ImageUrl))
+                {
+                    var pathRelatif = dto.ImageUrl.Replace("/", Path.DirectorySeparatorChar.ToString()).TrimStart(Path.DirectorySeparatorChar);
                     var oldFilePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", pathRelatif);
                     if (System.IO.File.Exists(oldFilePath))
                     {
                         try { System.IO.File.Delete(oldFilePath); } catch { }
                     }
                 }
-                produit.ImageUrl = SaveUploadedImage(produit.ImageBase64);
+                dto.ImageUrl = SaveUploadedImage(dto.ImageBase64);
             }
 
-            // Mise ÃƒÂ  jour des propriÃƒÂ©tÃƒÂ©s du produit
             var existingProduit = await _context.Produits
                 .Include(p => p.Stock)
+                .Include(p => p.Variantes)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (existingProduit == null)
                 return NotFound();
 
-            existingProduit.Reference = produit.Reference;
-            existingProduit.Nom = produit.Nom;
-            existingProduit.TypeTissu = produit.TypeTissu;
-            existingProduit.Categorie = produit.Categorie;
-            existingProduit.CycleDeVie = produit.CycleDeVie;
-            existingProduit.PrixUnitaire = produit.PrixUnitaire;
-            existingProduit.DisponibleSurCommande = produit.DisponibleSurCommande;
-            if (!string.IsNullOrEmpty(produit.ImageUrl))
+            existingProduit.Reference = dto.Reference;
+            existingProduit.Nom = dto.Nom;
+            existingProduit.TypeTissu = dto.TypeTissu;
+            existingProduit.Categorie = dto.Categorie;
+            existingProduit.Genre = dto.Genre;
+            existingProduit.Taille = dto.Taille;
+            existingProduit.Couleur = dto.Couleur;
+            existingProduit.CycleDeVie = dto.CycleDeVie;
+            existingProduit.PrixUnitaire = dto.PrixUnitaire;
+            existingProduit.DisponibleSurCommande = dto.DisponibleSurCommande;
+            existingProduit.RemisePourcentage = dto.RemisePourcentage;
+            existingProduit.DateFinPromotion = dto.DateFinPromotion;
+            if (!string.IsNullOrEmpty(dto.ImageUrl))
             {
-                existingProduit.ImageUrl = produit.ImageUrl;
+                existingProduit.ImageUrl = dto.ImageUrl;
             }
 
-            if (produit.Stock != null)
+            // Gestion des variantes
+            if (dto.Variantes != null)
             {
-                if (existingProduit.Stock != null)
-                {
-                    int diff = produit.Stock.QuantiteActuelle - existingProduit.Stock.QuantiteActuelle;
-                    existingProduit.Stock.QuantiteActuelle = produit.Stock.QuantiteActuelle;
-                    if (produit.Stock.SeuilAlerte > 0) existingProduit.Stock.SeuilAlerte = produit.Stock.SeuilAlerte;
-                    if (!string.IsNullOrEmpty(produit.Stock.Emplacement)) existingProduit.Stock.Emplacement = produit.Stock.Emplacement;
-                    existingProduit.Stock.DateMiseAJour = DateTime.Now;
+                // Supprimer les variantes absentes du payload
+                var idsMaintient = dto.Variantes.Where(v => v.Id.HasValue && v.Id.Value > 0).Select(v => v.Id!.Value).ToList();
+                var variantesASupprimer = existingProduit.Variantes.Where(v => !idsMaintient.Contains(v.Id)).ToList();
+                _context.VariantesProduit.RemoveRange(variantesASupprimer);
 
-                    if (diff != 0)
+                foreach (var v in dto.Variantes)
+                {
+                    if (!string.IsNullOrEmpty(v.Genre) && !await _attributService.EstValideAsync("Genre", v.Genre))
+                        return BadRequest(new { message = $"Genre invalide pour la variante : '{v.Genre}'." });
+                    if (!string.IsNullOrEmpty(v.Taille) && !await _attributService.EstValideAsync("Taille", v.Taille))
+                        return BadRequest(new { message = $"Taille invalide pour la variante : '{v.Taille}'." });
+                    if (!string.IsNullOrEmpty(v.Couleur) && !await _attributService.EstValideAsync("Couleur", v.Couleur))
+                        return BadRequest(new { message = $"Couleur invalide pour la variante : '{v.Couleur}'." });
+
+                    if (string.IsNullOrWhiteSpace(v.Reference))
                     {
-                        _context.MouvementsStock.Add(new MouvementStock
+                        var genreCode  = string.IsNullOrWhiteSpace(v.Genre)   ? "U"   : v.Genre.Substring(0, 1).ToUpperInvariant();
+                        var tailleCode = string.IsNullOrWhiteSpace(v.Taille)  ? "STD" : v.Taille.Replace(" ", "").ToUpperInvariant();
+                        var couleurCode = string.IsNullOrWhiteSpace(v.Couleur) ? "DEF" : System.Text.RegularExpressions.Regex.Replace(v.Couleur, @"[^a-zA-Z0-9]", "").ToUpperInvariant();
+                        v.Reference = $"{dto.Reference}-{genreCode}-{tailleCode}-{couleurCode}";
+                    }
+
+                    var exV = v.Id.HasValue && v.Id.Value > 0
+                        ? existingProduit.Variantes.FirstOrDefault(ev => ev.Id == v.Id.Value)
+                        : null;
+
+                    if (exV != null)
+                    {
+                        exV.Reference       = v.Reference;
+                        exV.Genre           = v.Genre;
+                        exV.Taille          = v.Taille;
+                        exV.Couleur         = v.Couleur;
+                        exV.QuantiteActuelle = v.QuantiteActuelle;
+                        exV.SeuilAlerte     = v.SeuilAlerte;
+                        exV.PrixOverride    = v.PrixOverride;
+                    }
+                    else
+                    {
+                        existingProduit.Variantes.Add(new VarianteProduit
                         {
-                            StockId = existingProduit.Stock.Id,
-                            Type = diff > 0 ? Enums.TypeMouvement.ENTREE : Enums.TypeMouvement.SORTIE,
-                            Quantite = Math.Abs(diff),
-                            Date = DateTime.Now,
-                            Motif = diff > 0 ? $"Ajout de stock (+{diff}) - {existingProduit.Nom}" : $"Ajustement nÃƒÂ©gatif (-{Math.Abs(diff)}) - {existingProduit.Nom}"
+                            ProduitId        = id,
+                            Reference        = v.Reference,
+                            Genre            = v.Genre,
+                            Taille           = v.Taille,
+                            Couleur          = v.Couleur,
+                            QuantiteActuelle = v.QuantiteActuelle,
+                            SeuilAlerte      = v.SeuilAlerte,
+                            PrixOverride     = v.PrixOverride
                         });
                     }
                 }
-                else
-                {
-                    existingProduit.Stock = new Stock
-                    {
-                        ProduitId = id,
-                        QuantiteActuelle = produit.Stock.QuantiteActuelle,
-                        SeuilAlerte = produit.Stock.SeuilAlerte > 0 ? produit.Stock.SeuilAlerte : 10,
-                        Emplacement = !string.IsNullOrEmpty(produit.Stock.Emplacement) ? produit.Stock.Emplacement : "Magasin principal",
-                        DateMiseAJour = DateTime.Now
-                    };
-                    await _context.SaveChangesAsync();
+            }
 
-                    if (existingProduit.Stock.QuantiteActuelle > 0)
+            int stockTotalMaj = existingProduit.Variantes.Any()
+                ? existingProduit.Variantes.Sum(v => v.QuantiteActuelle)
+                : (dto.Stock?.QuantiteActuelle ?? 0);
+
+            if (existingProduit.Stock != null)
+            {
+                int diff = stockTotalMaj - existingProduit.Stock.QuantiteActuelle;
+                existingProduit.Stock.QuantiteActuelle = stockTotalMaj;
+                existingProduit.Stock.DateMiseAJour = DateTime.Now;
+
+                if (diff != 0)
+                {
+                    _context.MouvementsStock.Add(new MouvementStock
                     {
-                        _context.MouvementsStock.Add(new MouvementStock
-                        {
-                            StockId = existingProduit.Stock.Id,
-                            Type = Enums.TypeMouvement.ENTREE,
-                            Quantite = existingProduit.Stock.QuantiteActuelle,
-                            Date = DateTime.Now,
-                            Motif = $"Initialisation stock - {existingProduit.Nom}"
-                        });
-                    }
+                        StockId = existingProduit.Stock.Id,
+                        Type = diff > 0 ? Enums.TypeMouvement.ENTREE : Enums.TypeMouvement.SORTIE,
+                        Quantite = Math.Abs(diff),
+                        Date = DateTime.Now,
+                        Motif = diff > 0 ? $"Ajout de stock (+{diff}) - {existingProduit.Nom}" : $"Ajustement négatif (-{Math.Abs(diff)}) - {existingProduit.Nom}"
+                    });
+                }
+            }
+            else if (dto.Stock != null)
+            {
+                existingProduit.Stock = new Stock
+                {
+                    ProduitId        = id,
+                    QuantiteActuelle = stockTotalMaj,
+                    SeuilAlerte      = dto.Stock.SeuilAlerte > 0 ? dto.Stock.SeuilAlerte : 10,
+                    Emplacement      = !string.IsNullOrEmpty(dto.Stock.Emplacement) ? dto.Stock.Emplacement : "Magasin principal",
+                    DateMiseAJour    = DateTime.Now
+                };
+                await _context.SaveChangesAsync();
+
+                if (existingProduit.Stock.QuantiteActuelle > 0)
+                {
+                    _context.MouvementsStock.Add(new MouvementStock
+                    {
+                        StockId  = existingProduit.Stock.Id,
+                        Type     = Enums.TypeMouvement.ENTREE,
+                        Quantite = existingProduit.Stock.QuantiteActuelle,
+                        Date     = DateTime.Now,
+                        Motif    = $"Initialisation stock - {existingProduit.Nom}"
+                    });
                 }
             }
 
@@ -390,7 +596,7 @@ namespace WicStock_.Controllers
                 {
                     await _notificationService.NotifierNouvelEvenementAsync(
                         Enums.TypeNotification.RUPTURE_STOCK,
-                        $"Alerte stock bas : Le produit '{existingProduit.Nom}' est sous le seuil d'alerte ({existingProduit.Stock.QuantiteActuelle} / {existingProduit.Stock.SeuilAlerte} unitÃƒÂ©(s)).",
+                        $"Alerte stock bas : Le produit '{existingProduit.Nom}' est sous le seuil d'alerte ({existingProduit.Stock.QuantiteActuelle} / {existingProduit.Stock.SeuilAlerte} unité(s)).",
                         $"/produits/modifier/{existingProduit.Id}",
                         Enums.RoleUtilisateur.RESPONSABLE_STOCK_PRODUCTION
                     );
@@ -403,9 +609,19 @@ namespace WicStock_.Controllers
                 else
                     throw;
             }
+            catch (DbUpdateException dbEx)
+            {
+                var inner = dbEx.InnerException?.Message ?? dbEx.Message;
+                if (inner.Contains("UNIQUE") || inner.Contains("unique") || inner.Contains("duplicate") || inner.Contains("Duplicate"))
+                {
+                    return BadRequest(new { message = "Une variante avec la même référence (SKU) existe déjà. Modifiez la référence de la variante concernée." });
+                }
+                return BadRequest(new { message = $"Erreur de sauvegarde : {inner}" });
+            }
 
             return NoContent();
         }
+
 
         private string? SaveUploadedImage(string? base64Data)
         {

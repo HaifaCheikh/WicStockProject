@@ -41,12 +41,19 @@ namespace WicStock_.Controllers
 
         // GET: api/avis/commande/{commandeId}
         [HttpGet("commande/{commandeId}")]
-        public async Task<ActionResult<AvisDto>> GetAvisParCommande(int commandeId)
+        public async Task<ActionResult<AvisDto>> GetAvisParCommande(int commandeId, [FromQuery] int? produitId = null)
         {
-            var avis = await _context.Avis
+            var query = _context.Avis
                 .Include(a => a.Produit)
                 .Include(a => a.Client)
-                .FirstOrDefaultAsync(a => a.CommandeId == commandeId);
+                .Where(a => a.CommandeId == commandeId);
+
+            if (produitId.HasValue && produitId.Value > 0)
+            {
+                query = query.Where(a => a.ProduitId == produitId.Value);
+            }
+
+            var avis = await query.FirstOrDefaultAsync();
 
             if (avis == null)
                 return NotFound();
@@ -101,7 +108,8 @@ namespace WicStock_.Controllers
             if ((DateTime.Now - dateReference).TotalDays > 14)
                 return BadRequest("Le délai de 14 jours après la livraison pour déposer un avis est dépassé.");
 
-            var avisExistant = await _context.Avis.FirstOrDefaultAsync(a => a.CommandeId == dto.CommandeId);
+            int targetProduitId = (dto.ProduitId.HasValue && dto.ProduitId.Value > 0) ? dto.ProduitId.Value : commande.ProduitId;
+            var avisExistant = await _context.Avis.FirstOrDefaultAsync(a => a.CommandeId == dto.CommandeId && a.ProduitId == targetProduitId);
 
             if (avisExistant != null)
             {
@@ -122,7 +130,7 @@ namespace WicStock_.Controllers
                 var nouvelAvis = new Avis
                 {
                     CommandeId = commande.Id,
-                    ProduitId = commande.ProduitId,
+                    ProduitId = targetProduitId,
                     ClientId = userId,
                     Note = dto.Note,
                     Commentaire = dto.Commentaire,

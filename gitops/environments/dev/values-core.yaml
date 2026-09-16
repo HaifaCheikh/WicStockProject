@@ -1,0 +1,16 @@
+# gitops/environments/dev/values-core.yaml
+# Values spécifiques au module core (postgres, backend, frontend)
+# Hérite de values.yaml et surcharge les modules non-core
+
+modules:
+  core:
+    enabled: true
+  ai:
+    enabled: false
+  observability:
+    enabled: false
+
+ingress:
+  enabled: true
+  className: "nginx"
+  host: "wicstock.local"

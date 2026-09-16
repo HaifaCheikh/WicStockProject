@@ -7,11 +7,15 @@ namespace WicStock.Web.Models.Dtos
     public class CartItemDto
     {
         public int ProduitId { get; set; }
+        public int? VarianteProduitId { get; set; }
         public string Nom { get; set; } = string.Empty;
         public string Reference { get; set; } = string.Empty;
         public string? ImageUrl { get; set; }
         public string? Categorie { get; set; }
         public string? TypeTissu { get; set; }
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
 
         /// <summary>Prix original (avant promo).</summary>
         public decimal PrixUnitaire { get; set; }
@@ -43,7 +47,11 @@ namespace WicStock.Web.Models.Dtos
     public class LigneCommandeClientDto
     {
         public int ProduitId { get; set; }
+        public int? VarianteProduitId { get; set; }
         public int Quantite { get; set; }
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
     }
 
     /// <summary>Réponse succès du backend après création de commande.</summary>
@@ -60,8 +68,12 @@ namespace WicStock.Web.Models.Dtos
     public class LigneResultClientDto
     {
         public int ProduitId { get; set; }
+        public int? VarianteProduitId { get; set; }
         public string ProduitNom { get; set; } = string.Empty;
         public string ProduitReference { get; set; } = string.Empty;
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
         public int Quantite { get; set; }
         public decimal PrixUnitaire { get; set; }
         public bool EstSurCommande { get; set; }

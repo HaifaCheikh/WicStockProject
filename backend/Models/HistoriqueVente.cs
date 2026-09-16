@@ -56,6 +56,9 @@ namespace WicStock_.Models
         // Legacy mono-produit — conservé pour rétro-compatibilité avec les anciennes commandes
         public int ProduitId { get; set; }
         public Produit? Produit { get; set; }
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
 
         /// <summary>Lignes de commande pour les commandes multi-articles (EstMultiLignes = true).</summary>
         public List<LigneCommande> LigneCommandes { get; set; } = new();

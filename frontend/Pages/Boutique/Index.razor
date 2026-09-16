@@ -88,6 +88,14 @@
                 }
             </select>
 
+            <select class="b-filter-select" @bind="genreFilter">
+                <option value="">Tous les genres</option>
+                @foreach (var g in WicStock.Web.Models.AttributsProduit.Genres)
+                {
+                    <option value="@g">@g</option>
+                }
+            </select>
+
             <select class="b-filter-select" @bind="priceSortFilter">
                 <option value="">Trier par prix</option>
                 <option value="asc">Prix : croissant</option>
@@ -185,14 +193,76 @@
                                 </span>
                             </div>
                             <h3 class="b-card-name">@p.Nom</h3>
-                            @if (!string.IsNullOrEmpty(p.TypeTissu))
+                            @{
+                                var _bGenres   = GetCatGenres(p);
+                                var _bTailles  = GetCatTailles(p);
+                                var _bCouleurs = GetCatCouleurs(p);
+                                // Subtitle: Genre · TypeTissu
+                                var _bSubtitle = string.Join(" · ", new[] {
+                                    _bGenres.FirstOrDefault() ?? "",
+                                    p.TypeTissu ?? ""
+                                }.Where(s => !string.IsNullOrEmpty(s)));
+                            }
+                            @if (!string.IsNullOrEmpty(_bSubtitle))
                             {
-                                <p class="b-card-tissu">@p.TypeTissu</p>
+                                <p class="b-card-tissu">@_bSubtitle</p>
+                            }
+
+                            <!-- Coloris + Tailles from variantes -->
+                            @if (_bCouleurs.Any() || _bTailles.Any())
+                            {
+                                <div class="b-attrs-section">
+                                    @if (_bCouleurs.Any())
+                                    {
+                                        <div class="b-attrs-row">
+                                            <span class="b-attrs-label">Coloris</span>
+                                            <div class="b-swatches">
+                                                @{
+                                                    var _bCoulShow = _bCouleurs.Take(5).ToList();
+                                                    int _bCoulExtra = _bCouleurs.Count - _bCoulShow.Count;
+                                                }
+                                                @foreach (var c in _bCoulShow)
+                                                {
+                                                    <span class="b-swatch" style="background-color:@c.hex;" title="@c.nom"></span>
+                                                }
+                                                @if (_bCoulExtra > 0)
+                                                {
+                                                    <span class="b-swatch-more">+@_bCoulExtra</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                    @if (_bTailles.Any())
+                                    {
+                                        <div class="b-attrs-row">
+                                            <span class="b-attrs-label">Taille</span>
+                                            <div class="b-chips">
+                                                @{
+                                                    var _bTailShow = _bTailles.Take(5).ToList();
+                                                    int _bTailExtra = _bTailles.Count - _bTailShow.Count;
+                                                }
+                                                @foreach (var t in _bTailShow)
+                                                {
+                                                    <span class="b-size-chip">@t</span>
+                                                }
+                                                @if (_bTailExtra > 0)
+                                                {
+                                                    <span class="b-size-chip b-size-chip--more">+@_bTailExtra</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
                             }
 
                             <!-- Prix -->
                             <div class="b-card-prix">
-                                @if (p.EstEnPromotion && p.PrixPromo > 0)
+                                @if (p.PrixMinimum > 0 && p.PrixMinimum < p.PrixUnitaire)
+                                {
+                                    <span class="b-prix-from" style="font-size: 0.78rem; color: #64748B; font-weight: 500; display: block;">À partir de</span>
+                                    <span class="b-prix">@p.PrixMinimum.ToString("0.00") DT</span>
+                                }
+                                else if (p.EstEnPromotion && p.PrixPromo > 0)
                                 {
                                     <span class="b-prix-promo">@p.PrixPromo.ToString("0.00") DT</span>
                                     <span class="b-prix-barre">@p.PrixUnitaire.ToString("0.00") DT</span>
@@ -215,29 +285,18 @@
                                 </p>
                             }
 
-                            <!-- Bouton Ajouter au panier / Commander -->
+                            <!-- Bouton Commander -->
                             <button class="b-add-btn @(p.PeutCommander ? "" : "b-add-btn--disabled")"
-                                    @onclick="() => AjouterAuPanier(p)"
+                                    @onclick="() => VoirDetail(p.Id)"
                                     @onclick:stopPropagation="true"
-                                    disabled="@(!p.PeutCommander || ajoutsEnCours.Contains(p.Id))">
-                                @if (ajoutsEnCours.Contains(p.Id))
-                                {
-                                    <svg class="b-spinner" viewBox="0 0 24 24" width="16" height="16">
-                                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-dasharray="60" stroke-dashoffset="15" fill="none"/>
-                                    </svg>
-                                    <span>Ajout...</span>
-                                }
-                                else if (p.EstEnRupture)
-                                {
-                                    <span>🚫 En rupture</span>
-                                }
-                                else if (p.EstSurCommande)
+                                    disabled="@(!p.PeutCommander)">
+                                @if (p.EstEnRupture)
                                 {
                                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none">
-                                        <path d="M6 2 L3 6 V20 C3 21.1 3.9 22 5 22 H19 C20.1 22 21 21.1 21 20 V6 L18 2 Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                                        <path d="M12 8 V16 M8 12 H16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                                        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>
+                                        <path d="M5.636 5.636 L18.364 18.364" stroke="currentColor" stroke-width="1.8"/>
                                     </svg>
-                                    <span>Commander (sur commande)</span>
+                                    <span>En rupture</span>
                                 }
                                 else
                                 {
@@ -290,7 +349,7 @@
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    .boutique-page { font-family: var(--font-body); background: var(--b-sand); min-height: 100vh; color: var(--b-ink); }
+    .boutique-page { font-family: var(--font-body); background: var(--b-sand); min-height: 100vh; color: var(--b-ink); display: flex; flex-direction: column; }
 
     /* NAVBAR — blanche et sticky, comme la Home (plus de bleu marine plein) */
     .b-navbar { background: var(--b-paper); border-bottom: 1px solid var(--b-border); position: sticky; top: 0; z-index: 100; }
@@ -332,7 +391,7 @@
     .b-filter-count { font-size: 0.8rem; color: var(--b-ink-muted); font-weight: 500; white-space: nowrap; }
 
     /* GRILLE */
-    .b-main { max-width: 1160px; margin: 0 auto; padding: 36px 24px 60px; }
+    .b-main { max-width: 1160px; margin: 0 auto; padding: 36px 24px 60px; flex: 1; width: 100%; }
     .b-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
 
     /* CARTE PRODUIT */
@@ -365,7 +424,19 @@
     .b-rating-none { color: #94A3B8; font-size: 0.7rem; font-weight: 500; }
 
     .b-card-name { font-family: var(--font-head); font-size: 1rem; font-weight: 700; color: var(--b-ink); margin-bottom: 4px; line-height: 1.3; min-height: 2.6em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .b-card-tissu { font-size: 0.8rem; color: var(--b-ink-muted); margin-bottom: 10px; }
+    .b-card-tissu { font-size: 0.78rem; color: var(--b-ink-muted); margin-bottom: 6px; font-weight: 500; }
+
+    /* ===== Attributs variantes (boutique + catalogue) ===== */
+    .b-attrs-section { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+    .b-attrs-row { display: flex; align-items: center; gap: 6px; }
+    .b-attrs-label { font-size: 0.68rem; font-weight: 600; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.04em; min-width: 44px; flex-shrink: 0; }
+    .b-swatches { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .b-swatch { display: inline-block; width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid rgba(0,0,0,0.12); box-shadow: 0 1px 3px rgba(0,0,0,0.12); flex-shrink: 0; transition: transform 0.1s; }
+    .b-swatch:hover { transform: scale(1.2); }
+    .b-swatch-more { font-size: 0.66rem; font-weight: 600; color: #64748B; }
+    .b-chips { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+    .b-size-chip { font-size: 0.66rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; letter-spacing: 0.01em; }
+    .b-size-chip--more { background: #E2E8F0; color: #64748B; }
 
     .b-card-prix { margin-bottom: 10px; }
     .b-prix { font-size: 1.1rem; font-weight: 700; color: var(--b-denim); font-family: var(--font-head); }
@@ -397,7 +468,7 @@
     .b-empty p { font-size: 1rem; margin-bottom: 20px; }
 
     /* Footer */
-    .b-footer { text-align: center; padding: 24px; background: var(--b-paper); border-top: 1px solid var(--b-border); color: var(--b-ink-muted); font-size: 0.8125rem; }
+    .b-footer { text-align: center; padding: 24px; background: var(--b-sand); color: var(--b-ink-muted); font-size: 0.8125rem; margin-top: 40px; }
 
     @@media (max-width: 640px) {
         .b-nav-links { display: none; }
@@ -410,6 +481,9 @@
     private List<CatalogueProduitDto>? produits;
     private string searchString = string.Empty;
     private string categoryFilter = string.Empty;
+    private string genreFilter = string.Empty;
+    private string tailleFilter = string.Empty;
+    private string couleurFilter = string.Empty;
     private string priceSortFilter = string.Empty;
     private int cartCount = 0;
     private HashSet<int> ajoutsEnCours = new();
@@ -424,7 +498,10 @@
                      p.Nom.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
                      p.Reference.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
                      (p.TypeTissu?.Contains(searchString, StringComparison.OrdinalIgnoreCase) ?? false))
-                    && (string.IsNullOrEmpty(categoryFilter) || p.Categorie == categoryFilter))
+                    && (string.IsNullOrEmpty(categoryFilter) || p.Categorie == categoryFilter)
+                    && (string.IsNullOrEmpty(genreFilter) || p.Genre == genreFilter)
+                    && (string.IsNullOrEmpty(tailleFilter) || p.Taille == tailleFilter)
+                    && (string.IsNullOrEmpty(couleurFilter) || p.Couleur == couleurFilter))
                 ?? Enumerable.Empty<CatalogueProduitDto>();
 
             if (priceSortFilter == "asc")
@@ -495,6 +572,9 @@
     {
         searchString = string.Empty;
         categoryFilter = string.Empty;
+        genreFilter = string.Empty;
+        tailleFilter = string.Empty;
+        couleurFilter = string.Empty;
         priceSortFilter = string.Empty;
     }
 
@@ -509,4 +589,69 @@
     {
         CartService.OnCartChanged -= MettreAJourBadge;
     }
+
+    // ===== HELPERS ATTRIBUTS VARIANTES (boutique) =====
+    private List<string> GetCatGenres(CatalogueProduitDto p)
+    {
+        if (p.Variantes?.Any() == true)
+        {
+            var res = p.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Genre))
+                .Select(v => v.Genre!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (res.Any()) return res;
+        }
+        return string.IsNullOrWhiteSpace(p.Genre) ? new() : new() { p.Genre.Trim() };
+    }
+
+    private List<string> GetCatTailles(CatalogueProduitDto p)
+    {
+        if (p.Variantes?.Any() == true)
+        {
+            var res = p.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Taille) && !string.Equals(v.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase))
+                .Select(v => v.Taille!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (res.Any()) return res;
+        }
+
+        if (!string.IsNullOrWhiteSpace(p.Taille) && !string.Equals(p.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase))
+        {
+            return new() { p.Taille.Trim() };
+        }
+
+        return new();
+    }
+
+    private List<(string nom, string hex)> GetCatCouleurs(CatalogueProduitDto p)
+    {
+        if (p.Variantes?.Any(v => !string.IsNullOrWhiteSpace(v.Couleur)) == true)
+        {
+            var res = p.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Couleur))
+                .Select(v => (
+                    nom: v.Couleur!.Trim(),
+                    hex: !string.IsNullOrWhiteSpace(v.CodeHexCouleur) ? v.CodeHexCouleur! : WicStock.Web.Models.AttributsProduit.GetHex(v.Couleur)
+                ))
+                .Where(c => !string.IsNullOrEmpty(c.hex))
+                .GroupBy(c => c.nom, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .ToList();
+            if (res.Any()) return res;
+        }
+
+        if (!string.IsNullOrWhiteSpace(p.Couleur))
+        {
+            var hex = !string.IsNullOrWhiteSpace(p.CodeHexCouleur) ? p.CodeHexCouleur! : WicStock.Web.Models.AttributsProduit.GetHex(p.Couleur);
+            if (!string.IsNullOrEmpty(hex))
+            {
+                return new() { (p.Couleur.Trim(), hex) };
+            }
+        }
+
+        return new();
+    }
 }
+

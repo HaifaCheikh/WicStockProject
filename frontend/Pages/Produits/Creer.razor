@@ -3,7 +3,10 @@
 @using WicStock.Web.Services
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
 @inject ProduitService ProduitService
+@inject AttributService AttributService
 @inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@using MudBlazor
 
 <HeadContent>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -70,12 +73,13 @@
 
                         <MudGrid Spacing="3">
                             <MudItem xs="12">
-                                <MudTextField @bind-Value="produit.Reference"
-                                              Label="Référence"
+                                <MudTextField Value="@produit.Reference"
+                                              ValueChanged="@((string val) => OnReferenceChanged(val))"
+                                              Label="Référence produit"
                                               Variant="Variant.Outlined"
                                               Required="true"
                                               Class="styled-field field-mono"
-                                              Placeholder="Ex: TIS-COT-2026" />
+                                              Placeholder="Ex: TIS-DNM-01" />
                             </MudItem>
 
                             <MudItem xs="12">
@@ -103,7 +107,8 @@
                             </MudItem>
 
                             <MudItem xs="12" sm="6">
-                                <MudSelect @bind-Value="produit.Categorie"
+                                <MudSelect Value="@produit.Categorie"
+                                           ValueChanged="@((string val) => OnCategorieChanged(val))"
                                            Label="Catégorie"
                                            Variant="Variant.Outlined"
                                            Class="styled-field"
@@ -117,9 +122,15 @@
                                     <MudSelectItem Value="@("Skirt")">Skirt</MudSelectItem>
                                     <MudSelectItem Value="@("Shorts")">Shorts</MudSelectItem>
                                 </MudSelect>
+                                @if (!string.IsNullOrWhiteSpace(produit.Categorie))
+                                {
+                                    <span class="hint-text taille-hint">
+                                        Tailles proposées : @TailleSystemeLabel(produit.Categorie)
+                                    </span>
+                                }
                             </MudItem>
 
-                            <MudItem xs="12" sm="6">
+                            <MudItem xs="12">
                                 <MudTextField @bind-Value="produit.CycleDeVie"
                                               Label="Cycle de vie"
                                               Variant="Variant.Outlined"
@@ -129,23 +140,279 @@
                         </MudGrid>
                     </section>
 
+                    <!-- Section : Attributs & Variantes -->
+                    <section class="form-section">
+                        <div class="section-label mb-0">Variantes du produit</div>
+                        <span class="hint-text">Sélectionnez les genres, tailles et couleurs disponibles — le prix reste celui défini ci-dessous pour toutes les déclinaisons.</span>
+
+                        <div class="builder-card">
+                            <div class="builder-grid">
+
+                                <div class="attr-group">
+                                    <div class="attr-group-head">
+                                        <button type="button" class="attr-group-title-btn" @onclick='() => ToggleGroupe("genre")'>
+                                            <MudIcon Icon="@(groupesOuverts["genre"] ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" Size="Size.Small" />
+                                            <span class="attr-group-label">Genre</span>
+                                            @if (selectedGenresGen.Any())
+                                            {
+                                                <span class="attr-group-count">@selectedGenresGen.Count</span>
+                                            }
+                                        </button>
+                                        <button type="button" class="attr-group-toggle" @onclick="() => ToggleAllChips(selectedGenresGen, listGenres)">
+                                            @(AllSelected(selectedGenresGen, listGenres) ? "Aucun" : "Tout sélectionner")
+                                        </button>
+                                    </div>
+                                    @if (groupesOuverts["genre"])
+                                    {
+                                        <div class="chip-list">
+                                            @foreach (var g in listGenres)
+                                            {
+                                                <button type="button"
+                                                        class="attr-chip @(selectedGenresGen.Contains(g.Valeur) ? "attr-chip--active" : "")"
+                                                        @onclick="() => ToggleChip(selectedGenresGen, g.Valeur)">
+                                                    @g.Valeur
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+                                    else if (selectedGenresGen.Any())
+                                    {
+                                        <div class="chip-list chip-list--preview">
+                                            @foreach (var g in listGenres.Where(x => selectedGenresGen.Contains(x.Valeur)))
+                                            {
+                                                <span class="attr-chip attr-chip--mini">@g.Valeur</span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+
+                                <div class="attr-group">
+                                    <div class="attr-group-head">
+                                        <button type="button" class="attr-group-title-btn" @onclick='() => ToggleGroupe("taille")'>
+                                            <MudIcon Icon="@(groupesOuverts["taille"] ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" Size="Size.Small" />
+                                            <span class="attr-group-label">Taille</span>
+                                            @if (selectedTaillesGen.Any())
+                                            {
+                                                <span class="attr-group-count">@selectedTaillesGen.Count</span>
+                                            }
+                                        </button>
+                                        <button type="button" class="attr-group-toggle" @onclick="() => ToggleAllChips(selectedTaillesGen, TaillesFiltrees)">
+                                            @(AllSelected(selectedTaillesGen, TaillesFiltrees) ? "Aucun" : "Tout sélectionner")
+                                        </button>
+                                    </div>
+                                    @if (string.IsNullOrWhiteSpace(produit.Categorie))
+                                    {
+                                        <span class="hint-text">Choisissez une catégorie ci-dessus pour affiner les tailles proposées.</span>
+                                    }
+                                    @if (groupesOuverts["taille"])
+                                    {
+                                        <div class="chip-list">
+                                            @foreach (var t in TaillesFiltrees)
+                                            {
+                                                <button type="button"
+                                                        class="attr-chip @(selectedTaillesGen.Contains(t.Valeur) ? "attr-chip--active" : "")"
+                                                        @onclick="() => ToggleChip(selectedTaillesGen, t.Valeur)">
+                                                    @t.Valeur
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+                                    else if (selectedTaillesGen.Any())
+                                    {
+                                        <div class="chip-list chip-list--preview">
+                                            @foreach (var t in TaillesFiltrees.Where(x => selectedTaillesGen.Contains(x.Valeur)))
+                                            {
+                                                <span class="attr-chip attr-chip--mini">@t.Valeur</span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+
+                                <div class="attr-group">
+                                    <div class="attr-group-head">
+                                        <button type="button" class="attr-group-title-btn" @onclick='() => ToggleGroupe("couleur")'>
+                                            <MudIcon Icon="@(groupesOuverts["couleur"] ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" Size="Size.Small" />
+                                            <span class="attr-group-label">Couleur</span>
+                                            @if (selectedCouleursGen.Any())
+                                            {
+                                                <span class="attr-group-count">@selectedCouleursGen.Count</span>
+                                            }
+                                        </button>
+                                        <button type="button" class="attr-group-toggle" @onclick="() => ToggleAllChips(selectedCouleursGen, listCouleurs)">
+                                            @(AllSelected(selectedCouleursGen, listCouleurs) ? "Aucun" : "Tout sélectionner")
+                                        </button>
+                                    </div>
+                                    @if (groupesOuverts["couleur"])
+                                    {
+                                        <div class="chip-list">
+                                            @foreach (var c in listCouleurs)
+                                            {
+                                                <button type="button"
+                                                        class="attr-chip attr-chip--color @(selectedCouleursGen.Contains(c.Valeur) ? "attr-chip--active" : "")"
+                                                        @onclick="() => ToggleChip(selectedCouleursGen, c.Valeur)">
+                                                    <span class="swatch" style="background-color:@(!string.IsNullOrEmpty(c.CodeHex) ? c.CodeHex : "#ccc")"></span>
+                                                    @c.Valeur
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+                                    else if (selectedCouleursGen.Any())
+                                    {
+                                        <div class="chip-list chip-list--preview">
+                                            @foreach (var c in listCouleurs.Where(x => selectedCouleursGen.Contains(x.Valeur)))
+                                            {
+                                                <span class="attr-chip attr-chip--color attr-chip--mini">
+                                                    <span class="swatch" style="background-color:@(!string.IsNullOrEmpty(c.CodeHex) ? c.CodeHex : "#ccc")"></span>
+                                                    @c.Valeur
+                                                </span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="builder-footer">
+                                <div class="builder-summary">
+                                    <span class="builder-count">@NombreCombinaisonsTotal</span>
+                                    <span>déclinaison(s) seront créées</span>
+                                </div>
+
+                                <div class="stock-input">
+                                    <div class="stock-mode-switch">
+                                        <button type="button"
+                                                class="stock-mode-btn @(modeRepartitionStock == "meme" ? "stock-mode-btn--active" : "")"
+                                                @onclick='() => modeRepartitionStock = "meme"'>
+                                            Même valeur
+                                        </button>
+                                        <button type="button"
+                                                class="stock-mode-btn @(modeRepartitionStock == "total" ? "stock-mode-btn--active" : "")"
+                                                @onclick='() => modeRepartitionStock = "total"'>
+                                            Répartir un total
+                                        </button>
+                                    </div>
+                                    <div class="stock-input-row">
+                                        <label>@(modeRepartitionStock == "total" ? "Stock total à répartir" : "Stock initial (par variante)")</label>
+                                        <input type="number" class="stock-input-field" @bind="initialStockGen" min="0" />
+                                    </div>
+                                    @if (modeRepartitionStock == "total" && NombreCombinaisonsTotal > 0)
+                                    {
+                                        var quotient = initialStockGen / NombreCombinaisonsTotal;
+                                        var reste = initialStockGen % NombreCombinaisonsTotal;
+                                        <span class="stock-mode-hint">
+                                            ≈ @quotient /variante@(reste > 0 ? $" (+1 sur {reste} variante(s))" : "")
+                                        </span>
+                                    }
+                                </div>
+
+                                <button type="button" class="btn btn--primary btn--sm"
+                                        @onclick="GenererCombinaisonsEnMasse"
+                                        disabled="@(NombreCombinaisonsTotal == 0)">
+                                    <MudIcon Icon="@Icons.Material.Filled.Add" Size="Size.Small" />
+                                    <span>Générer les variantes</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        @if (produit.Variantes == null || !produit.Variantes.Any())
+                        {
+                            <div class="empty-state">
+                                <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Large" Class="empty-state-icon" />
+                                <div class="empty-state-title">Aucune variante configurée</div>
+                                <div class="empty-state-hint">
+                                    Sélectionnez au moins un genre, une taille ou une couleur ci-dessus, puis cliquez sur <strong>"Générer les variantes"</strong>.
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="variant-table-wrap">
+                                <table class="variant-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Genre</th>
+                                            <th>Taille</th>
+                                            <th>Couleur</th>
+                                            <th>SKU (auto)</th>
+                                            <th class="col-narrow">Stock</th>
+                                            <th class="col-icon"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var v in produit.Variantes)
+                                        {
+                                            var hex = listCouleurs.FirstOrDefault(c => c.Valeur == v.Couleur)?.CodeHex;
+                                            <tr>
+                                                <td>
+                                                    <select class="variant-select" @bind="v.Genre" @bind:after="() => AutoGenSKU(v)">
+                                                        <option value="">—</option>
+                                                        @foreach (var g in listGenres)
+                                                        {
+                                                            <option value="@g.Valeur">@g.Valeur</option>
+                                                        }
+                                                    </select>
+                                                </td>
+                                                <td>
+                                                    <select class="variant-select" @bind="v.Taille" @bind:after="() => AutoGenSKU(v)">
+                                                        <option value="">—</option>
+                                                        @foreach (var t in TaillesFiltrees)
+                                                        {
+                                                            <option value="@t.Valeur">@t.Valeur</option>
+                                                        }
+                                                    </select>
+                                                </td>
+                                                <td>
+                                                    <div class="variant-color-cell">
+                                                        @if (!string.IsNullOrEmpty(hex))
+                                                        {
+                                                            <span class="swatch-sm" style="background-color:@hex"></span>
+                                                        }
+                                                        <select class="variant-select" @bind="v.Couleur" @bind:after="() => AutoGenSKU(v)">
+                                                            <option value="">—</option>
+                                                            @foreach (var c in listCouleurs)
+                                                            {
+                                                                <option value="@c.Valeur">@c.Valeur</option>
+                                                            }
+                                                        </select>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <input type="text" class="variant-sku" @bind="v.Reference" title="SKU généré automatiquement" />
+                                                </td>
+                                                <td>
+                                                    <input type="number" class="variant-stock" @bind="v.QuantiteActuelle" min="0" />
+                                                </td>
+                                                <td class="col-icon">
+                                                    <button type="button" class="variant-delete-btn" @onclick="() => SupprimerVariante(v)" aria-label="Supprimer la variante">
+                                                        <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </section>
+
                     <!-- Section : Stock & tarification -->
                     <section class="form-section">
-                        <div class="section-label">Stock &amp; tarification</div>
+                        <div class="section-label">Stock &amp; tarification globale</div>
 
                         <MudGrid Spacing="3">
                             <MudItem xs="12" sm="6">
-                                <MudNumericField @bind-Value="produit.Stock!.QuantiteActuelle"
-                                                 Label="Quantité en stock (articles)"
+                                <MudNumericField Value="@CalculerStockTotal()"
+                                                 ValueChanged="@((int val) => ForceStock(val))"
+                                                 Label="Quantité totale en stock (calculée)"
                                                  Variant="Variant.Outlined"
                                                  Min="0"
+                                                 ReadOnly="@(produit.Variantes != null && produit.Variantes.Any())"
                                                  Class="styled-field field-mono"
                                                  Placeholder="Ex: 250" />
                             </MudItem>
 
                             <MudItem xs="12" sm="6">
                                 <MudNumericField @bind-Value="produit.PrixUnitaire"
-                                                 Label="Prix unitaire de vente (DT)"
+                                                 Label="Prix unitaire de base (DT)"
                                                  Variant="Variant.Outlined"
                                                  Min="0m"
                                                  Step="0.50m"
@@ -159,7 +426,7 @@
                             <MudCheckBox @bind-Value="produit.DisponibleSurCommande" Color="Color.Primary" Class="option-checkbox" />
                             <span>
                                 <span class="option-title">Autoriser les commandes hors stock</span>
-                                <span class="option-hint">Les clients pourront commander ce produit même à stock zéro ou insuffisant.</span>
+                                <span class="option-hint">Les clients pourront commander ce produit même si la variante est à stock zéro.</span>
                             </span>
                         </label>
                     </section>
@@ -262,76 +529,60 @@
         padding-bottom: 48px;
     }
 
-        /* En-tête */
-        .produit-form-page .page-head {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
+    /* En-tête */
+    .produit-form-page .page-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
 
-        .produit-form-page .head-spacer {
-            flex: 1;
-        }
+    .produit-form-page .head-spacer { flex: 1; }
 
-        .produit-form-page .back-btn {
-            color: var(--ink-muted) !important;
-        }
+    .produit-form-page .back-btn { color: var(--ink-muted) !important; }
+    .produit-form-page .back-btn:hover { color: var(--denim) !important; background: var(--denim-tint) !important; }
 
-            .produit-form-page .back-btn:hover {
-                color: var(--denim) !important;
-                background: var(--denim-tint) !important;
-            }
+    .produit-form-page .eyebrow {
+        font-family: var(--font-mono);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        margin-bottom: 2px;
+    }
 
-        .produit-form-page .eyebrow {
-            font-family: var(--font-mono);
-            font-size: 0.6875rem;
-            font-weight: 600;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            color: var(--ink-soft);
-            margin-bottom: 2px;
-        }
+    .produit-form-page .page-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: var(--ink);
+        letter-spacing: -0.02em;
+    }
 
-        .produit-form-page .page-title {
-            font-family: var(--font-display);
-            font-weight: 700;
-            color: var(--ink);
-            letter-spacing: -0.02em;
-        }
+    .produit-form-page .status-chip {
+        font-family: var(--font-mono);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        padding: 6px 12px;
+        border-radius: 999px;
+        white-space: nowrap;
+    }
 
-        .produit-form-page .status-chip {
-            font-family: var(--font-mono);
-            font-size: 0.6875rem;
-            font-weight: 600;
-            letter-spacing: 0.03em;
-            text-transform: uppercase;
-            padding: 6px 12px;
-            border-radius: 999px;
-            white-space: nowrap;
-        }
+    .produit-form-page .status-chip--draft { background: var(--amber-tint); color: var(--amber); }
 
-        .produit-form-page .status-chip--draft {
-            background: var(--amber-tint);
-            color: var(--amber);
-        }
-
-        /* Grille de mise en page */
-        .produit-form-page .layout-grid {
-            display: grid;
-            grid-template-columns: 1fr 260px;
-            gap: 20px;
-            align-items: start;
-        }
+    /* Grille de mise en page */
+    .produit-form-page .layout-grid {
+        display: grid;
+        grid-template-columns: 1fr 260px;
+        gap: 20px;
+        align-items: start;
+    }
 
     @@media (max-width: 900px) {
-        .produit-form-page .layout-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .produit-form-page .preview-column {
-            order: -1;
-        }
+        .produit-form-page .layout-grid { grid-template-columns: 1fr; }
+        .produit-form-page .preview-column { order: -1; }
     }
 
     /* Carte formulaire */
@@ -343,13 +594,8 @@
         overflow: hidden;
     }
 
-    .produit-form-page .form-section {
-        padding: 16px 24px;
-    }
-
-        .produit-form-page .form-section + .form-section {
-            border-top: 1px solid var(--border-soft);
-        }
+    .produit-form-page .form-section { padding: 16px 24px; }
+    .produit-form-page .form-section + .form-section { border-top: 1px solid var(--border-soft); }
 
     .produit-form-page .section-label {
         font-family: var(--font-mono);
@@ -361,12 +607,20 @@
         margin-bottom: 10px;
     }
 
-    .produit-form-page .hint-text {
-        color: var(--ink-muted);
-        font-size: 0.75rem;
+    .produit-form-page .hint-text { color: var(--ink-muted); font-size: 0.75rem; }
+
+    .produit-form-page .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
     }
 
-    /* Champs */
+    .produit-form-page .section-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+    /* Champs MudBlazor */
     .produit-form-page .styled-field .mud-input-outlined-border {
         border-radius: var(--radius-sm) !important;
         border-color: var(--border) !important;
@@ -377,22 +631,12 @@
         border-color: var(--denim) !important;
     }
 
-    .produit-form-page .styled-field .mud-input-label.mud-input-label-outlined.mud-shrink {
-        color: var(--denim) !important;
-    }
+    .produit-form-page .styled-field .mud-input-label.mud-input-label-outlined.mud-shrink { color: var(--denim) !important; }
 
-    .produit-form-page .field-mono input {
-        font-family: var(--font-mono);
-        font-size: 0.875rem;
-    }
+    .produit-form-page .field-mono input { font-family: var(--font-mono); font-size: 0.875rem; }
 
     /* Zone image */
-    .produit-form-page .uploader {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        flex-wrap: wrap;
-    }
+    .produit-form-page .uploader { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 
     .produit-form-page .upload-placeholder {
         display: flex;
@@ -408,14 +652,9 @@
         transition: border-color 0.15s ease, color 0.15s ease;
     }
 
-        .produit-form-page .upload-placeholder:hover {
-            border-color: var(--denim);
-            color: var(--denim);
-        }
+    .produit-form-page .upload-placeholder:hover { border-color: var(--denim); color: var(--denim); }
 
-    .produit-form-page .image-preview {
-        position: relative;
-    }
+    .produit-form-page .image-preview { position: relative; }
 
     .produit-form-page .preview-img {
         border-radius: var(--radius-lg);
@@ -440,15 +679,9 @@
         box-shadow: 0 2px 4px rgba(20,38,63,0.15);
     }
 
-        .produit-form-page .remove-img-btn:hover {
-            background: var(--rust-tint);
-        }
+    .produit-form-page .remove-img-btn:hover { background: var(--rust-tint); }
 
-    .produit-form-page .uploader-meta {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
+    .produit-form-page .uploader-meta { display: flex; flex-direction: column; gap: 6px; }
 
     .produit-form-page .upload-btn {
         display: inline-flex;
@@ -467,9 +700,345 @@
         transition: background 0.15s ease;
     }
 
-        .produit-form-page .upload-btn:hover {
-            background: var(--denim-dark);
-        }
+    .produit-form-page .upload-btn:hover { background: var(--denim-dark); }
+
+    /* Bloc de construction des variantes */
+    .produit-form-page .builder-card {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 20px;
+        margin-top: 14px;
+        margin-bottom: 16px;
+    }
+
+    .produit-form-page .builder-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+    }
+
+    @@media (max-width: 700px) {
+        .produit-form-page .builder-grid { grid-template-columns: 1fr; }
+    }
+
+    .produit-form-page .attr-group-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .produit-form-page .attr-group-title-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        color: var(--ink-muted);
+    }
+
+    .produit-form-page .attr-group-title-btn:hover .attr-group-label { color: var(--denim); }
+    .produit-form-page .attr-group-title-btn .mud-icon-root { color: var(--ink-soft); }
+    .produit-form-page .attr-group-title-btn:hover .mud-icon-root { color: var(--denim); }
+
+    .produit-form-page .attr-group-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .produit-form-page .attr-group-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        border-radius: 999px;
+        background: var(--denim);
+        color: #fff;
+        font-family: var(--font-mono);
+        font-size: 0.6875rem;
+        font-weight: 700;
+    }
+
+    .produit-form-page .chip-list--preview {
+        opacity: 0.9;
+    }
+
+    .produit-form-page .attr-chip--mini {
+        cursor: default;
+        background: var(--denim-tint);
+        border-color: var(--denim-tint);
+        color: var(--denim);
+        font-size: 0.75rem;
+        padding: 4px 10px;
+    }
+
+    .produit-form-page .taille-hint {
+        display: block;
+        margin-top: 4px;
+    }
+
+    .produit-form-page .attr-group-toggle {
+        background: none;
+        border: none;
+        padding: 0;
+        font-family: var(--font-body);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        color: var(--denim);
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .produit-form-page .attr-group-toggle:hover { text-decoration: underline; }
+
+    .produit-form-page .chip-list { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .produit-form-page .attr-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-family: var(--font-body);
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--ink-muted);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .produit-form-page .attr-chip:hover { border-color: var(--denim); color: var(--denim); }
+
+    .produit-form-page .attr-chip--active {
+        background: var(--denim);
+        border-color: var(--denim);
+        color: #fff;
+    }
+
+    .produit-form-page .attr-chip--color .swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 1px solid rgba(0,0,0,0.15);
+        flex-shrink: 0;
+    }
+
+    .produit-form-page .builder-footer {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 20px;
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border-soft);
+        flex-wrap: wrap;
+    }
+
+    .produit-form-page .builder-summary {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        margin-right: auto;
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+    }
+
+    .produit-form-page .builder-count {
+        font-family: var(--font-mono);
+        font-weight: 700;
+        font-size: 1rem;
+        color: var(--denim);
+    }
+
+    .produit-form-page .stock-input { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+
+    .produit-form-page .stock-input-row { display: flex; align-items: center; gap: 8px; }
+
+    .produit-form-page .stock-input label {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+        white-space: nowrap;
+    }
+
+    .produit-form-page .stock-mode-switch {
+        display: inline-flex;
+        background: var(--sand);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 2px;
+        gap: 2px;
+    }
+
+    .produit-form-page .stock-mode-btn {
+        background: none;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-family: var(--font-body);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.15s ease;
+    }
+
+    .produit-form-page .stock-mode-btn--active {
+        background: var(--denim);
+        color: #fff;
+    }
+
+    .produit-form-page .stock-mode-hint {
+        font-family: var(--font-mono);
+        font-size: 0.6875rem;
+        color: var(--ink-soft);
+    }
+
+    .produit-form-page .stock-input-field {
+        width: 70px;
+        height: 34px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 0 10px;
+        font-family: var(--font-mono);
+        font-size: 0.875rem;
+    }
+
+    /* État vide */
+    .produit-form-page .empty-state {
+        text-align: center;
+        padding: 32px 20px;
+        background: var(--sand);
+        border: 1px dashed var(--border);
+        border-radius: var(--radius-md);
+        margin-bottom: 16px;
+    }
+
+    .produit-form-page .empty-state-icon { color: var(--ink-soft); margin-bottom: 8px; }
+
+    .produit-form-page .empty-state-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 0.9375rem;
+        color: var(--ink);
+        margin-bottom: 4px;
+    }
+
+    .produit-form-page .empty-state-hint {
+        font-size: 0.8125rem;
+        color: var(--ink-muted);
+        max-width: 420px;
+        margin: 0 auto;
+    }
+
+    /* Tableau des variantes */
+    .produit-form-page .variant-table-wrap {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        overflow-x: auto;
+        margin-bottom: 16px;
+    }
+
+    .produit-form-page .variant-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8125rem;
+    }
+
+    .produit-form-page .variant-table thead th {
+        background: var(--sand);
+        color: var(--ink-soft);
+        font-family: var(--font-mono);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        text-align: left;
+        padding: 10px 12px;
+        white-space: nowrap;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .produit-form-page .variant-table tbody td {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border-soft);
+        vertical-align: middle;
+    }
+
+    .produit-form-page .variant-table tbody tr:last-child td { border-bottom: none; }
+    .produit-form-page .variant-table tbody tr:hover { background: var(--sand); }
+
+    .produit-form-page .variant-table .col-narrow { width: 100px; }
+    .produit-form-page .variant-table .col-icon { width: 44px; text-align: center; }
+
+    .produit-form-page .variant-select,
+    .produit-form-page .variant-sku,
+    .produit-form-page .variant-stock {
+        width: 100%;
+        height: 36px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 0 10px;
+        font-family: var(--font-body);
+        font-size: 0.8125rem;
+        color: var(--ink);
+        background: var(--paper);
+        transition: border-color 0.15s ease;
+    }
+
+    .produit-form-page .variant-select:focus,
+    .produit-form-page .variant-sku:focus,
+    .produit-form-page .variant-stock:focus {
+        outline: none;
+        border-color: var(--denim);
+    }
+
+    .produit-form-page .variant-sku {
+        font-family: var(--font-mono);
+        background: var(--sand);
+        color: var(--ink-muted);
+        min-width: 170px;
+    }
+
+    .produit-form-page .variant-stock { font-weight: 600; color: var(--denim); min-width: 70px; }
+
+    .produit-form-page .variant-color-cell { display: flex; align-items: center; gap: 6px; }
+
+    .produit-form-page .swatch-sm {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 1px solid rgba(0,0,0,0.15);
+        flex-shrink: 0;
+    }
+
+    .produit-form-page .variant-delete-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border: none;
+        background: transparent;
+        color: var(--ink-soft);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .produit-form-page .variant-delete-btn:hover { background: var(--rust-tint); color: var(--rust); }
 
     /* Option (checkbox) */
     .produit-form-page .option-row {
@@ -482,23 +1051,9 @@
         cursor: pointer;
     }
 
-    .produit-form-page .option-checkbox {
-        margin-top: -8px;
-    }
-
-    .produit-form-page .option-title {
-        display: block;
-        font-weight: 600;
-        font-size: 0.875rem;
-        color: var(--ink);
-    }
-
-    .produit-form-page .option-hint {
-        display: block;
-        font-size: 0.8125rem;
-        color: var(--ink-muted);
-        margin-top: 2px;
-    }
+    .produit-form-page .option-checkbox { margin-top: -8px; }
+    .produit-form-page .option-title { display: block; font-weight: 600; font-size: 0.875rem; color: var(--ink); }
+    .produit-form-page .option-hint { display: block; font-size: 0.8125rem; color: var(--ink-muted); margin-top: 2px; }
 
     /* Actions */
     .produit-form-page .form-actions {
@@ -524,37 +1079,18 @@
         transition: all 0.15s ease;
     }
 
-        .produit-form-page .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
+    .produit-form-page .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-    .produit-form-page .btn--primary {
-        background: var(--denim);
-        color: #fff;
-        box-shadow: 0 6px 16px -6px rgba(43,76,126,0.4);
-    }
+    .produit-form-page .btn--primary { background: var(--denim); color: #fff; box-shadow: 0 6px 16px -6px rgba(43,76,126,0.4); }
+    .produit-form-page .btn--primary:hover:not(:disabled) { background: var(--denim-dark); }
 
-        .produit-form-page .btn--primary:hover:not(:disabled) {
-            background: var(--denim-dark);
-        }
+    .produit-form-page .btn--outline { background: transparent; color: var(--ink-muted); border: 1px solid var(--border); }
+    .produit-form-page .btn--outline:hover:not(:disabled) { border-color: var(--denim); color: var(--denim); }
 
-    .produit-form-page .btn--outline {
-        background: transparent;
-        color: var(--ink-muted);
-        border: 1px solid var(--border);
-    }
-
-        .produit-form-page .btn--outline:hover {
-            border-color: var(--denim);
-            color: var(--denim);
-        }
+    .produit-form-page .btn--sm { padding: 8px 16px; font-size: 0.8125rem; }
 
     /* Colonne aperçu */
-    .produit-form-page .preview-sticky {
-        position: sticky;
-        top: 24px;
-    }
+    .produit-form-page .preview-sticky { position: sticky; top: 24px; }
 
     .produit-form-page .preview-label {
         display: flex;
@@ -585,15 +1121,9 @@
         color: var(--ink-soft);
     }
 
-        .produit-form-page .preview-image img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
+    .produit-form-page .preview-image img { width: 100%; height: 100%; object-fit: cover; }
 
-    .produit-form-page .preview-body {
-        padding: 16px;
-    }
+    .produit-form-page .preview-body { padding: 16px; }
 
     .produit-form-page .preview-ref {
         font-family: var(--font-mono);
@@ -613,92 +1143,267 @@
         line-height: 1.3;
     }
 
-    .produit-form-page .preview-chips {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin-top: 12px;
-    }
+    .produit-form-page .preview-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 
-    .produit-form-page .chip {
-        font-size: 0.75rem;
-        font-weight: 600;
-        padding: 4px 10px;
-        border-radius: 999px;
-    }
+    .produit-form-page .chip { font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; }
+    .produit-form-page .chip--denim { background: var(--denim-tint); color: var(--denim); }
+    .produit-form-page .chip--outline { background: transparent; color: var(--ink-muted); border: 1px solid var(--border); }
 
-    .produit-form-page .chip--denim {
-        background: var(--denim-tint);
-        color: var(--denim);
-    }
+    .produit-form-page .preview-divider { height: 1px; background: var(--border-soft); margin: 16px 0; }
 
-    .produit-form-page .chip--outline {
-        background: transparent;
-        color: var(--ink-muted);
-        border: 1px solid var(--border);
-    }
+    .produit-form-page .preview-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .produit-form-page .preview-row:last-child { margin-bottom: 0; }
 
-    .produit-form-page .preview-divider {
-        height: 1px;
-        background: var(--border-soft);
-        margin: 16px 0;
-    }
+    .produit-form-page .preview-row-label { font-size: 0.8125rem; color: var(--ink-muted); }
 
-    .produit-form-page .preview-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 8px;
-    }
+    .produit-form-page .preview-price { font-family: var(--font-mono); font-weight: 600; font-size: 0.9375rem; color: var(--ink); }
 
-        .produit-form-page .preview-row:last-child {
-            margin-bottom: 0;
-        }
-
-    .produit-form-page .preview-row-label {
-        font-size: 0.8125rem;
-        color: var(--ink-muted);
-    }
-
-    .produit-form-page .preview-price {
-        font-family: var(--font-mono);
-        font-weight: 600;
-        font-size: 0.9375rem;
-        color: var(--ink);
-    }
-
-    .produit-form-page .stock-pill {
-        font-size: 0.75rem;
-        font-weight: 600;
-        padding: 3px 10px;
-        border-radius: 999px;
-    }
-
-    .produit-form-page .stock-pill--pine {
-        background: var(--pine-tint);
-        color: var(--pine);
-    }
-
-    .produit-form-page .stock-pill--amber {
-        background: var(--amber-tint);
-        color: var(--amber);
-    }
-
-    .produit-form-page .stock-pill--rust {
-        background: var(--rust-tint);
-        color: var(--rust);
-    }
+    .produit-form-page .stock-pill { font-size: 0.75rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+    .produit-form-page .stock-pill--pine { background: var(--pine-tint); color: var(--pine); }
+    .produit-form-page .stock-pill--amber { background: var(--amber-tint); color: var(--amber); }
+    .produit-form-page .stock-pill--rust { background: var(--rust-tint); color: var(--rust); }
 </style>
 
 @code {
     private ProduitDto produit = new() { Stock = new StockDto() };
     private string? imagePreviewUrl;
 
+    private List<AttributValeurDto> listGenres = new();
+    private List<AttributValeurDto> listTailles = new();
+    private List<AttributValeurDto> listCouleurs = new();
+
+    private HashSet<string> selectedGenresGen = new();
+    private HashSet<string> selectedTaillesGen = new();
+    private HashSet<string> selectedCouleursGen = new();
+    private int initialStockGen = 10;
+    private string modeRepartitionStock = "meme"; // "meme" = même valeur par variante, "total" = répartir un total
+
+    // Repli/dépli de chaque bloc d'attributs (réduit la charge visuelle)
+    private Dictionary<string, bool> groupesOuverts = new()
+    {
+        { "genre", true },
+        { "taille", false },
+        { "couleur", false }
+    };
+
+    private void ToggleGroupe(string cle)
+    {
+        groupesOuverts[cle] = !groupesOuverts[cle];
+    }
+
+    // Système de taille par catégorie : "numerique" (pantalons/shorts/jupes) ou "lettres" (le reste)
+    private static readonly Dictionary<string, string> CategorieVersSystemeTaille = new()
+    {
+        { "Pants", "numerique" },
+        { "Shorts", "numerique" },
+        { "Skirt", "numerique" },
+        { "Jacket", "lettres" },
+        { "Shirt", "lettres" },
+        { "Dress", "lettres" },
+        { "Coat", "lettres" },
+        { "Set", "toutes" }
+    };
+
+    private static readonly HashSet<string> TaillesNumeriques = new() { "36", "38", "40", "42", "44" };
+    private static readonly HashSet<string> TaillesLettres = new() { "XS", "S", "M", "L", "XL", "XXL" };
+
+    // Liste des tailles filtrée selon la catégorie choisie (les tailles "hors système", ex: Standard, restent toujours visibles)
+    private List<AttributValeurDto> TaillesFiltrees
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(produit.Categorie) ||
+                !CategorieVersSystemeTaille.TryGetValue(produit.Categorie, out var systeme) ||
+                systeme == "toutes")
+            {
+                return listTailles;
+            }
+
+            return listTailles.Where(t =>
+                (systeme == "numerique" && TaillesNumeriques.Contains(t.Valeur)) ||
+                (systeme == "lettres" && TaillesLettres.Contains(t.Valeur)) ||
+                (!TaillesNumeriques.Contains(t.Valeur) && !TaillesLettres.Contains(t.Valeur))
+            ).ToList();
+        }
+    }
+
+    private string TailleSystemeLabel(string categorie)
+    {
+        if (!CategorieVersSystemeTaille.TryGetValue(categorie, out var systeme) || systeme == "toutes")
+            return "toutes tailles";
+
+        return systeme == "numerique" ? "tailles numériques (36–44)" : "tailles lettres (XS–XXL)";
+    }
+
+    private void OnCategorieChanged(string? val)
+    {
+        produit.Categorie = val;
+
+        // Retire les tailles déjà cochées qui ne correspondent plus au système de la nouvelle catégorie
+        var taillesValides = TaillesFiltrees.Select(t => t.Valeur).ToHashSet();
+        selectedTaillesGen.RemoveWhere(t => !taillesValides.Contains(t));
+    }
+
+    private int NombreCombinaisonsTotal =>
+        (selectedGenresGen.Any() ? selectedGenresGen.Count : (selectedTaillesGen.Any() || selectedCouleursGen.Any() ? 1 : 0)) *
+        (selectedTaillesGen.Any() ? selectedTaillesGen.Count : (selectedGenresGen.Any() || selectedCouleursGen.Any() ? 1 : 0)) *
+        (selectedCouleursGen.Any() ? selectedCouleursGen.Count : (selectedGenresGen.Any() || selectedTaillesGen.Any() ? 1 : 0));
+
+    protected override async Task OnInitializedAsync()
+    {
+        listGenres = await AttributService.ObtenirAttributsAsync("Genre");
+        listTailles = await AttributService.ObtenirAttributsAsync("Taille");
+        listCouleurs = await AttributService.ObtenirAttributsAsync("Couleur");
+    }
+
+    private void ToggleChip(ICollection<string> set, string value)
+    {
+        if (set.Contains(value)) set.Remove(value);
+        else set.Add(value);
+    }
+
+    private bool AllSelected(ICollection<string> set, List<AttributValeurDto> options)
+    {
+        return options.Any() && options.All(o => set.Contains(o.Valeur));
+    }
+
+    private void ToggleAllChips(ICollection<string> set, List<AttributValeurDto> options)
+    {
+        if (AllSelected(set, options))
+        {
+            set.Clear();
+        }
+        else
+        {
+            foreach (var o in options)
+            {
+                set.Add(o.Valeur);
+            }
+        }
+    }
+
+    private void GenererCombinaisonsEnMasse()
+    {
+        produit.Variantes ??= new();
+
+        var genresList = selectedGenresGen.Any() ? selectedGenresGen.ToList() : new List<string> { "" };
+        var taillesList = selectedTaillesGen.Any() ? selectedTaillesGen.ToList() : new List<string> { "" };
+        var couleursList = selectedCouleursGen.Any() ? selectedCouleursGen.ToList() : new List<string> { "" };
+
+        // On liste d'abord les combinaisons réellement nouvelles (sans écraser les variantes déjà générées)
+        var combinaisonsACreer = new List<(string? Genre, string? Taille, string? Couleur)>();
+        foreach (var g in genresList)
+        {
+            foreach (var t in taillesList)
+            {
+                foreach (var c in couleursList)
+                {
+                    var gVal = string.IsNullOrEmpty(g) ? null : g;
+                    var tVal = string.IsNullOrEmpty(t) ? null : t;
+                    var cVal = string.IsNullOrEmpty(c) ? null : c;
+
+                    var existante = produit.Variantes.FirstOrDefault(v => v.Genre == gVal && v.Taille == tVal && v.Couleur == cVal);
+                    if (existante == null)
+                    {
+                        combinaisonsACreer.Add((gVal, tVal, cVal));
+                    }
+                }
+            }
+        }
+
+        var stocksParVariante = CalculerRepartitionStock(combinaisonsACreer.Count);
+
+        for (int i = 0; i < combinaisonsACreer.Count; i++)
+        {
+            var (gVal, tVal, cVal) = combinaisonsACreer[i];
+            var v = new VarianteDto
+            {
+                Genre = gVal,
+                Taille = tVal,
+                Couleur = cVal,
+                QuantiteActuelle = stocksParVariante[i]
+            };
+            AutoGenSKU(v);
+            produit.Variantes.Add(v);
+        }
+    }
+
+    // "meme" : la valeur saisie est appliquée telle quelle à chaque variante.
+    // "total" : la valeur saisie est un total, réparti aussi équitablement que possible
+    //           entre les variantes (le reste de la division est distribué aux premières,
+    //           pour ne jamais perdre d'unité de stock).
+    private List<int> CalculerRepartitionStock(int nombreVariantes)
+    {
+        var resultat = new List<int>();
+        if (nombreVariantes <= 0) return resultat;
+
+        if (modeRepartitionStock == "total")
+        {
+            var quotient = initialStockGen / nombreVariantes;
+            var reste = initialStockGen % nombreVariantes;
+            for (int i = 0; i < nombreVariantes; i++)
+            {
+                resultat.Add(quotient + (i < reste ? 1 : 0));
+            }
+        }
+        else
+        {
+            for (int i = 0; i < nombreVariantes; i++)
+            {
+                resultat.Add(initialStockGen);
+            }
+        }
+
+        return resultat;
+    }
+
+    private void OnReferenceChanged(string newRef)
+    {
+        produit.Reference = newRef;
+        if (produit.Variantes != null)
+        {
+            foreach (var v in produit.Variantes)
+            {
+                AutoGenSKU(v);
+            }
+        }
+    }
+
+    private void SupprimerVariante(VarianteDto v)
+    {
+        produit.Variantes?.Remove(v);
+    }
+
+    private void AutoGenSKU(VarianteDto v)
+    {
+        var baseRef = string.IsNullOrWhiteSpace(produit.Reference) ? "PROD" : produit.Reference;
+        var genreCode = string.IsNullOrWhiteSpace(v.Genre) ? "U" : v.Genre.Substring(0, 1).ToUpperInvariant();
+        var tailleCode = string.IsNullOrWhiteSpace(v.Taille) ? "STD" : v.Taille.Replace(" ", "").ToUpperInvariant();
+        var couleurCode = string.IsNullOrWhiteSpace(v.Couleur) ? "DEF" : System.Text.RegularExpressions.Regex.Replace(v.Couleur, @"[^a-zA-Z0-9]", "").ToUpperInvariant();
+        v.Reference = $"{baseRef}-{genreCode}-{tailleCode}-{couleurCode}";
+    }
+
+    private int CalculerStockTotal()
+    {
+        if (produit.Variantes != null && produit.Variantes.Any())
+        {
+            var sum = produit.Variantes.Sum(v => v.QuantiteActuelle);
+            if (produit.Stock != null) produit.Stock.QuantiteActuelle = sum;
+            return sum;
+        }
+        return produit.Stock?.QuantiteActuelle ?? 0;
+    }
+
+    private void ForceStock(int val)
+    {
+        if (produit.Stock != null) produit.Stock.QuantiteActuelle = val;
+    }
+
     private (string Label, string CssClass) StockStatus
     {
         get
         {
-            var quantite = produit.Stock?.QuantiteActuelle ?? 0;
+            var quantite = CalculerStockTotal();
 
             if (quantite <= 0)
             {
@@ -722,7 +1427,6 @@
         if (file != null)
         {
             var format = file.ContentType;
-            // Redimensionne à max 400x400 pour garder le payload base64 léger
             var resizedImage = await file.RequestImageFileAsync(format, 400, 400);
             var buffer = new byte[resizedImage.Size];
             using (var stream = resizedImage.OpenReadStream(2 * 1024 * 1024))
@@ -743,10 +1447,31 @@
 
     private async Task Enregistrer()
     {
+        // Normaliser les champs optionnels : convertir "" en null avant envoi à l'API
+        produit.Genre = string.IsNullOrWhiteSpace(produit.Genre) ? null : produit.Genre.Trim();
+        produit.Taille = string.IsNullOrWhiteSpace(produit.Taille) ? null : produit.Taille.Trim();
+        produit.Couleur = string.IsNullOrWhiteSpace(produit.Couleur) ? null : produit.Couleur.Trim();
+
+        if (produit.Variantes != null)
+        {
+            foreach (var v in produit.Variantes)
+            {
+                v.Genre   = string.IsNullOrWhiteSpace(v.Genre)   ? null : v.Genre.Trim();
+                v.Taille  = string.IsNullOrWhiteSpace(v.Taille)  ? null : v.Taille.Trim();
+                v.Couleur = string.IsNullOrWhiteSpace(v.Couleur) ? null : v.Couleur.Trim();
+                if (string.IsNullOrWhiteSpace(v.Reference))
+                    AutoGenSKU(v);
+            }
+        }
+
         var succes = await ProduitService.Creer(produit);
         if (succes)
         {
             Navigation.NavigateTo("/produits");
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors de la création du produit. Vérifiez les champs requis.", Severity.Error);
         }
     }
 }

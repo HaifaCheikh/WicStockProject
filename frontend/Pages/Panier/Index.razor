@@ -66,20 +66,27 @@
     <!-- BREADCRUMB -->
     <nav class="b-breadcrumb">
         <div class="b-breadcrumb-inner">
-            <a href="/boutique">← Retour à la boutique</a>
+            <a href="/boutique" class="b-btn-back-icon" title="Retour à la boutique">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+                    <path d="M19 12 H5 M11 18 L5 12 L11 6" stroke="var(--b-denim)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </a>
         </div>
     </nav>
 
     <main class="panier-main">
         <div class="panier-inner">
 
-            <div class="panier-header">
-                <h1 class="panier-title">Mon panier</h1>
-                @if (items.Any())
-                {
-                    <span class="panier-count">@items.Sum(i => i.Quantite) article(s)</span>
-                }
-            </div>
+            @if (commandeSucces == null)
+            {
+                <div class="panier-header">
+                    <h1 class="panier-title">Mon panier</h1>
+                    @if (items.Any())
+                    {
+                        <span class="panier-count">@items.Sum(i => i.Quantite) article(s)</span>
+                    }
+                </div>
+            }
 
             <!-- ===== ERREUR DE STOCK 409 ===== -->
             @if (erreurStock != null)
@@ -114,19 +121,39 @@
             <!-- ===== SUCCÈS COMMANDE ===== -->
             @if (commandeSucces != null)
             {
-                <div class="panier-alert panier-alert--success">
-                    <div class="panier-alert-header">
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/>
-                            <path d="M8 12 L11 15 L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <div class="commande-succes-card">
+                    <div class="succes-icon-badge">
+                        <svg viewBox="0 0 24 24" width="36" height="36" fill="none">
+                            <circle cx="12" cy="12" r="10" fill="#E4F3EC" stroke="#1E6B4C" stroke-width="1.8"/>
+                            <path d="M8 12 L11 15 L16 9" stroke="#1E6B4C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
-                        <strong>Commande #@commandeSucces.CommandeId enregistrée avec succès !</strong>
                     </div>
-                    <p>@commandeSucces.Message</p>
-                    <p class="panier-alert-total">Total : <strong>@commandeSucces.MontantTotal.ToString("0.00") DT</strong></p>
-                    <div class="panier-alert-actions">
-                        <a href="/catalogue" class="b-btn b-btn-primary-sm">Voir mes commandes</a>
-                        <a href="/boutique" class="b-btn b-btn-ghost-sm">Continuer mes achats</a>
+
+                    <h2 class="succes-title">Commande enregistrée avec succès !</h2>
+
+                    <p class="succes-subtext">
+                        Merci pour votre confiance !<br />
+                        Votre commande a bien été confirmée et maintenant en cours de traitement. Nous vous informerons dès qu’elle sera prête à être expédiée.
+                    </p>
+
+                    <div class="succes-summary-pill">
+                        <span class="succes-summary-label">Montant total réglé</span>
+                        <span class="succes-summary-val">@commandeSucces.MontantTotal.ToString("0.00") DT</span>
+                    </div>
+
+                    <div class="succes-actions">
+                        <a href="/mes-commandes" class="b-btn b-btn-primary b-btn-succes-primary">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>Voir mes commandes</span>
+                        </a>
+                        <a href="/boutique" class="b-btn b-btn--outline b-btn-succes-secondary">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                                <path d="M3 12h18M3 12l6-6M3 12l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>Continuer mes achats</span>
+                        </a>
                     </div>
                 </div>
             }
@@ -175,6 +202,60 @@
                                 <div class="panier-item-info">
                                     <p class="panier-item-ref">@item.Reference</p>
                                     <h3 class="panier-item-name">@item.Nom</h3>
+                                    @{
+                                        var descAttr = WicStock.Web.Models.AttributsProduit.FormatLigneDescription(item.Genre, item.Taille, item.Couleur);
+                                    }
+                                    @if (!string.IsNullOrEmpty(descAttr))
+                                    {
+                                        <p class="panier-item-attr d-flex align-items-center gap-2" style="font-size: 0.8125rem; color: #64748b; margin-top: 2px;">
+                                            @if (!string.IsNullOrEmpty(item.Couleur))
+                                            {
+                                                var hexCol = WicStock.Web.Models.AttributsProduit.GetHex(item.Couleur);
+                                                <span style="width: 10px; height: 10px; border-radius: 50%; background-color: @hexCol; border: 1px solid rgba(0,0,0,0.2); display: inline-block; flex-shrink: 0;" title="@item.Couleur"></span>
+                                            }
+                                            <span>@descAttr</span>
+                                        </p>
+                                    }
+                                    @if (produitsDetails.TryGetValue(item.ProduitId, out var prodDetail) && prodDetail.Variantes != null && prodDetail.Variantes.Any())
+                                    {
+                                        var optTailles = prodDetail.Variantes.Select(v => v.Taille).Where(t => !string.IsNullOrWhiteSpace(t)).Distinct().ToList();
+                                        var optCouleurs = prodDetail.Variantes.Select(v => v.Couleur).Where(c => !string.IsNullOrWhiteSpace(c)).Distinct().ToList();
+
+                                        @if (optTailles.Count > 1 || optCouleurs.Count > 1)
+                                        {
+                                            <div class="panier-item-edit-attrs d-flex flex-wrap gap-2 mt-2 align-items-center">
+                                                @if (optTailles.Count > 1)
+                                                {
+                                                    <div class="d-flex align-items-center gap-1" style="font-size: 0.8rem;">
+                                                        <span class="text-muted">Taille :</span>
+                                                        <select class="form-select form-select-sm py-0 px-2" style="width: auto; font-size: 0.8rem; border-radius: 6px;"
+                                                                value="@item.Taille"
+                                                                @onchange="(e) => ChangerTailleCartItem(item, e.Value?.ToString())">
+                                                            @foreach (var t in optTailles)
+                                                            {
+                                                                <option value="@t">@t</option>
+                                                            }
+                                                        </select>
+                                                    </div>
+                                                }
+
+                                                @if (optCouleurs.Count > 1)
+                                                {
+                                                    <div class="d-flex align-items-center gap-1" style="font-size: 0.8rem;">
+                                                        <span class="text-muted">Couleur :</span>
+                                                        <select class="form-select form-select-sm py-0 px-2" style="width: auto; font-size: 0.8rem; border-radius: 6px;"
+                                                                value="@item.Couleur"
+                                                                @onchange="(e) => ChangerCouleurCartItem(item, e.Value?.ToString())">
+                                                            @foreach (var c in optCouleurs)
+                                                            {
+                                                                <option value="@c">@c</option>
+                                                            }
+                                                        </select>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                    }
                                     @if (!string.IsNullOrEmpty(item.TypeTissu))
                                     {
                                         <p class="panier-item-tissu">@item.TypeTissu</p>
@@ -217,7 +298,7 @@
                                 </div>
 
                                 <!-- Supprimer -->
-                                <button class="panier-suppr-btn" @onclick="() => SupprimerArticle(item.ProduitId)" title="Retirer du panier">
+                                <button class="panier-suppr-btn" @onclick="() => DemanderSuppressionItem(item.ProduitId, item.Nom)" title="Retirer du panier">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
                                         <path d="M3 6 H21 M8 6 V4 H16 V6 M19 6 L18 20 H6 L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                                     </svg>
@@ -226,15 +307,72 @@
                         }
 
                         <div class="panier-articles-footer">
-                            <button class="panier-vider-btn" @onclick="ViderPanier">
+                            <button class="panier-vider-btn" @onclick="() => showConfirmVider = true">
                                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none">
                                     <path d="M3 6 H21 M8 6 V4 H16 V6 M19 6 L18 20 H6 L5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
                                 </svg>
                                 Vider le panier
                             </button>
-                            <a href="/boutique" class="panier-continuer-btn">← Continuer mes achats</a>
+                            <a href="/boutique" class="panier-continuer-btn">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
+                                    <path d="M19 12 H5 M11 18 L5 12 L11 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                <span>Continuer mes achats</span>
+                            </a>
                         </div>
                     </div>
+
+                    <!-- ===== MODALE CONFIRMATION VIDER ===== -->
+                    @if (showConfirmVider)
+                    {
+                        <div class="confirm-overlay" @onclick="AnnulerVider">
+                            <div class="confirm-modal" @onclick:stopPropagation="true">
+                                <div class="confirm-icon">
+                                    <svg viewBox="0 0 24 24" width="32" height="32" fill="none">
+                                        <path d="M3 6 H21 M8 6 V4 H16 V6 M19 6 L18 20 H6 L5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M10 11 V17 M14 11 V17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                                    </svg>
+                                </div>
+                                <h3 class="confirm-title">Vider le panier ?</h3>
+                                <p class="confirm-body">Tous les articles de votre panier seront supprimés. Cette action est irréversible.</p>
+                                <div class="confirm-actions">
+                                    <button class="confirm-btn-cancel" @onclick="AnnulerVider">Annuler</button>
+                                    <button class="confirm-btn-ok" @onclick="ConfirmerVider">
+                                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none">
+                                            <path d="M3 6 H21 M8 6 V4 H16 V6 M19 6 L18 20 H6 L5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                        Oui, vider
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <!-- ===== MODALE CONFIRMATION SUPPRESSION ARTICLE ===== -->
+                    @if (itemASupprimerId.HasValue)
+                    {
+                        <div class="confirm-overlay" @onclick="AnnulerSuppressionItem">
+                            <div class="confirm-modal" @onclick:stopPropagation="true">
+                                <div class="confirm-icon">
+                                    <svg viewBox="0 0 24 24" width="32" height="32" fill="none">
+                                        <path d="M3 6 H21 M8 6 V4 H16 V6 M19 6 L18 20 H6 L5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M10 11 V17 M14 11 V17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                                    </svg>
+                                </div>
+                                <h3 class="confirm-title">Retirer du panier ?</h3>
+                                <p class="confirm-body">Voulez-vous vraiment retirer « @itemASupprimerNom » de votre panier ?</p>
+                                <div class="confirm-actions">
+                                    <button class="confirm-btn-cancel" @onclick="AnnulerSuppressionItem">Annuler</button>
+                                    <button class="confirm-btn-ok" @onclick="ConfirmerSuppressionItem">
+                                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none">
+                                            <path d="M3 6 H21 M8 6 V4 H16 V6 M19 6 L18 20 H6 L5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                        Oui, retirer
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
 
                     <!-- ===== RÉCAPITULATIF ===== -->
                     <div class="panier-recap">
@@ -259,7 +397,7 @@
                             </div>
 
                             <p class="panier-recap-note">
-                                Le prix final sera confirmé par le responsable. Le paiement s'effectue à la confirmation.
+                                Le paiement s'effectue à la confirmation.
                             </p>
 
                             <!-- Bouton Valider -->
@@ -316,7 +454,7 @@
         --font-head: 'Sora', 'Inter', sans-serif; --font-body: 'Inter', sans-serif; --font-mono: 'JetBrains Mono', monospace;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    .boutique-page { font-family: var(--font-body); background: var(--b-sand); min-height: 100vh; color: var(--b-ink); }
+    .boutique-page { font-family: var(--font-body); background: var(--b-sand); min-height: 100vh; color: var(--b-ink); display: flex; flex-direction: column; }
 
     /* NAVBAR */
     .b-navbar { background: var(--b-paper); border-bottom: 1px solid var(--b-border); position: sticky; top: 0; z-index: 100; }
@@ -340,10 +478,23 @@
     .b-btn-ghost-sm:hover { background: var(--b-sand); color: var(--b-ink); }
 
     /* BREADCRUMB */
-    .b-breadcrumb { background: var(--b-paper); border-bottom: 1px solid var(--b-border); padding: 12px 24px; }
-    .b-breadcrumb-inner { max-width: 1160px; margin: 0 auto; }
-    .b-breadcrumb a { color: var(--b-ink-muted); text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: color 0.15s; }
-    .b-breadcrumb a:hover { color: var(--b-denim); }
+    .b-breadcrumb { background: var(--b-sand); padding: 12px 24px; }
+    .b-breadcrumb-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; }
+    .b-btn-back-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        color: var(--b-denim);
+        text-decoration: none;
+        transition: all 0.2s ease;
+    }
+    .b-btn-back-icon:hover {
+        background: var(--b-denim-soft);
+        transform: translateX(-3px);
+    }
 
     /* MAIN */
     .panier-main { padding: 36px 24px 80px; }
@@ -408,10 +559,99 @@
     .panier-articles-footer { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: var(--b-sand); }
     .panier-vider-btn { display: flex; align-items: center; gap: 6px; background: none; border: none; color: #94a3b8; font-size: 0.8rem; cursor: pointer; font-family: var(--font-body); transition: color 0.15s; padding: 0; }
     .panier-vider-btn:hover { color: var(--b-rust); }
-    .panier-continuer-btn { font-size: 0.85rem; font-weight: 600; color: var(--b-denim); text-decoration: none; }
-    .panier-continuer-btn:hover { text-decoration: underline; }
+    .panier-continuer-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: var(--b-paper);
+        border: 1.5px solid var(--b-border);
+        border-radius: var(--b-radius-sm);
+        color: var(--b-ink);
+        font-family: var(--font-body);
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        transition: all 0.2s ease;
+    }
+    .panier-continuer-btn svg { transition: transform 0.2s ease; color: var(--b-denim); }
+    .panier-continuer-btn:hover {
+        background: var(--b-denim-soft);
+        border-color: #B2C4DC;
+        color: var(--b-denim);
+        box-shadow: 0 4px 12px -4px rgba(43,76,126,0.2);
+    }
+    .panier-continuer-btn:hover svg { transform: translateX(-3px); }
 
-    /* RÉCAPITULATIF */
+    /* MODALE CONFIRMATION */
+    .confirm-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+        backdrop-filter: blur(4px);
+        z-index: 999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: fadeInOverlay 0.18s ease;
+    }
+    @@keyframes fadeInOverlay { from { opacity: 0; } to { opacity: 1; } }
+    .confirm-modal {
+        background: var(--b-paper);
+        border: 1px solid var(--b-border);
+        border-radius: 16px;
+        padding: 32px 28px 24px;
+        max-width: 360px;
+        width: 90%;
+        box-shadow: 0 24px 60px -12px rgba(0,0,0,0.25);
+        text-align: center;
+        animation: slideInModal 0.22s cubic-bezier(.34,1.56,.64,1);
+    }
+    @@keyframes slideInModal { from { opacity: 0; transform: scale(0.88) translateY(16px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    .confirm-icon {
+        width: 56px; height: 56px;
+        background: var(--b-rust-soft, #fef2f2);
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 16px;
+        color: var(--b-rust, #e05252);
+    }
+    .confirm-title { font-family: var(--font-head); font-size: 1.1rem; font-weight: 700; color: var(--b-ink); margin: 0 0 8px; }
+    .confirm-body { font-size: 0.85rem; color: var(--b-ink-muted); line-height: 1.55; margin: 0 0 24px; }
+    .confirm-actions { display: flex; gap: 10px; justify-content: center; }
+    .confirm-btn-cancel {
+        flex: 1;
+        padding: 10px 16px;
+        background: var(--b-sand);
+        border: 1.5px solid var(--b-border);
+        border-radius: var(--b-radius-sm);
+        font-family: var(--font-body);
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--b-ink);
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .confirm-btn-cancel:hover { background: var(--b-border); }
+    .confirm-btn-ok {
+        flex: 1;
+        display: flex; align-items: center; justify-content: center; gap: 6px;
+        padding: 10px 16px;
+        background: var(--b-rust, #e05252);
+        border: none;
+        border-radius: var(--b-radius-sm);
+        font-family: var(--font-body);
+        font-size: 0.875rem;
+        font-weight: 700;
+        color: #fff;
+        cursor: pointer;
+        transition: all 0.15s;
+        box-shadow: 0 4px 12px -4px rgba(224,82,82,0.45);
+    }
+    .confirm-btn-ok:hover { background: #c94343; box-shadow: 0 6px 16px -4px rgba(224,82,82,0.55); transform: translateY(-1px); }
+
+
     .panier-recap { position: sticky; top: 80px; }
     .panier-recap-card { background: var(--b-paper); border: 1px solid var(--b-border); border-radius: var(--b-radius); padding: 24px; }
     .panier-recap-title { font-family: var(--font-head); font-size: 1.05rem; font-weight: 700; color: var(--b-ink); margin-bottom: 18px; }
@@ -430,22 +670,115 @@
 
     .panier-auth-note { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--b-ink-muted); margin-top: 12px; line-height: 1.4; }
 
-    .b-footer { text-align: center; padding: 24px; background: var(--b-paper); border-top: 1px solid var(--b-border); color: var(--b-ink-muted); font-size: 0.8125rem; margin-top: 40px; }
+    /* ===== CARTE SUCCÈS COMMANDE ===== */
+    .commande-succes-card {
+        background: var(--b-paper);
+        border: 1px solid var(--b-border);
+        border-radius: var(--b-radius);
+        padding: 48px 32px;
+        max-width: 620px;
+        margin: 32px auto 60px;
+        text-align: center;
+        box-shadow: 0 12px 32px -12px rgba(22, 35, 58, 0.08);
+    }
+    .succes-icon-badge {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background: #E4F3EC;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 22px;
+        box-shadow: 0 4px 16px rgba(30, 107, 76, 0.15);
+    }
+    .succes-title {
+        font-family: var(--font-head);
+        font-size: 1.45rem;
+        font-weight: 800;
+        color: var(--b-ink);
+        margin-bottom: 12px;
+        letter-spacing: -0.02em;
+    }
+    .succes-subtext {
+        font-size: 0.925rem;
+        color: var(--b-ink-muted);
+        line-height: 1.6;
+        max-width: 480px;
+        margin: 0 auto 24px;
+    }
+    .succes-summary-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 12px 24px;
+        background: var(--b-sand);
+        border: 1px solid var(--b-border);
+        border-radius: 12px;
+        margin-bottom: 32px;
+    }
+    .succes-summary-label {
+        font-size: 0.85rem;
+        color: var(--b-ink-muted);
+        font-weight: 500;
+    }
+    .succes-summary-val {
+        font-family: var(--font-head);
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: var(--b-denim);
+    }
+    .succes-actions {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+    .b-btn-succes-primary {
+        padding: 12px 24px;
+        font-size: 0.9rem;
+        border-radius: var(--b-radius-sm);
+    }
+    .b-btn-succes-secondary {
+        padding: 12px 24px;
+        font-size: 0.9rem;
+        border-radius: var(--b-radius-sm);
+    }
+
+    .b-footer { text-align: center; padding: 24px; background: var(--b-sand); color: var(--b-ink-muted); font-size: 0.8125rem; margin-top: 40px; }
     .b-spinner { animation: spin 0.8s linear infinite; }
     @@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 
 @code {
     private List<CartItemDto> items = new();
+    private Dictionary<int, CatalogueProduitDto> produitsDetails = new();
     private bool commandeEnCours = false;
     private CommandeStockErrorClientDto? erreurStock = null;
     private CommandeMultiResultClientDto? commandeSucces = null;
     private HashSet<int> suppressionsEnCours = new();
 
+    private bool hasCheckedCheckoutIntent = false;
+
     protected override async Task OnInitializedAsync()
     {
         items = await CartService.GetItemsAsync();
+        await ChargerDetailsProduits();
         CartService.OnCartChanged += HandleCartChanged;
+    }
+
+    private async Task ChargerDetailsProduits()
+    {
+        foreach (var item in items)
+        {
+            if (!produitsDetails.ContainsKey(item.ProduitId))
+            {
+                var p = await BoutiqueService.ObtenirProduitPublic(item.ProduitId);
+                if (p != null) produitsDetails[item.ProduitId] = p;
+            }
+        }
     }
 
     private async void HandleCartChanged() => await RechercherItems();
@@ -453,7 +786,79 @@
     private async Task RechercherItems()
     {
         items = await CartService.GetItemsAsync();
+        await ChargerDetailsProduits();
         await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ChangerTailleCartItem(CartItemDto item, string? nouvelleTaille)
+    {
+        if (string.IsNullOrWhiteSpace(nouvelleTaille) || item.Taille == nouvelleTaille) return;
+        item.Taille = nouvelleTaille;
+        ActualiserVarianteCartItem(item);
+        await CartService.SaveCartAsync();
+        StateHasChanged();
+    }
+
+    private async Task ChangerCouleurCartItem(CartItemDto item, string? nouvelleCouleur)
+    {
+        if (string.IsNullOrWhiteSpace(nouvelleCouleur) || item.Couleur == nouvelleCouleur) return;
+        item.Couleur = nouvelleCouleur;
+        ActualiserVarianteCartItem(item);
+        await CartService.SaveCartAsync();
+        StateHasChanged();
+    }
+
+    private void ActualiserVarianteCartItem(CartItemDto item)
+    {
+        if (produitsDetails.TryGetValue(item.ProduitId, out var prod) && prod.Variantes != null)
+        {
+            var match = prod.Variantes.FirstOrDefault(v =>
+                (string.IsNullOrWhiteSpace(item.Genre) || v.Genre == item.Genre) &&
+                (string.IsNullOrWhiteSpace(item.Taille) || v.Taille == item.Taille) &&
+                (string.IsNullOrWhiteSpace(item.Couleur) || v.Couleur == item.Couleur));
+
+            if (match != null)
+            {
+                item.VarianteProduitId = match.Id;
+                if (!string.IsNullOrEmpty(match.Reference)) item.Reference = match.Reference;
+                if (match.PrixOverride.HasValue)
+                {
+                    item.PrixUnitaire = match.PrixOverride.Value;
+                    item.PrixEffectif = prod.EstEnPromotion && prod.RemisePourcentage > 0
+                        ? Math.Round(match.PrixOverride.Value * (1 - (decimal)prod.RemisePourcentage / 100m), 2)
+                        : match.PrixOverride.Value;
+                }
+                item.QuantiteDisponible = match.QuantiteActuelle;
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !hasCheckedCheckoutIntent)
+        {
+            hasCheckedCheckoutIntent = true;
+            try
+            {
+                var intent = await JS.InvokeAsync<string>("sessionStorage.getItem", "checkout_intent");
+                if (intent == "true")
+                {
+                    await JS.InvokeVoidAsync("sessionStorage.removeItem", "checkout_intent");
+                    var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+                    if (authState.User.Identity?.IsAuthenticated ?? false)
+                    {
+                        if (items.Any())
+                        {
+                            await ValiderCommande();
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Ignorer les erreurs d'interop JS durant le pre-rendering
+            }
+        }
     }
 
     private async Task ChangerQuantite(CartItemDto item, int nouvelleQty)
@@ -474,8 +879,41 @@
         StateHasChanged();
     }
 
-    private async Task ViderPanier()
+    private bool showConfirmVider = false;
+    private int? itemASupprimerId = null;
+    private string? itemASupprimerNom = null;
+
+    private void DemanderSuppressionItem(int produitId, string nom)
     {
+        itemASupprimerId = produitId;
+        itemASupprimerNom = nom;
+    }
+
+    private void AnnulerSuppressionItem()
+    {
+        itemASupprimerId = null;
+        itemASupprimerNom = null;
+    }
+
+    private async Task ConfirmerSuppressionItem()
+    {
+        if (itemASupprimerId.HasValue)
+        {
+            var id = itemASupprimerId.Value;
+            itemASupprimerId = null;
+            itemASupprimerNom = null;
+            await SupprimerArticle(id);
+        }
+    }
+
+    private void AnnulerVider()
+    {
+        showConfirmVider = false;
+    }
+
+    private async Task ConfirmerVider()
+    {
+        showConfirmVider = false;
         await CartService.ClearCartAsync();
         items = new List<CartItemDto>();
         erreurStock = null;
@@ -507,7 +945,11 @@
             Lignes = items.Select(i => new LigneCommandeClientDto
             {
                 ProduitId = i.ProduitId,
-                Quantite = i.Quantite
+                VarianteProduitId = i.VarianteProduitId,
+                Quantite = i.Quantite,
+                Genre = i.Genre,
+                Taille = i.Taille,
+                Couleur = i.Couleur
             }).ToList()
         };
 

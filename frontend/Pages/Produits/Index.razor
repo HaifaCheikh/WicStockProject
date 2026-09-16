@@ -101,6 +101,8 @@
                     <option value="NOM">Trier : Nom (A-Z)</option>
                     <option value="STOCK_ASC">Trier : Stock ↑</option>
                     <option value="STOCK_DESC">Trier : Stock ↓</option>
+                    <option value="NOTE_DESC">Trier : Meilleurs avis (★ ↓)</option>
+                    <option value="NOTE_ASC">Trier : Moins bien notés (★ ↑)</option>
                 </select>
 
                 <div class="view-toggle">
@@ -199,10 +201,66 @@
                             <span class="product-price">@prod.PrixUnitaire.ToString("0.00") DT</span>
                         </div>
 
-                        <div class="d-flex align-center gap-1 mt-1">
-                            <MudIcon Icon="@Icons.Material.Filled.Texture" Size="Size.Small" Class="text-muted" />
-                            <span class="product-detail">@(string.IsNullOrEmpty(prod.TypeTissu) ? "Non spécifié" : prod.TypeTissu)</span>
+                        <div class="d-flex align-center gap-2 mt-1 flex-wrap">
+                            <div class="d-flex align-center gap-1">
+                                <MudIcon Icon="@Icons.Material.Filled.Texture" Size="Size.Small" Class="text-muted" />
+                                <span class="product-detail">@(string.IsNullOrEmpty(prod.TypeTissu) ? "Non spécifié" : prod.TypeTissu)</span>
+                            </div>
                         </div>
+
+                        @{
+                            var _genres  = GetProdGenres(prod);
+                            var _tailles = GetProdTailles(prod);
+                            var _couleurs = GetProdCouleurs(prod);
+                        }
+                        @if (_genres.Any() || _tailles.Any() || _couleurs.Any())
+                        {
+                            <div class="prod-attrs-block">
+                                @if (_genres.Any())
+                                {
+                                    <div class="attrs-row">
+                                        @foreach (var g in _genres)
+                                        {
+                                            <span class="genre-pill">@g</span>
+                                        }
+                                    </div>
+                                }
+                                @if (_tailles.Any())
+                                {
+                                    <div class="attrs-row">
+                                        @{
+                                            var _taillesShow = _tailles.Take(4).ToList();
+                                            int _taillesExtra = _tailles.Count - _taillesShow.Count;
+                                        }
+                                        @foreach (var t in _taillesShow)
+                                        {
+                                            <span class="size-chip">@t</span>
+                                        }
+                                        @if (_taillesExtra > 0)
+                                        {
+                                            <span class="size-chip size-chip--more">+@_taillesExtra</span>
+                                        }
+                                    </div>
+                                }
+                                @if (_couleurs.Any())
+                                {
+                                    <div class="attrs-row">
+                                        @{
+                                            var _couleursShow = _couleurs.Take(5).ToList();
+                                            int _couleursExtra = _couleurs.Count - _couleursShow.Count;
+                                        }
+                                        @foreach (var c in _couleursShow)
+                                        {
+                                            <span class="color-swatch" style="background-color:@c.hex;" title="@c.nom"></span>
+                                        }
+                                        @if (_couleursExtra > 0)
+                                        {
+                                            <span class="color-more">+@_couleursExtra</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
 
                         <div class="meta-footer mt-3">
                             <div class="d-flex align-center gap-2 flex-wrap">
@@ -273,6 +331,7 @@
                     <MudTh>Référence</MudTh>
                     <MudTh>Nom</MudTh>
                     <MudTh>Type</MudTh>
+                    <MudTh>Attributs</MudTh>
                     <MudTh>Catégorie</MudTh>
                     <MudTh>Stock disponible</MudTh>
                     <MudTh>État de stock</MudTh>
@@ -303,8 +362,27 @@
                     <MudTd DataLabel="Référence">
                         <span class="ref-code">@context.Reference</span>
                     </MudTd>
-                    <MudTd DataLabel="Nom" Class="cell-name">@context.Nom</MudTd>
+                    <MudTd DataLabel="Nom" Class="cell-name">
+                        <div class="d-flex align-center gap-2 flex-wrap">
+                            <span>@context.Nom</span>
+                            @if (context.NombreAvis > 0)
+                            {
+                                <span class="prod-rating-badge" title="@context.NoteMoyenne.ToString("0.0") / 5 (@context.NombreAvis avis client)">
+                                    <span class="star-icon">★</span>
+                                    <span class="score">@context.NoteMoyenne.ToString("0.0")</span>
+                                    <span class="cnt">(@context.NombreAvis)</span>
+                                </span>
+                            }
+                        </div>
+                    </MudTd>
                     <MudTd DataLabel="Type">@context.TypeTissu</MudTd>
+                    <MudTd DataLabel="Attributs">
+                        <span style="font-size:0.8rem; color: var(--ink-muted);">
+                            @(string.IsNullOrWhiteSpace(WicStock.Web.Models.AttributsProduit.FormatLigneDescription(context.Genre, context.Taille, context.Couleur))
+                                ? "—"
+                                : WicStock.Web.Models.AttributsProduit.FormatLigneDescription(context.Genre, context.Taille, context.Couleur))
+                        </span>
+                    </MudTd>
                     <MudTd DataLabel="Catégorie">
                         <span class="table-cat-tag" style="background:@GetCategoryColor(context.Categorie)">@context.Categorie</span>
                     </MudTd>
@@ -514,6 +592,31 @@
                 box-shadow: 0 4px 12px rgba(43, 76, 126, 0.35);
                 transform: translateY(-1px);
             }
+
+        .admin-page .prod-rating-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #92400E;
+            background: #FEF3C7;
+            border: 1px solid #FDE68A;
+            padding: 2px 7px;
+            border-radius: 999px;
+            line-height: 1.2;
+        }
+
+        .admin-page .prod-rating-badge .star-icon {
+            color: #D97706;
+            font-size: 0.8rem;
+        }
+
+        .admin-page .prod-rating-badge .cnt {
+            color: #B45309;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
 
         .admin-page .btn--outline {
             background: #fff;
@@ -1123,6 +1226,65 @@
         border: 1px solid #E9C6BA;
     }
 
+    /* ===== Attributs variantes (admin carte) ===== */
+    .admin-page .prod-attrs-block {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-top: 6px;
+    }
+
+    .admin-page .attrs-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .admin-page .genre-pill {
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: var(--denim-soft, #E8EEF8);
+        color: var(--denim, #2B4C7E);
+        border: 1px solid rgba(43,76,126,0.15);
+    }
+
+    .admin-page .size-chip {
+        font-size: 0.68rem;
+        font-weight: 600;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: #F1F5F9;
+        color: #475569;
+        border: 1px solid #E2E8F0;
+    }
+
+    .admin-page .size-chip--more {
+        background: #E2E8F0;
+        color: #64748B;
+    }
+
+    .admin-page .color-swatch {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 1.5px solid rgba(0,0,0,0.15);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        flex-shrink: 0;
+    }
+
+    .admin-page .color-more {
+        font-size: 0.66rem;
+        font-weight: 600;
+        color: #64748B;
+        margin-left: 2px;
+    }
+
     .admin-page .card-actions {
         margin-left: auto;
     }
@@ -1551,6 +1713,8 @@
                 "NOM" => list.OrderBy(p => p.Nom),
                 "STOCK_ASC" => list.OrderBy(p => p.Stock?.QuantiteActuelle ?? 0),
                 "STOCK_DESC" => list.OrderByDescending(p => p.Stock?.QuantiteActuelle ?? 0),
+                "NOTE_DESC" => list.OrderByDescending(p => p.NoteMoyenne).ThenByDescending(p => p.NombreAvis),
+                "NOTE_ASC" => list.OrderBy(p => p.NoteMoyenne).ThenBy(p => p.NombreAvis),
                 _ => list.OrderBy(p => p.StatutIAPriorite)
             };
         }
@@ -1568,6 +1732,9 @@
         if (p.Reference?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
         if (p.TypeTissu?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
         if (p.Categorie?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (p.Genre?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (p.Taille?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (p.Couleur?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
         if (p.StatutIABadgeText?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
 
         return false;
@@ -1738,7 +1905,48 @@
     }
 
     // ===== GESTION DE COMMANDES CLIENTS =====
-    private int NombreCommandesEnAttente => commandesClients == null
+    private int NombreCommandesEnAttente =>
+        commandesClients == null
         ? 0
         : commandesClients.Count(c => c.StatutCommande == "EN_ATTENTE");
+
+    // ===== HELPERS ATTRIBUTS VARIANTES (admin catalogue) =====
+    private List<string> GetProdGenres(ProduitDto prod)
+    {
+        if (prod.Variantes?.Any() == true)
+            return prod.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Genre))
+                .Select(v => v.Genre!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        return string.IsNullOrWhiteSpace(prod.Genre) ? new() : new() { prod.Genre.Trim() };
+    }
+
+    private List<string> GetProdTailles(ProduitDto prod)
+    {
+        if (prod.Variantes?.Any() == true)
+            return prod.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Taille))
+                .Select(v => v.Taille!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        return string.IsNullOrWhiteSpace(prod.Taille) ? new() : new() { prod.Taille.Trim() };
+    }
+
+    private List<(string nom, string hex)> GetProdCouleurs(ProduitDto prod)
+    {
+        if (prod.Variantes?.Any(v => !string.IsNullOrWhiteSpace(v.Couleur)) == true)
+            return prod.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Couleur))
+                .Select(v => (
+                    nom: v.Couleur!.Trim(),
+                    hex: !string.IsNullOrWhiteSpace(v.CodeHexCouleur) ? v.CodeHexCouleur! : WicStock.Web.Models.AttributsProduit.GetHex(v.Couleur)
+                ))
+                .GroupBy(c => c.nom, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .ToList();
+        if (!string.IsNullOrWhiteSpace(prod.Couleur))
+            return new() { (prod.Couleur.Trim(), prod.CodeHexCouleur ?? WicStock.Web.Models.AttributsProduit.GetHex(prod.Couleur)) };
+        return new();
+    }
 }

@@ -1,0 +1,50 @@
+# gitops/environments/dev/values.yaml
+# Environnement Dev GitOps pour Argo CD (Tags immuables)
+
+environment: "dev"
+images:
+  registry: "ghcr.io/haifacheikh/wicstockproject"
+  pullPolicy: "IfNotPresent"
+  backend:
+    repository: "wicstock-api"
+    tag: "5beeb70c3adb32f68d479ef6d6b2f63ff1ab638f"
+  frontend:
+    repository: "wicstock-web"
+    tag: "5beeb70c3adb32f68d479ef6d6b2f63ff1ab638f"
+  aiService:
+    repository: "wicstock-ai"
+    tag: "5beeb70c3adb32f68d479ef6d6b2f63ff1ab638f"
+resources:
+  profile: "dev"
+replicas:
+  backend: 1
+  frontend: 1
+  aiService: 1
+  postgres: 1
+modules:
+  core:
+    enabled: true
+  ai:
+    enabled: true
+  observability:
+    enabled: true
+persistence:
+  postgres:
+    enabled: true
+    storageClass: ""
+    size: "1Gi"
+  chromadb:
+    enabled: true
+    storageClass: ""
+    size: "1Gi"
+  prometheus:
+    enabled: false
+    retentionTime: "2h"
+    size: "5Gi"
+ingress:
+  enabled: true
+  className: "nginx"
+  host: "wicstock.local"
+grafana:
+  adminUser: "admin"
+  adminPassword: "CHANGE_ME_LOCAL_DEV_PASSWORD"

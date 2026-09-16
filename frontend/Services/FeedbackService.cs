@@ -29,11 +29,15 @@ namespace WicStock.Web.Services
             }
         }
 
-        public async Task<AvisDto?> ObtenirAvisCommande(int commandeId)
+        public async Task<AvisDto?> ObtenirAvisCommande(int commandeId, int? produitId = null)
         {
             try
             {
-                var response = await _http.GetAsync($"api/Avis/commande/{commandeId}");
+                var url = produitId.HasValue && produitId.Value > 0
+                    ? $"api/Avis/commande/{commandeId}?produitId={produitId.Value}"
+                    : $"api/Avis/commande/{commandeId}";
+
+                var response = await _http.GetAsync(url);
                 if (response.IsSuccessStatusCode)
                 {
                     return await response.Content.ReadFromJsonAsync<AvisDto>();

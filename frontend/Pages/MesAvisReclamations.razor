@@ -69,13 +69,17 @@
                         {
                             var avis = mesAvis.FirstOrDefault(a => a.CommandeId == cmd.Id);
                             bool expire = EstDelaiExceder14Jours(cmd.DateVente);
+                            bool isMulti = cmd.EstMultiLignes && cmd.Lignes.Count > 0;
+                            string nomAffichage = isMulti ? string.Join(", ", cmd.Lignes.Select(l => l.ProduitNom)) : (cmd.ProduitNom ?? "");
+                            string refAffichage = isMulti ? string.Join(", ", cmd.Lignes.Select(l => l.ProduitReference)) : (cmd.ProduitReference ?? "");
+                            int qteAffichage = isMulti ? cmd.QuantiteTotale : cmd.QuantiteVendue;
 
                             <div class="order-card">
                                 <div class="order-card-main">
                                     <div class="product-thumb">
                                         @if (!string.IsNullOrEmpty(cmd.ProduitImageUrl))
                                         {
-                                            <img src="@GetFullImageUrl(cmd.ProduitImageUrl)" alt="@cmd.ProduitNom" />
+                                            <img src="@GetFullImageUrl(cmd.ProduitImageUrl)" alt="@nomAffichage" />
                                         }
                                         else
                                         {
@@ -84,17 +88,21 @@
                                     </div>
                                     <div class="order-card-info">
                                         <div class="order-card-tags">
-                                            <span class="ref-code">@cmd.ProduitReference</span>
+                                            @if (isMulti)
+                                            {
+                                                <span class="multi-badge" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; font-size:0.75rem; font-weight:700; padding:2px 8px; border-radius:12px; white-space:nowrap;">@cmd.Lignes.Count article@(cmd.Lignes.Count > 1 ? "s" : "")</span>
+                                            }
+                                            <span class="ref-code">@refAffichage</span>
                                             <span class="status-pill status-pill--done">
                                                 <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
                                                 Livrée
                                             </span>
                                         </div>
-                                        <h3 class="order-name">@cmd.ProduitNom</h3>
+                                        <h3 class="order-name">@nomAffichage</h3>
                                         <div class="order-meta-row">
                                             <span class="meta-chip">
                                                 <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Small" />
-                                                @cmd.QuantiteVendue pièce(s)
+                                                @qteAffichage pièce(s)
                                             </span>
                                             <span class="meta-chip">
                                                 <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" />
@@ -306,6 +314,7 @@
                ProduitNom="@selectedCommande.ProduitNom"
                ProduitRef="@selectedCommande.ProduitReference"
                ProduitImgUrl="@GetFullImageUrl(selectedCommande.ProduitImageUrl)"
+               Lignes="@selectedCommande.Lignes"
                AvisExistant="@selectedAvis"
                OnAvisEnregistre="ChargerDonnees" />
 
@@ -315,6 +324,7 @@
                       ProduitNom="@selectedCommande.ProduitNom"
                       ProduitRef="@selectedCommande.ProduitReference"
                       ProduitImgUrl="@GetFullImageUrl(selectedCommande.ProduitImageUrl)"
+                      Lignes="@selectedCommande.Lignes"
                       OnReclamationEnregistree="ChargerDonnees" />
 }
 

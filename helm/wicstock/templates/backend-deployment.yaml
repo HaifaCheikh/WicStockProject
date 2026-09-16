@@ -1,0 +1,102 @@
+{{- if .Values.modules.core.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "wicstock.fullname" . }}-backend-secret
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: backend
+type: Opaque
+stringData:
+  ConnectionStrings__DefaultConnection: "Host={{ include "wicstock.fullname" . }}-postgres-service;Port=5432;Database=wicstock_db;Username=wicstock_user;Password=wicstock_dev_password_2026!"
+  Jwt__Key: "WicStockKubernetesSecretKeyDev2026Min32Chars!"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "wicstock.fullname" . }}-backend-configmap
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: backend
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_URLS: "http://+:8080"
+  Jwt__Issuer: "WicStock"
+  WicStockIAUrl: "http://{{ include "wicstock.fullname" . }}-ai-service:8000/"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wicstock.fullname" . }}-backend
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: backend
+spec:
+  replicas: {{ .Values.replicas.backend }}
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: "{{ .Values.images.registry }}/{{ .Values.images.backend.repository }}:{{ .Values.images.backend.tag }}"
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - secretRef:
+                name: {{ include "wicstock.fullname" . }}-backend-secret
+            - configMapRef:
+                name: {{ include "wicstock.fullname" . }}-backend-configmap
+          resources:
+            {{- if eq .Values.resources.profile "dev" }}
+            requests:
+              cpu: {{ .Values.resources.dev.backend.requests.cpu }}
+              memory: {{ .Values.resources.dev.backend.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.dev.backend.limits.cpu }}
+              memory: {{ .Values.resources.dev.backend.limits.memory }}
+            {{- else }}
+            requests:
+              cpu: {{ .Values.resources.prod.backend.requests.cpu }}
+              memory: {{ .Values.resources.prod.backend.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.prod.backend.limits.cpu }}
+              memory: {{ .Values.resources.prod.backend.limits.memory }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "wicstock.fullname" . }}-backend-service
+  labels:
+    {{- include "wicstock.labels" . | nindent 4 }}
+    app: backend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+  selector:
+    app: backend
+{{- end }}

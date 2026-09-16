@@ -25,14 +25,32 @@
         <div class="d-flex justify-space-between align-center flex-wrap gap-4">
             <div>
                 <div class="d-flex align-center gap-3">
-                    <MudText Typo="Typo.h4" Class="page-title">Catalogue produits</MudText>
-                    @if (produits != null)
+                    @if (showCommandes)
                     {
-                        <span class="count-badge">@FilteredProduits.Count() articles</span>
+                        <MudText Typo="Typo.h4" Class="page-title">Mes commandes</MudText>
+                        @if (mesCommandes != null)
+                        {
+                            <span class="count-badge">@mesCommandes.Count commande@(mesCommandes.Count > 1 ? "s" : "")</span>
+                        }
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.h4" Class="page-title">Catalogue produits</MudText>
+                        @if (produits != null)
+                        {
+                            <span class="count-badge">@FilteredProduits.Count() articles</span>
+                        }
                     }
                 </div>
                 <MudText Typo="Typo.body2" Class="page-subtitle mt-1">
-                    Consultez nos références de tissus et passez vos commandes en ligne
+                    @if (showCommandes)
+                    {
+                        <span>Suivez l'état de vos commandes et gérez-les en un coup d'œil</span>
+                    }
+                    else
+                    {
+                        <span>Consultez nos références de tissus et passez vos commandes en ligne</span>
+                    }
                 </MudText>
             </div>
 
@@ -46,6 +64,7 @@
                 }
             </button>
         </div>
+
 
         @if (!showCommandes)
         {
@@ -63,6 +82,20 @@
                     {
                         <option value="@cat">@cat</option>
                     }
+                </select>
+
+                <select class="filter-select" @bind="genreFilter">
+                    <option value="">Tous les genres</option>
+                    @foreach (var g in WicStock.Web.Models.AttributsProduit.Genres)
+                    {
+                        <option value="@g">@g</option>
+                    }
+                </select>
+
+                <select class="filter-select" @bind="priceSortFilter">
+                    <option value="">Trier par prix</option>
+                    <option value="asc">Prix : croissant</option>
+                    <option value="desc">Prix : décroissant</option>
                 </select>
 
                 <div class="search-wrap">
@@ -169,6 +202,63 @@
                                                 <span>@produit.TypeTissu</span>
                                             </div>
                                         }
+
+                                        @{
+                                            var _cGenres   = GetCatGenres(produit);
+                                            var _cTailles  = GetCatTailles(produit);
+                                            var _cCouleurs = GetCatCouleurs(produit);
+                                            var _cSubtitle = string.Join(" · ", new[] {
+                                                _cGenres.FirstOrDefault() ?? "",
+                                                produit.TypeTissu ?? ""
+                                            }.Where(s => !string.IsNullOrEmpty(s)));
+                                        }
+
+                                        <!-- Coloris + Tailles from variantes -->
+                                        @if (_cCouleurs.Any() || _cTailles.Any())
+                                        {
+                                            <div class="b-attrs-section mt-2">
+                                                @if (_cCouleurs.Any())
+                                                {
+                                                    <div class="b-attrs-row">
+                                                        <span class="b-attrs-label">Coloris</span>
+                                                        <div class="b-swatches">
+                                                            @{
+                                                                var _cCoulShow  = _cCouleurs.Take(5).ToList();
+                                                                int _cCoulExtra = _cCouleurs.Count - _cCoulShow.Count;
+                                                            }
+                                                            @foreach (var c in _cCoulShow)
+                                                            {
+                                                                <span class="b-swatch" style="background-color:@c.hex;" title="@c.nom"></span>
+                                                            }
+                                                            @if (_cCoulExtra > 0)
+                                                            {
+                                                                <span class="b-swatch-more">+@_cCoulExtra</span>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                }
+                                                @if (_cTailles.Any())
+                                                {
+                                                    <div class="b-attrs-row">
+                                                        <span class="b-attrs-label">Taille</span>
+                                                        <div class="b-chips">
+                                                            @{
+                                                                var _cTailShow  = _cTailles.Take(5).ToList();
+                                                                int _cTailExtra = _cTailles.Count - _cTailShow.Count;
+                                                            }
+                                                            @foreach (var t in _cTailShow)
+                                                            {
+                                                                <span class="b-size-chip">@t</span>
+                                                            }
+                                                            @if (_cTailExtra > 0)
+                                                            {
+                                                                <span class="b-size-chip b-size-chip--more">+@_cTailExtra</span>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
                                     </div>
 
                                     <!-- Action Prix & Commander -->
@@ -202,7 +292,7 @@
                                         {
                                             <button class="btn-commander" @onclick:stopPropagation="true" @onclick="() => OuvrirCommande(produit)">
                                                 <MudIcon Icon="@Icons.Material.Filled.AddShoppingCart" Size="Size.Small" />
-                                                <span>@(produit.EstSurCommande ? "Commander (sur commande)" : "Commander")</span>
+                                                <span>Commander</span>
                                             </button>
                                         }
                                     </div>
@@ -239,65 +329,109 @@
                 }
                 else
                 {
-                    <div class="table-panel">
-                        <MudTable Items="@mesCommandes" Hover="true" Elevation="0" Class="commandes-table">
-                            <HeaderContent>
-                                <MudTh>Produit</MudTh>
-                                <MudTh>Référence</MudTh>
-                                <MudTh>Catégorie</MudTh>
-                                <MudTh>Qté</MudTh>
-                                <MudTh>Prix/u</MudTh>
-                                <MudTh>Total</MudTh>
-                                <MudTh>Statut</MudTh>
-                                <MudTh>Date</MudTh>
-                                <MudTh Style="text-align:right;">Action</MudTh>
-                            </HeaderContent>
-                            <RowTemplate>
-                                <MudTd DataLabel="Produit" Class="cell-name commande-row-clickable" @onclick="() => OuvrirSuivi(context)">@context.ProduitNom</MudTd>
-                                <MudTd DataLabel="Référence" Class="commande-row-clickable" @onclick="() => OuvrirSuivi(context)">
-                                    <span class="ref-code">@context.ProduitReference</span>
-                                </MudTd>
-                                <MudTd DataLabel="Catégorie" Class="commande-row-clickable" @onclick="() => OuvrirSuivi(context)">
-                                    @if (!string.IsNullOrEmpty(context.ProduitCategorie))
-                                    {
-                                        <span class="table-cat-tag" style="background: @GetCategoryColor(context.ProduitCategorie);">
-                                            @context.ProduitCategorie
+
+
+                    <div class="orders-list">
+                        @foreach (var commande in mesCommandes)
+                        {
+                            var statutValue = commande.Statut ?? commande.StatutCommande;
+                            bool isMulti = commande.EstMultiLignes && commande.Lignes.Count > 0;
+                            decimal? prixU = isMulti ? commande.PrixUnitaireEffectif : commande.PrixUnitaire;
+                            decimal total = isMulti ? commande.MontantAffiche : commande.TotalCommande;
+                            int qte = isMulti ? commande.QuantiteTotale : commande.QuantiteVendue;
+
+                            <div class="order-card">
+                                <div class="order-card-info commande-row-clickable" @onclick="() => OuvrirSuivi(commande)">
+                                    <div class="order-card-top">
+                                        <div class="order-card-title-wrap">
+                                            @if (isMulti && commande.Lignes.Count > 1)
+                                            {
+                                                <span class="multi-badge">@commande.Lignes.Count articles</span>
+                                            }
+                                            <span class="order-card-title">
+                                                @(isMulti ? string.Join(", ", commande.Lignes.Select(l => l.ProduitNom)) : commande.ProduitNom)
+                                            </span>
+                                        </div>
+                                        <span class="badge-statut @GetStatutCssClass(statutValue)">@GetStatutLabel(statutValue)</span>
+                                    </div>
+
+                                    <div class="order-card-tags">
+                                        <span class="ref-code">
+                                            @(isMulti ? string.Join(", ", commande.Lignes.Select(l => l.ProduitReference)) : commande.ProduitReference)
                                         </span>
-                                    }
-                                </MudTd>
-                                <MudTd DataLabel="Qté" Style="font-weight: 600;">@context.QuantiteVendue</MudTd>
-                                <MudTd DataLabel="Prix/u">@context.PrixUnitaire.ToString("0.00") DT</MudTd>
-                                <MudTd DataLabel="Total" Style="font-weight: 700; color: #2B4C7E;">@context.TotalCommande.ToString("0.00") DT</MudTd>
-                                <MudTd DataLabel="Statut" Class="commande-row-clickable" @onclick="() => OuvrirSuivi(context)">
-                                    <span class="badge-statut @GetStatutCssClass(context.Statut ?? context.StatutCommande)">
-                                        @GetStatutLabel(context.Statut ?? context.StatutCommande)
-                                    </span>
-                                </MudTd>
-                                <MudTd DataLabel="Date">@context.DateVente.ToString("dd/MM/yyyy HH:mm")</MudTd>
-                                <MudTd Style="text-align:right;">
-                                    <div class="d-flex align-center justify-end gap-2">
-                                        @if (CanPayer(context))
+                                        @if (!string.IsNullOrEmpty(commande.ProduitCategorie))
                                         {
-                                            <button class="btn-payer" @onclick="() => OuvrirSuivi(context)" title="Payer cette commande">
-                                                <MudIcon Icon="@Icons.Material.Filled.CreditCard" Size="Size.Small" />
-                                            </button>
+                                            <span class="table-cat-tag" style="background: @GetCategoryColor(commande.ProduitCategorie);">@commande.ProduitCategorie</span>
                                         }
-                                        <button class="btn-suivi" @onclick="() => OuvrirSuivi(context)" title="Suivre cette commande">
-                                            <MudIcon Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" />
-                                        </button>
-                                        @if (context.StatutCommande != "REFUSEE" && context.Statut != "PAYEE" && context.Statut != "EN_LIVRAISON" && context.Statut != "LIVREE")
+                                        else if (isMulti && commande.Lignes.Count > 1)
                                         {
-                                            <button class="btn-modifier" @onclick="() => OuvrirModification(context)" title="Modifier">
-                                                <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" />
-                                            </button>
-                                            <button class="btn-annuler" @onclick="() => DemanderAnnulation(context)" title="Annuler">
-                                                <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" />
-                                            </button>
+                                            <span class="table-cat-tag" style="background:#2B4C7E;">Multi-catégories</span>
+                                        }
+                                        @if (!isMulti && (!string.IsNullOrEmpty(commande.Genre) || !string.IsNullOrEmpty(commande.Taille) || !string.IsNullOrEmpty(commande.Couleur)))
+                                        {
+                                            var partsC = new List<string>();
+                                            if (!string.IsNullOrWhiteSpace(commande.Genre)) partsC.Add(commande.Genre.Trim());
+                                            if (!string.IsNullOrWhiteSpace(commande.Taille)) partsC.Add($"Taille {commande.Taille.Trim()}");
+                                            var hexC = !string.IsNullOrEmpty(commande.Couleur) ? WicStock.Web.Models.AttributsProduit.GetHex(commande.Couleur) : null;
+
+                                            <span class="variant-tag">
+                                                @if (partsC.Count > 0)
+                                                {
+                                                    <span>@string.Join(" · ", partsC)</span>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(commande.Couleur))
+                                                {
+                                                    @if (partsC.Count > 0) { <span>·</span> }
+                                                    @if (hexC != null)
+                                                    {
+                                                        <span class="variant-swatch" style="background-color:@hexC;"></span>
+                                                    }
+                                                    <span>@commande.Couleur.Trim()</span>
+                                                }
+                                            </span>
+                                        }
+                                        <span class="order-card-date">@commande.DateVente.ToString("dd/MM/yyyy HH:mm")</span>
+                                    </div>
+                                </div>
+
+                                <div class="order-card-bottom">
+                                    <div class="order-card-qty">
+                                        <span><strong>@qte</strong> article(s)</span>
+                                        @if (prixU.HasValue)
+                                        {
+                                            <span class="order-detail-sep">·</span>
+                                            <span>@prixU.Value.ToString("0.00") DT/u</span>
                                         }
                                     </div>
-                                </MudTd>
-                            </RowTemplate>
-                        </MudTable>
+                                    <div class="order-card-right">
+                                        <span class="order-card-total">@total.ToString("0.00") DT</span>
+                                        <div class="order-card-actions">
+                                            @if (CanPayer(commande))
+                                            {
+                                                <button class="btn-payer" @onclick="() => OuvrirSuivi(commande)" title="Payer cette commande">
+                                                    <MudIcon Icon="@Icons.Material.Filled.CreditCard" Size="Size.Small" />
+                                                </button>
+                                            }
+                                            <button class="btn-suivi" @onclick="() => OuvrirSuivi(commande)" title="Suivre cette commande">
+                                                <MudIcon Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" />
+                                            </button>
+                                            @if (CanEdit(commande))
+                                            {
+                                                <button class="btn-modifier" @onclick="() => OuvrirModification(commande)" title="Modifier la commande">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" />
+                                                </button>
+                                            }
+                                            @if (CanCancel(commande))
+                                            {
+                                                <button class="btn-annuler" @onclick="() => DemanderAnnulation(commande)" title="Annuler">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" />
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
                     </div>
                 }
             </div>
@@ -322,20 +456,33 @@
                 <div class="dialog-body">
                     <div class="annulation-recap">
                         <div class="annulation-row">
-                            <span class="annulation-label">Produit</span>
-                            <span class="annulation-value">@commandeAnnuler.ProduitNom</span>
+                            <span class="annulation-label">Commande</span>
+                            <span class="annulation-value">@commandeAnnuler.LibelleProduit</span>
                         </div>
-                        <div class="annulation-row">
-                            <span class="annulation-label">Référence</span>
-                            <span class="ref-code">@commandeAnnuler.ProduitReference</span>
-                        </div>
+                        @if (commandeAnnuler.EstMultiLignes && commandeAnnuler.Lignes.Count > 0)
+                        {
+                            @foreach (var ligne in commandeAnnuler.Lignes)
+                            {
+                                <div class="annulation-row" style="padding-left:1rem; font-size:0.85rem; color:#666;">
+                                    <span>@ligne.ProduitNom</span>
+                                    <span>× @ligne.Quantite (@ligne.SousTotal.ToString("0.00") DT)</span>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="annulation-row">
+                                <span class="annulation-label">Référence</span>
+                                <span class="ref-code">@commandeAnnuler.ProduitReference</span>
+                            </div>
+                        }
                         <div class="annulation-row">
                             <span class="annulation-label">Quantité</span>
-                            <span class="annulation-value">@commandeAnnuler.QuantiteVendue</span>
+                            <span class="annulation-value">@commandeAnnuler.QuantiteTotale</span>
                         </div>
                         <div class="annulation-row">
                             <span class="annulation-label">Total</span>
-                            <span class="annulation-value" style="font-weight:700; color:#2B4C7E;">@commandeAnnuler.TotalCommande.ToString("0.00") DT</span>
+                            <span class="annulation-value" style="font-weight:700; color:#2B4C7E;">@commandeAnnuler.MontantAffiche.ToString("0.00") DT</span>
                         </div>
                         <div class="annulation-row">
                             <span class="annulation-label">Date</span>
@@ -365,11 +512,18 @@
     @if (commandeModifier != null)
     {
         <div class="dialog-overlay" @onclick="FermerModification">
-            <div class="dialog-card" @onclick:stopPropagation="true">
+            <div class="dialog-card" style="max-width: 520px;" @onclick:stopPropagation="true">
                 <div class="dialog-header">
                     <div>
                         <div class="dialog-title">Modifier la commande</div>
-                        <div class="dialog-subtitle">@commandeModifier.ProduitNom</div>
+                        @if (commandeModifier.EstMultiLignes && commandeModifierLignes.Count > 1)
+                        {
+                            <div class="dialog-subtitle">@commandeModifierLignes.Count article(s) dans cette commande</div>
+                        }
+                        else
+                        {
+                            <div class="dialog-subtitle">@commandeModifier.ProduitNom</div>
+                        }
                     </div>
                     <button class="dialog-close" @onclick="FermerModification">
                         <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
@@ -377,36 +531,76 @@
                 </div>
 
                 <div class="dialog-body">
-                    <!-- Résumé produit -->
-                    <div class="order-summary-product">
-                        <span class="ref-code">@commandeModifier.ProduitReference</span>
-                        @if (!string.IsNullOrEmpty(commandeModifier.ProduitCategorie))
-                        {
-                            <span class="table-cat-tag" style="background: @GetCategoryColor(commandeModifier.ProduitCategorie); margin-left: 8px;">
-                                @commandeModifier.ProduitCategorie
-                            </span>
-                        }
-                    </div>
-
-                    <!-- Quantité -->
-                    <div class="dialog-field">
-                        <label class="field-label">Nouvelle quantité (articles)</label>
-                        <input type="number" class="field-input" min="1" @bind="commandeModifierQuantite" placeholder="ex : 5" />
-                    </div>
-
-                    <!-- Prix unitaire -->
-                    <div class="dialog-field">
-                        <label class="field-label">Prix unitaire (DT)</label>
-                        <input type="number" class="field-input" readonly value="@commandeModifier.PrixUnitaire" style="background:#F8FAFC; color:#64748B; cursor:not-allowed;" />
-                    </div>
-
-                    <!-- Récapitulatif -->
-                    @if (commandeModifierQuantite > 0 && commandeModifier.PrixUnitaire > 0)
+                    @if (commandeModifier.EstMultiLignes && commandeModifierLignes.Count > 0)
                     {
-                        <div class="order-total">
-                            <span>Nouveau total estimé</span>
-                            <strong>@((commandeModifierQuantite * commandeModifier.PrixUnitaire).ToString("0.00")) DT</strong>
+                        <div class="d-flex flex-column gap-3">
+                            <label class="field-label" style="font-weight:700; color:#1E293B; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.03em;">Articles de la commande</label>
+                            @foreach (var item in commandeModifierLignes)
+                            {
+                                <div class="d-flex align-center justify-space-between gap-3 pa-3" style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px;">
+                                    <div class="d-flex align-center gap-3" style="flex:1;">
+                                        <div style="width:44px; height:44px; border-radius:8px; overflow:hidden; background:#FFF; border:1px solid #CBD5E1; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
+                                            @if (!string.IsNullOrEmpty(item.ProduitImageUrl))
+                                            {
+                                                <img src="@GetFullImageUrl(item.ProduitImageUrl)" alt="@item.ProduitNom" style="width:100%; height:100%; object-fit:cover;" />
+                                            }
+                                            else
+                                            {
+                                                <MudIcon Icon="@Icons.Material.Filled.Layers" Size="Size.Small" Style="color:#94A3B8;" />
+                                            }
+                                        </div>
+                                        <div>
+                                            <span class="ref-code" style="font-size:0.75rem;">@item.ProduitReference</span>
+                                            <span style="font-weight:600; font-size:0.875rem; color:#1E293B; display:block; margin-top:2px;">@item.ProduitNom</span>
+                                            <span style="font-size:0.78rem; color:#64748B;">@item.PrixUnitaire.ToString("0.00") DT / u</span>
+                                        </div>
+                                    </div>
+                                    <div style="width:90px; flex-shrink:0;">
+                                        <label class="field-label" style="font-size:0.7rem; margin-bottom:2px;">Quantité</label>
+                                        <input type="number" class="field-input" min="1" @bind="item.Quantite" style="text-align:center; padding:6px; font-weight:600;" />
+                                    </div>
+                                </div>
+                            }
                         </div>
+
+                        <div class="order-total mt-4" style="background:#EFF6FF; border:1px solid #BFDBFE; padding:14px; border-radius:10px; display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-weight:600; color:#1E40AF;">Nouveau total estimé</span>
+                            <strong style="font-size:1.15rem; color:#1E3A8A;">@commandeModifierLignes.Sum(l => l.Quantite * l.PrixUnitaire).ToString("0.00") DT</strong>
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- Résumé produit mono-article -->
+                        <div class="order-summary-product">
+                            <span class="ref-code">@commandeModifier.ProduitReference</span>
+                            @if (!string.IsNullOrEmpty(commandeModifier.ProduitCategorie))
+                            {
+                                <span class="table-cat-tag" style="background: @GetCategoryColor(commandeModifier.ProduitCategorie); margin-left: 8px;">
+                                    @commandeModifier.ProduitCategorie
+                                </span>
+                            }
+                        </div>
+
+                        <!-- Quantité -->
+                        <div class="dialog-field mt-3">
+                            <label class="field-label">Nouvelle quantité (articles)</label>
+                            <input type="number" class="field-input" min="1" @bind="commandeModifierQuantite" placeholder="ex : 5" />
+                        </div>
+
+                        <!-- Prix unitaire -->
+                        <div class="dialog-field">
+                            <label class="field-label">Prix unitaire (DT)</label>
+                            <input type="number" class="field-input" readonly value="@commandeModifier.PrixUnitaire" style="background:#F8FAFC; color:#64748B; cursor:not-allowed;" />
+                        </div>
+
+                        <!-- Récapitulatif -->
+                        @if (commandeModifierQuantite > 0 && commandeModifier.PrixUnitaire > 0)
+                        {
+                            <div class="order-total">
+                                <span>Nouveau total estimé</span>
+                                <strong>@((commandeModifierQuantite * commandeModifier.PrixUnitaire).ToString("0.00")) DT</strong>
+                            </div>
+                        }
                     }
                 </div>
 
@@ -633,15 +827,85 @@
                         </div>
                     }
 
+                    <!-- SELECTION DU GENRE -->
+                    @{
+                        var catGenres = GetCatGenres(produitSelectionne);
+                    }
+                    @if (catGenres.Count > 1)
+                    {
+                        <div class="dialog-field mb-3">
+                            <label class="field-label d-flex align-center gap-1">
+                                <MudIcon Icon="@Icons.Material.Filled.Wc" Size="Size.Small" Style="font-size:1rem;" />
+                                <span>Genre / Collection</span>
+                            </label>
+                            <div class="d-flex flex-wrap gap-2 mt-1">
+                                @foreach (var g in catGenres)
+                                {
+                                    var isSelected = string.Equals(commandeGenre, g, StringComparison.OrdinalIgnoreCase);
+                                    <button type="button" class="btn-attr-chip @(isSelected ? "btn-attr-chip--active" : "")" @onclick="() => SelectGenre(g)">
+                                        @g
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <!-- SELECTION DE LA COULEUR -->
+                    @{
+                        var catCouleurs = GetCatCouleurs(produitSelectionne);
+                    }
+                    @if (catCouleurs.Any())
+                    {
+                        <div class="dialog-field mb-3">
+                            <label class="field-label d-flex align-center gap-1">
+                                <MudIcon Icon="@Icons.Material.Filled.Palette" Size="Size.Small" Style="font-size:1rem;" />
+                                <span>Couleur désirée : <strong style="color:var(--denim);">@commandeCouleur</strong></span>
+                            </label>
+                            <div class="d-flex flex-wrap gap-2 align-center mt-1">
+                                @foreach (var c in catCouleurs)
+                                {
+                                    var isSelected = string.Equals(commandeCouleur, c.nom, StringComparison.OrdinalIgnoreCase);
+                                    <button type="button" class="btn-color-swatch @(isSelected ? "btn-color-swatch--active" : "")" @onclick="() => SelectCouleur(c.nom)" title="@c.nom">
+                                        <span class="color-dot" style="background-color:@c.hex;"></span>
+                                        <span>@c.nom</span>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <!-- SELECTION DE LA TAILLE -->
+                    @{
+                        var catTailles = GetCatTailles(produitSelectionne);
+                    }
+                    @if (catTailles.Any())
+                    {
+                        <div class="dialog-field mb-3">
+                            <label class="field-label d-flex align-center gap-1">
+                                <MudIcon Icon="@Icons.Material.Filled.Straighten" Size="Size.Small" Style="font-size:1rem;" />
+                                <span>Taille désirée : <strong style="color:var(--denim);">@commandeTaille</strong></span>
+                            </label>
+                            <div class="d-flex flex-wrap gap-2 mt-1">
+                                @foreach (var t in catTailles)
+                                {
+                                    var isSelected = string.Equals(commandeTaille, t, StringComparison.OrdinalIgnoreCase);
+                                    <button type="button" class="btn-size-chip @(isSelected ? "btn-size-chip--active" : "")" @onclick="() => SelectTaille(t)">
+                                        @t
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+
                     <!-- Quantité -->
-                    <div class="dialog-field">
+                    <div class="dialog-field mb-3">
                         <label class="field-label">Quantité (articles)</label>
-                        <input type="number" class="field-input" min="1" @bind="commandeQuantite" placeholder="ex : 5" />
+                        <input type="number" class="field-input" min="1" @bind="commandeQuantite" placeholder="ex : 1" />
                     </div>
 
                     @if (EstModeSurCommande)
                     {
-                        <div class="dialog-field">
+                        <div class="dialog-field mb-3">
                             <label class="field-label">Date souhaitée (optionnelle)</label>
                             <MudDatePicker @bind-Date="commandeDateSouhaitee"
                                            Variant="Variant.Outlined"
@@ -650,13 +914,13 @@
                                            Clearable="true"
                                            Placeholder="Choisir une date" />
                             <MudText Typo="Typo.caption" Class="hint-text mt-1">
-                                Ce produit sera fabrié sur commande faute de stock suffisant.
+                                Ce produit sera fabriqué sur commande faute de stock suffisant.
                             </MudText>
                         </div>
                     }
 
                     <!-- Prix unitaire -->
-                    <div class="dialog-field">
+                    <div class="dialog-field mb-3">
                         <label class="field-label">Prix unitaire (DT)</label>
                         <input type="number" class="field-input" readonly @bind="commandePrix" style="background:#F8FAFC; color:#64748B; cursor:not-allowed;" />
                     </div>
@@ -1045,6 +1309,18 @@
         font-size: 0.875rem;
     }
 
+    /* ===== Attributs variantes (catalogue client) ===== */
+    .b-attrs-section { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+    .b-attrs-row { display: flex; align-items: center; gap: 6px; }
+    .b-attrs-label { font-size: 0.68rem; font-weight: 600; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.04em; min-width: 44px; flex-shrink: 0; }
+    .b-swatches { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .b-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid rgba(0,0,0,0.12); box-shadow: 0 1px 2px rgba(0,0,0,0.1); flex-shrink: 0; }
+    .b-swatch:hover { transform: scale(1.2); }
+    .b-swatch-more { font-size: 0.65rem; font-weight: 600; color: #64748B; }
+    .b-chips { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+    .b-size-chip { font-size: 0.65rem; font-weight: 700; padding: 2px 5px; border-radius: 4px; background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; }
+    .b-size-chip--more { background: #E2E8F0; color: #64748B; }
+
     .product-footer {
         padding-top: 12px;
         border-top: 1px solid var(--border);
@@ -1095,18 +1371,7 @@
         cursor: pointer;
     }
 
-        .commande-row-clickable:hover {
-            background: var(--sand) !important;
-        }
-
-    .suivi-link-hint {
-        display: block;
-        font-size: 0.6875rem;
-        color: var(--denim);
-        font-weight: 600;
-        margin-top: 4px;
-    }
-
+    /* ===== Prix produit catalogue ===== */
     .price-tag-badge {
         font-family: var(--font-display);
         font-weight: 700;
@@ -1163,64 +1428,143 @@
         color: #D97706;
     }
 
-    /* ===== Table commandes ===== */
-    .table-panel {
+    /* ===================================================== */
+    /* ===== MES COMMANDES — vue en cartes (nouvelle UI) ==== */
+    /* ===================================================== */
+
+    .orders-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        margin-bottom: 4px;
+    }
+
+    .orders-count {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--ink-muted);
+    }
+
+    .orders-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .order-card {
         background: var(--paper);
         border: 1px solid var(--border);
         border-radius: var(--radius-lg);
-        overflow: hidden;
+        padding: 16px 18px;
+        transition: box-shadow 0.15s ease, border-color 0.15s ease;
     }
 
-    .commandes-table .mud-table-head th {
-        font-family: var(--font-body);
-        font-weight: 700;
-        color: var(--ink-muted);
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        background: var(--sand);
+        .order-card:hover {
+            border-color: #CBD5E1;
+            box-shadow: 0 6px 18px -10px rgba(20,38,63,0.18);
+        }
+
+    .order-card-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
     }
 
-    .cell-name {
+    .order-card-title-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .order-card-title {
         font-family: var(--font-display);
         font-weight: 600;
+        font-size: 0.95rem;
         color: var(--ink);
+        line-height: 1.35;
     }
 
-    .ref-code {
-        font-family: var(--font-mono);
-        font-weight: 600;
-        font-size: 0.8125rem;
+    .order-card-tags {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+    }
+
+    .order-card-date {
+        font-size: 0.8rem;
+        color: var(--ink-muted);
+        margin-left: auto;
+        white-space: nowrap;
+    }
+
+    .order-card-bottom {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 14px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+        flex-wrap: wrap;
+    }
+
+    .order-card-qty {
+        font-size: 0.85rem;
+        color: var(--ink-muted);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+        .order-card-qty strong {
+            color: var(--ink);
+            font-weight: 700;
+        }
+
+    .order-detail-sep {
+        color: #CBD5E1;
+    }
+
+    .order-card-right {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .order-card-total {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: 1rem;
         color: var(--denim);
-        background: var(--denim-tint);
-        padding: 3px 8px;
-        border-radius: 6px;
+        white-space: nowrap;
     }
 
-    .table-cat-tag {
-        font-size: 0.75rem;
-        font-weight: 600;
-        color: #fff;
-        padding: 3px 9px;
-        border-radius: 6px;
+    .order-card-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
     }
 
     /* ===== Bouton Annuler commande ===== */
     .btn-annuler {
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 6px;
-        padding: 6px 12px;
+        width: 32px;
+        height: 32px;
+        padding: 0;
         border: 1px solid #fca5a5;
         border-radius: var(--radius-sm);
         background: #fff5f5;
         color: #dc2626;
-        font-family: var(--font-body);
-        font-size: 0.8125rem;
-        font-weight: 600;
         cursor: pointer;
         transition: all 0.15s ease;
-        white-space: nowrap;
+        flex-shrink: 0;
     }
 
         .btn-annuler:hover {
@@ -1232,18 +1576,18 @@
     .btn-modifier {
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 6px;
-        padding: 6px 12px;
+        width: 32px;
+        height: 32px;
+        padding: 0;
         border: 1px solid #bfdbfe;
         border-radius: var(--radius-sm);
         background: #eff6ff;
         color: #2563eb;
-        font-family: var(--font-body);
-        font-size: 0.8125rem;
-        font-weight: 600;
         cursor: pointer;
         transition: all 0.15s ease;
-        white-space: nowrap;
+        flex-shrink: 0;
     }
 
         .btn-modifier:hover {
@@ -1314,9 +1658,10 @@
         border-radius: 6px;
         display: inline-block;
         white-space: nowrap;
+        flex-shrink: 0;
     }
 
-    /* ===== Boutons Payer & Suivi — icône seule, même format que Modifier/Annuler ===== */
+    /* ===== Boutons Payer & Suivi — icône seule ===== */
     .btn-payer,
     .btn-suivi {
         display: inline-flex;
@@ -1391,6 +1736,57 @@
         border-radius: 8px;
         margin-right: 8px;
         font-size: 0.8125rem;
+    }
+
+    /* ===== Tags communs (référence / catégorie) ===== */
+    .ref-code {
+        font-family: var(--font-mono);
+        font-weight: 600;
+        font-size: 0.8125rem;
+        color: var(--denim);
+        background: var(--denim-tint);
+        padding: 3px 8px;
+        border-radius: 6px;
+    }
+
+    .table-cat-tag {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #fff;
+        padding: 3px 9px;
+        border-radius: 6px;
+    }
+
+    .multi-badge {
+        display: inline-block;
+        background: #eff6ff;
+        color: #2563eb;
+        border: 1px solid #bfdbfe;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 2px 10px;
+        width: fit-content;
+    }
+
+    .variant-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--denim);
+        background: var(--denim-tint);
+        padding: 3px 9px;
+        border-radius: 6px;
+    }
+
+    .variant-tag .variant-swatch {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        border: 1px solid rgba(22, 35, 58, 0.2);
+        flex-shrink: 0;
     }
 
     /* ===== Dialog Commander ===== */
@@ -1634,13 +2030,6 @@
     }
 
     /* Mise en valeur d'un produit depuis une notification ou lien */
-    .product-highlight {
-        border-color: var(--denim) !important;
-        animation: subtle-highlight-pulse 2.5s cubic-bezier(0.4, 0, 0.2, 1) 1 forwards;
-        position: relative;
-        z-index: 1;
-    }
-
     @@keyframes subtle-highlight-pulse {
         0% {
             transform: scale(1);
@@ -1712,6 +2101,63 @@
         color: #94A3B8;
         font-weight: 600;
     }
+
+    /* ===== Style des sélecteurs d'attributs (Genre, Couleur, Taille) dans la modal de commande ===== */
+    .btn-attr-chip, .btn-size-chip {
+        padding: 6px 14px;
+        border-radius: 8px;
+        border: 1.5px solid var(--border);
+        background: var(--paper);
+        color: var(--ink);
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .btn-attr-chip:hover, .btn-size-chip:hover {
+        border-color: var(--denim);
+        color: var(--denim);
+        background: var(--denim-tint);
+    }
+    .btn-attr-chip--active, .btn-size-chip--active {
+        border-color: var(--denim);
+        background: var(--denim);
+        color: #FFFFFF !important;
+        font-weight: 700;
+        box-shadow: 0 2px 6px rgba(43, 76, 126, 0.3);
+    }
+
+    .btn-color-swatch {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: 1.5px solid var(--border);
+        background: var(--paper);
+        color: var(--ink);
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .btn-color-swatch:hover {
+        border-color: var(--denim);
+        background: var(--denim-tint);
+    }
+    .btn-color-swatch--active {
+        border-color: var(--denim);
+        background: var(--denim-tint);
+        color: var(--denim-dark);
+        font-weight: 700;
+        box-shadow: 0 0 0 2px rgba(43, 76, 126, 0.2);
+    }
+    .btn-color-swatch .color-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 1px solid rgba(0,0,0,0.25);
+    }
 </style>
 
 @code {
@@ -1751,6 +2197,10 @@
     private decimal commandePrix = 0;
     private bool commandeEnCours = false;
     private DateTime? commandeDateSouhaitee;
+    private string commandeGenre = "";
+    private string commandeTaille = "";
+    private string commandeCouleur = "";
+    private int? commandeVarianteId;
 
     private bool EstModeSurCommande =>
         produitSelectionne != null
@@ -1914,16 +2364,48 @@
         }
     }
 
-    private IEnumerable<CatalogueProduitDto> FilteredProduits => produits == null
-        ? Enumerable.Empty<CatalogueProduitDto>()
-        : produits.Where(p => FilterFunc(p));
+    private string priceSortFilter = "";
+
+    private IEnumerable<CatalogueProduitDto> FilteredProduits
+    {
+        get
+        {
+            if (produits == null) return Enumerable.Empty<CatalogueProduitDto>();
+
+            var list = produits.Where(p => FilterFunc(p));
+
+            if (priceSortFilter == "asc")
+            {
+                list = list.OrderBy(p => p.PrixEffectif);
+            }
+            else if (priceSortFilter == "desc")
+            {
+                list = list.OrderByDescending(p => p.PrixEffectif);
+            }
+
+            return list;
+        }
+    }
 
     // Rôle de l'utilisateur courant (ex: CLIENT). Utilisé pour afficher badges et désactiver commandes.
     private string? userRole;
 
+    private string genreFilter = string.Empty;
+    private string tailleFilter = string.Empty;
+    private string couleurFilter = string.Empty;
+
     private bool FilterFunc(CatalogueProduitDto p)
     {
         if (!string.IsNullOrEmpty(categoryFilter) && !string.Equals(p.Categorie, categoryFilter, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (!string.IsNullOrEmpty(genreFilter) && !string.Equals(p.Genre, genreFilter, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (!string.IsNullOrEmpty(tailleFilter) && !string.Equals(p.Taille, tailleFilter, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (!string.IsNullOrEmpty(couleurFilter) && !string.Equals(p.Couleur, couleurFilter, StringComparison.OrdinalIgnoreCase))
             return false;
 
         if (string.IsNullOrWhiteSpace(searchString)) return true;
@@ -1932,6 +2414,9 @@
         if (p.Reference?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
         if (p.TypeTissu?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
         if (p.Categorie?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (p.Genre?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (p.Taille?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (p.Couleur?.Contains(searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
 
         return false;
     }
@@ -2008,7 +2493,82 @@
         produitSelectionne = produit;
         commandeQuantite = 1;
         commandeDateSouhaitee = null;
-        commandePrix = produit.PrixEffectif;
+
+        var genres = GetCatGenres(produit);
+        commandeGenre = genres.FirstOrDefault() ?? produit.Genre ?? "";
+
+        var tailles = GetCatTailles(produit);
+        commandeTaille = tailles.FirstOrDefault() ?? produit.Taille ?? "";
+
+        var couleurs = GetCatCouleurs(produit);
+        commandeCouleur = couleurs.FirstOrDefault().nom ?? produit.Couleur ?? "";
+
+        UpdateVarianteEtPrix();
+    }
+
+    private void SelectGenre(string g)
+    {
+        commandeGenre = g;
+        UpdateVarianteEtPrix();
+    }
+
+    private void SelectTaille(string t)
+    {
+        commandeTaille = t;
+        UpdateVarianteEtPrix();
+    }
+
+    private void SelectCouleur(string c)
+    {
+        commandeCouleur = c;
+        UpdateVarianteEtPrix();
+    }
+
+    private void UpdateVarianteEtPrix()
+    {
+        if (produitSelectionne == null) return;
+
+        commandePrix = produitSelectionne.PrixEffectif;
+        commandeVarianteId = null;
+
+        if (produitSelectionne.Variantes != null && produitSelectionne.Variantes.Any())
+        {
+            var match = produitSelectionne.Variantes.FirstOrDefault(v =>
+                (string.IsNullOrEmpty(commandeGenre) || string.Equals(v.Genre, commandeGenre, StringComparison.OrdinalIgnoreCase)) &&
+                (string.IsNullOrEmpty(commandeTaille) || string.Equals(v.Taille, commandeTaille, StringComparison.OrdinalIgnoreCase)) &&
+                (string.IsNullOrEmpty(commandeCouleur) || string.Equals(v.Couleur, commandeCouleur, StringComparison.OrdinalIgnoreCase))
+            );
+
+            if (match == null)
+            {
+                match = produitSelectionne.Variantes.FirstOrDefault(v =>
+                    (string.IsNullOrEmpty(commandeTaille) || string.Equals(v.Taille, commandeTaille, StringComparison.OrdinalIgnoreCase)) &&
+                    (string.IsNullOrEmpty(commandeCouleur) || string.Equals(v.Couleur, commandeCouleur, StringComparison.OrdinalIgnoreCase))
+                );
+            }
+
+            if (match == null && !string.IsNullOrEmpty(commandeCouleur))
+            {
+                match = produitSelectionne.Variantes.FirstOrDefault(v => string.Equals(v.Couleur, commandeCouleur, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (match != null)
+            {
+                commandeVarianteId = match.Id;
+                if (match.PrixOverride.HasValue && match.PrixOverride.Value > 0)
+                {
+                    decimal prixBase = match.PrixOverride.Value;
+                    if (produitSelectionne.EstEnPromotion && produitSelectionne.RemisePourcentage > 0)
+                    {
+                        commandePrix = Math.Round(prixBase * (1 - (decimal)produitSelectionne.RemisePourcentage / 100m), 2);
+                    }
+                    else
+                    {
+                        commandePrix = prixBase;
+                    }
+                }
+            }
+        }
     }
 
     private void FermerCommande() => produitSelectionne = null;
@@ -2027,7 +2587,11 @@
             ProduitId = produitSelectionne.Id,
             QuantiteVendue = commandeQuantite,
             PrixUnitaire = commandePrix,
-            DateSouhaitee = EstModeSurCommande ? commandeDateSouhaitee : null
+            DateSouhaitee = EstModeSurCommande ? commandeDateSouhaitee : null,
+            Genre = commandeGenre,
+            Taille = commandeTaille,
+            Couleur = commandeCouleur,
+            VarianteProduitId = commandeVarianteId
         };
 
         var result = await CatalogueService.PasserCommande(dto);
@@ -2070,6 +2634,31 @@
             return true;
 
         return false;
+    }
+
+    private bool CanEdit(MaCommandeDto context)
+    {
+        if (context == null) return false;
+        var statutCmd = (context.StatutCommande ?? "").ToUpperInvariant();
+        var statut = (context.Statut ?? "").ToUpperInvariant();
+
+        // Le bouton edit ne se cache que lorsque la commande est acceptée, confirmée, refusée, payée ou en livraison
+        if (statutCmd == "ACCEPTEE" || statut == "ACCEPTEE" || statut == "CONFIRMEE" || statutCmd == "REFUSEE" || statut == "REFUSEE" || statut == "PAYEE" || statut == "EN_LIVRAISON" || statut == "LIVREE" || statut == "PRETE")
+            return false;
+
+        return true;
+    }
+
+    private bool CanCancel(MaCommandeDto context)
+    {
+        if (context == null) return false;
+        var statutCmd = (context.StatutCommande ?? "").ToUpperInvariant();
+        var statut = (context.Statut ?? "").ToUpperInvariant();
+
+        if (statutCmd == "REFUSEE" || statut == "REFUSEE" || statut == "PAYEE" || statut == "EN_LIVRAISON" || statut == "LIVREE")
+            return false;
+
+        return true;
     }
 
     private void OuvrirSuivi(MaCommandeDto commande)
@@ -2131,11 +2720,40 @@
     // ===== Modification de commande =====
     private MaCommandeDto? commandeModifier;
     private int commandeModifierQuantite = 1;
+    private List<LigneCommandeDisplayDto> commandeModifierLignes = new();
     private bool modificationEnCours = false;
 
     private void OuvrirModification(MaCommandeDto commande)
     {
         commandeModifier = commande;
+        commandeModifierLignes = commande.Lignes?.Select(l => new LigneCommandeDisplayDto
+        {
+            ProduitId = l.ProduitId,
+            ProduitNom = l.ProduitNom,
+            ProduitReference = l.ProduitReference,
+            ProduitImageUrl = l.ProduitImageUrl,
+            Quantite = l.Quantite,
+            PrixUnitaire = l.PrixUnitaire,
+            SousTotal = l.SousTotal,
+            EstSurCommande = l.EstSurCommande
+        }).ToList() ?? new List<LigneCommandeDisplayDto>();
+
+        if (!commandeModifierLignes.Any() && !string.IsNullOrEmpty(commande.ProduitNom))
+        {
+            commandeModifierLignes.Add(new LigneCommandeDisplayDto
+            {
+                ProduitId = commande.ProduitId,
+                ProduitNom = commande.ProduitNom,
+                ProduitReference = commande.ProduitReference ?? "",
+                ProduitImageUrl = commande.ProduitImageUrl,
+                Quantite = commande.QuantiteVendue,
+                PrixUnitaire = commande.PrixUnitaire
+            });
+        }
+
+        if (commandeModifier.PrixUnitaire == 0 && commande.PrixUnitaireEffectif.HasValue)
+            commandeModifier.PrixUnitaire = commande.PrixUnitaireEffectif.Value;
+
         commandeModifierQuantite = commande.QuantiteVendue;
     }
 
@@ -2143,32 +2761,131 @@
 
     private async Task ConfirmerModification()
     {
-        if (commandeModifier == null || commandeModifierQuantite <= 0)
-        {
-            Snackbar.Add("Veuillez saisir une quantité valide supérieure à 0.", Severity.Warning);
-            return;
-        }
+        if (commandeModifier == null) return;
 
-        modificationEnCours = true;
-        var dto = new CommandeCreateDto
+        if (commandeModifier.EstMultiLignes && commandeModifierLignes.Count > 0)
         {
-            ProduitId = commandeModifier.ProduitId,
-            QuantiteVendue = commandeModifierQuantite,
-            PrixUnitaire = commandeModifier.PrixUnitaire
-        };
+            if (commandeModifierLignes.Any(l => l.Quantite <= 0))
+            {
+                Snackbar.Add("Chaque article doit avoir une quantité supérieure à 0.", Severity.Warning);
+                return;
+            }
 
-        var succes = await CatalogueService.ModifierCommande(commandeModifier.Id, dto);
-        modificationEnCours = false;
+            modificationEnCours = true;
+            var dto = new
+            {
+                Lignes = commandeModifierLignes.Select(l => new
+                {
+                    l.ProduitId,
+                    l.Quantite
+                }).ToList()
+            };
 
-        if (succes)
-        {
-            Snackbar.Add("Commande modifiée avec succès !", Severity.Success);
-            FermerModification();
-            await ChargerMesCommandes();
+            var succes = await CatalogueService.ModifierCommande(commandeModifier.Id, dto);
+            modificationEnCours = false;
+
+            if (succes)
+            {
+                Snackbar.Add("Commande modifiée avec succès !", Severity.Success);
+                FermerModification();
+                await ChargerMesCommandes();
+            }
+            else
+            {
+                Snackbar.Add("Erreur lors de la modification de la commande.", Severity.Error);
+            }
         }
         else
         {
-            Snackbar.Add("Impossible de modifier cette commande (ex: stock insuffisant).", Severity.Error);
+            if (commandeModifierQuantite <= 0)
+            {
+                Snackbar.Add("Veuillez saisir une quantité valide supérieure à 0.", Severity.Warning);
+                return;
+            }
+
+            modificationEnCours = true;
+            var dto = new CommandeCreateDto
+            {
+                ProduitId = commandeModifier.ProduitId,
+                QuantiteVendue = commandeModifierQuantite,
+                PrixUnitaire = commandeModifier.PrixUnitaire
+            };
+
+            var succes = await CatalogueService.ModifierCommande(commandeModifier.Id, dto);
+            modificationEnCours = false;
+
+            if (succes)
+            {
+                Snackbar.Add("Commande modifiée avec succès !", Severity.Success);
+                FermerModification();
+                await ChargerMesCommandes();
+            }
+            else
+            {
+                Snackbar.Add("Erreur lors de la modification de la commande.", Severity.Error);
+            }
         }
     }
+
+    // ===== HELPERS ATTRIBUTS VARIANTES (catalogue client) =====
+    private List<string> GetCatGenres(CatalogueProduitDto p)
+    {
+        if (p.Variantes?.Any() == true)
+            return p.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Genre))
+                .Select(v => v.Genre!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        return string.IsNullOrWhiteSpace(p.Genre) ? new() : new() { p.Genre.Trim() };
+    }
+
+    private List<string> GetCatTailles(CatalogueProduitDto p)
+    {
+        if (p.Variantes?.Any() == true)
+        {
+            var res = p.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Taille) && !string.Equals(v.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase))
+                .Select(v => v.Taille!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (res.Any()) return res;
+        }
+
+        if (!string.IsNullOrWhiteSpace(p.Taille) && !string.Equals(p.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase))
+        {
+            return new() { p.Taille.Trim() };
+        }
+
+        return new();
+    }
+
+    private List<(string nom, string hex)> GetCatCouleurs(CatalogueProduitDto p)
+    {
+        if (p.Variantes?.Any(v => !string.IsNullOrWhiteSpace(v.Couleur)) == true)
+        {
+            var res = p.Variantes
+                .Where(v => !string.IsNullOrWhiteSpace(v.Couleur))
+                .Select(v => (
+                    nom: v.Couleur!.Trim(),
+                    hex: !string.IsNullOrWhiteSpace(v.CodeHexCouleur) ? v.CodeHexCouleur! : WicStock.Web.Models.AttributsProduit.GetHex(v.Couleur)
+                ))
+                .Where(c => !string.IsNullOrEmpty(c.hex))
+                .GroupBy(c => c.nom, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .ToList();
+            if (res.Any()) return res;
+        }
+
+        if (!string.IsNullOrWhiteSpace(p.Couleur))
+        {
+            var hex = !string.IsNullOrWhiteSpace(p.CodeHexCouleur) ? p.CodeHexCouleur! : WicStock.Web.Models.AttributsProduit.GetHex(p.Couleur);
+            if (!string.IsNullOrEmpty(hex))
+            {
+                return new() { (p.Couleur.Trim(), hex) };
+            }
+        }
+
+        return new();
+    }
 }
+

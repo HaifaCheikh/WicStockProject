@@ -1,0 +1,304 @@
+@page "/admin/attributs"
+@attribute [Authorize(Roles = "ADMIN,RESPONSABLE_STOCK_PRODUCTION")]
+@inject AttributService AttributService
+@inject ISnackbar Snackbar
+
+<PageTitle>WicStock - Gestion des Attributs Produkts</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark mb-1">
+                <i class="bi bi-sliders me-2 text-primary"></i>Gestion des Attributs Produits
+            </h2>
+            <p class="text-muted mb-0">Configurez les genres, les tailles et la palette de couleurs (Denim & Standard) disponibles dans le système.</p>
+        </div>
+        <button class="btn btn-primary rounded-pill px-4 shadow-sm" @onclick="OuvrirModalAjout">
+            <i class="bi bi-plus-lg me-2"></i>Ajouter une valeur
+        </button>
+    </div>
+
+    <!-- Tabs Nav -->
+    <ul class="nav nav-pills nav-fill bg-white p-2 rounded-4 shadow-sm mb-4 border">
+        <li class="nav-item">
+            <button class="nav-link rounded-3 fw-semibold @(activeTab == "Genre" ? "active" : "")" @onclick='() => SetActiveTab("Genre")'>
+                <i class="bi bi-gender-ambiguous me-2"></i>Genres (@genres.Count)
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link rounded-3 fw-semibold @(activeTab == "Taille" ? "active" : "")" @onclick='() => SetActiveTab("Taille")'>
+                <i class="bi bi-ruler me-2"></i>Tailles (@tailles.Count)
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link rounded-3 fw-semibold @(activeTab == "Couleur" ? "active" : "")" @onclick='() => SetActiveTab("Couleur")'>
+                <i class="bi bi-palette me-2"></i>Couleurs Denim (@couleurs.Count)
+            </button>
+        </li>
+    </ul>
+
+    @if (loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Chargement...</span>
+            </div>
+            <p class="text-muted mt-2">Chargement des attributs...</p>
+        </div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light text-uppercase fs-7 text-muted border-bottom">
+                            <tr>
+                                <th class="ps-4">Valeur</th>
+                                @if (activeTab == "Couleur")
+                                {
+                                    <th>Aperçu Couleur</th>
+                                    <th>Code HEX</th>
+                                }
+                                <th>Ordre</th>
+                                <th>Statut</th>
+                                <th class="text-end pe-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!GetItemsTab().Any())
+                            {
+                                <tr>
+                                    <td colspan="5" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                        Aucun attribut configuré pour ce type.
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var item in GetItemsTab())
+                                {
+                                    <tr class="@(!item.Actif ? "bg-light text-muted" : "")">
+                                        <td class="ps-4 fw-semibold">
+                                            @item.Valeur
+                                        </td>
+                                        @if (activeTab == "Couleur")
+                                        {
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <span class="d-inline-block rounded-circle border border-2 shadow-sm"
+                                                          style="width: 26px; height: 26px; background-color: @(!string.IsNullOrEmpty(item.CodeHex) ? item.CodeHex : "#cccccc");">
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <code class="text-dark bg-light px-2 py-1 rounded">@(!string.IsNullOrEmpty(item.CodeHex) ? item.CodeHex : "—")</code>
+                                            </td>
+                                        }
+                                        <td>@item.Ordre</td>
+                                        <td>
+                                            @if (item.Actif)
+                                            {
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1">
+                                                    <i class="bi bi-check-circle me-1"></i>Actif
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary-subtle text-secondary border rounded-pill px-3 py-1">
+                                                    <i class="bi bi-x-circle me-1"></i>Inactif (Désactivé)
+                                                </span>
+                                            }
+                                        </td>
+                                        <td class="text-end pe-4">
+                                            <button class="btn btn-sm btn-outline-primary rounded-pill me-1" @onclick="() => OuvrirModalEdition(item)">
+                                                <i class="bi bi-pencil me-1"></i>Modifier
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger rounded-pill" @onclick="() => SupprimerAttribut(item)">
+                                                <i class="bi bi-trash me-1"></i>Supprimer
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Modal Formulaire -->
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0 shadow">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold">
+                        @(modalItem.Id == 0 ? "Ajouter un attribut" : "Modifier l'attribut") - @activeTab
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="FermerModal"></button>
+                </div>
+                <div class="modal-body py-3">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Type d'attribut</label>
+                        <input type="text" class="form-control" value="@activeTab" disabled />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Valeur <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" @bind="modalItem.Valeur" placeholder="Ex: Bleu indigo, S, Homme..." />
+                    </div>
+
+                    @if (activeTab == "Couleur")
+                    {
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Couleur (Code Hexadécimal)</label>
+                            <div class="input-group">
+                                <input type="color" class="form-control form-control-color" @bind="modalItem.CodeHex" title="Choisir une couleur" />
+                                <input type="text" class="form-control" @bind="modalItem.CodeHex" placeholder="#1E2A38" />
+                            </div>
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Ordre d'affichage</label>
+                        <input type="number" class="form-control" @bind="modalItem.Ordre" />
+                    </div>
+
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="actifSwitch" @bind="modalItem.Actif" />
+                        <label class="form-check-input-label fw-semibold ms-2" for="actifSwitch">
+                            Valeur active (visible dans les formulaires et filtres)
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light rounded-pill px-4" @onclick="FermerModal">Annuler</button>
+                    <button type="button" class="btn btn-primary rounded-pill px-4" @onclick="Sauvegarder">
+                        <i class="bi bi-check-lg me-1"></i>Enregistrer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string activeTab = "Couleur";
+    private bool loading = true;
+    private bool showModal = false;
+
+    private List<AttributValeurDto> genres = new();
+    private List<AttributValeurDto> tailles = new();
+    private List<AttributValeurDto> couleurs = new();
+
+    private AttributValeurDto modalItem = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ChargerDonnees();
+    }
+
+    private async Task ChargerDonnees()
+    {
+        loading = true;
+        genres = await AttributService.ObtenirAttributsAsync("Genre", tous: true, forceReload: true);
+        tailles = await AttributService.ObtenirAttributsAsync("Taille", tous: true, forceReload: true);
+        couleurs = await AttributService.ObtenirAttributsAsync("Couleur", tous: true, forceReload: true);
+        loading = false;
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        activeTab = tab;
+    }
+
+    private List<AttributValeurDto> GetItemsTab() => activeTab switch
+    {
+        "Genre" => genres,
+        "Taille" => tailles,
+        "Couleur" => couleurs,
+        _ => new List<AttributValeurDto>()
+    };
+
+    private void OuvrirModalAjout()
+    {
+        modalItem = new AttributValeurDto
+        {
+            Type = activeTab,
+            Actif = true,
+            Ordre = GetItemsTab().Count + 1,
+            CodeHex = activeTab == "Couleur" ? "#2B4C7E" : null
+        };
+        showModal = true;
+    }
+
+    private void OuvrirModalEdition(AttributValeurDto item)
+    {
+        modalItem = new AttributValeurDto
+        {
+            Id = item.Id,
+            Type = item.Type,
+            Valeur = item.Valeur,
+            CodeHex = item.CodeHex,
+            Ordre = item.Ordre,
+            Actif = item.Actif
+        };
+        showModal = true;
+    }
+
+    private void FermerModal()
+    {
+        showModal = false;
+    }
+
+    private async Task Sauvegarder()
+    {
+        if (string.IsNullOrWhiteSpace(modalItem.Valeur))
+        {
+            Snackbar.Add("La valeur ne peut pas être vide.", Severity.Warning);
+            return;
+        }
+
+        modalItem.Type = activeTab;
+
+        bool success;
+        if (modalItem.Id == 0)
+        {
+            success = await AttributService.AjouterAttributAsync(modalItem);
+        }
+        else
+        {
+            success = await AttributService.ModifierAttributAsync(modalItem.Id, modalItem);
+        }
+
+        if (success)
+        {
+            Snackbar.Add("Attribut enregistré avec succès.", Severity.Success);
+            showModal = false;
+            await ChargerDonnees();
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors de l'enregistrement de l'attribut.", Severity.Error);
+        }
+    }
+
+    private async Task SupprimerAttribut(AttributValeurDto item)
+    {
+        bool success = await AttributService.SupprimerAttributAsync(item.Id);
+        if (success)
+        {
+            Snackbar.Add("Attribut supprimé ou désactivé.", Severity.Info);
+            await ChargerDonnees();
+        }
+        else
+        {
+            Snackbar.Add("Impossible de supprimer cet attribut.", Severity.Error);
+        }
+    }
+}

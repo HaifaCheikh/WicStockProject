@@ -23,8 +23,15 @@ namespace WicStock_.Models.Dtos
         /// <summary>ID du produit à commander.</summary>
         public int ProduitId { get; set; }
 
+        /// <summary>ID de la variante spécifique commandée (optionnel).</summary>
+        public int? VarianteProduitId { get; set; }
+
         /// <summary>Quantité demandée (>= 1).</summary>
         public int Quantite { get; set; }
+
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
     }
 
     // ====================================================================
@@ -44,8 +51,13 @@ namespace WicStock_.Models.Dtos
     public class LigneCommandeResultDto
     {
         public int ProduitId { get; set; }
+        public int? VarianteProduitId { get; set; }
         public string ProduitNom { get; set; } = string.Empty;
         public string ProduitReference { get; set; } = string.Empty;
+        public string? ProduitImageUrl { get; set; }
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
         public int Quantite { get; set; }
         public decimal PrixUnitaire { get; set; }
         public decimal SousTotal => PrixUnitaire * Quantite;
@@ -97,5 +109,19 @@ namespace WicStock_.Models.Dtos
         public string? ProduitImageUrl { get; set; }
         public int QuantiteVendue { get; set; }
         public decimal PrixUnitaire { get; set; }
+    }
+
+    public class CommandeUpdateDto
+    {
+        public int QuantiteVendue { get; set; }
+        public decimal PrixUnitaire { get; set; }
+        public DateTime? DateSouhaitee { get; set; }
+        public List<LigneCommandeUpdateDto>? Lignes { get; set; }
+    }
+
+    public class LigneCommandeUpdateDto
+    {
+        public int ProduitId { get; set; }
+        public int Quantite { get; set; }
     }
 }

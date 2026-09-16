@@ -61,7 +61,11 @@
     <!-- BREADCRUMB -->
     <nav class="bp-breadcrumb">
         <div class="bp-breadcrumb-inner">
-            <a href="/boutique">← Retour au catalogue</a>
+            <a href="/boutique" class="b-btn-back-icon" title="Retour à la boutique">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+                    <path d="M19 12 H5 M11 18 L5 12 L11 6" stroke="var(--b-denim)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </a>
         </div>
     </nav>
 
@@ -144,22 +148,112 @@
                         </span>
                     </div>
 
-                    @if (!string.IsNullOrEmpty(produit.TypeTissu))
+                    @if (availableGenres.Any())
                     {
-                        <p class="bp-tissu">
-                            <span class="bp-label">Tissu :</span> @produit.TypeTissu
-                        </p>
+                        <div class="bp-variant-group">
+                            <span class="bp-variant-label">Genre</span>
+                            <div class="bp-variant-options">
+                                @foreach (var g in availableGenres)
+                                {
+                                    <button type="button"
+                                            class="bp-opt-btn @(selectedGenre == g ? "bp-opt-btn--active" : "")"
+                                            @onclick="() => selectedGenre = g">
+                                        @g
+                                    </button>
+                                }
+                            </div>
+                        </div>
                     }
-                    @if (!string.IsNullOrEmpty(produit.Categorie))
+
+                    @if (availableTailles.Any())
                     {
-                        <p class="bp-categorie">
-                            <span class="bp-label">Catégorie :</span> @produit.Categorie
-                        </p>
+                        <div class="bp-variant-group">
+                            <span class="bp-variant-label">Taille</span>
+                            <div class="bp-variant-options">
+                                @foreach (var t in availableTailles)
+                                {
+                                    int tailleQty = GetTailleStock(t);
+                                    bool tailleEpuisee = tailleQty == 0 && !(produit?.DisponibleSurCommande ?? false);
+                                    <button type="button"
+                                            class="bp-opt-btn @(selectedTaille == t ? "bp-opt-btn--active" : "") @(tailleEpuisee ? "bp-opt-btn--epuise" : "")"
+                                            @onclick="() => { if (!tailleEpuisee) selectedTaille = t; }"
+                                            title="@(tailleEpuisee ? "Épuisé" : tailleQty > 0 ? $"{tailleQty} disponible(s)" : "Sur commande")">
+                                        @t
+                                        @if (tailleEpuisee)
+                                        {
+                                            <span class="bp-opt-epuise-badge">✕</span>
+                                        }
+                                        else if (tailleQty == 0)
+                                        {
+                                            <span class="bp-opt-cmd-badge">cmd</span>
+                                        }
+                                    </button>
+                                }
+                            </div>
+                        </div>
                     }
+
+                    @if (availableCouleurs.Any())
+                    {
+                        <div class="bp-variant-group">
+                            <span class="bp-variant-label">Couleur</span>
+                            <div class="bp-variant-options">
+                                @foreach (var c in availableCouleurs)
+                                {
+                                    var hex = WicStock.Web.Models.AttributsProduit.GetHex(c);
+                                    <button type="button"
+                                            class="bp-opt-btn bp-opt-btn--couleur @(selectedCouleur == c ? "bp-opt-btn--active" : "")"
+                                            @onclick="() => selectedCouleur = c">
+                                        <span class="bp-swatch" style="background-color: @hex;"></span>
+                                        @c
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                    <div class="bp-details-meta mt-3">
+                        @if (!string.IsNullOrEmpty(produit.TypeTissu))
+                        {
+                            <p class="bp-tissu">
+                                <span class="bp-label">Tissu :</span> @produit.TypeTissu
+                            </p>
+                        }
+                        @if (!string.IsNullOrEmpty(produit.Categorie))
+                        {
+                            <p class="bp-categorie">
+                                <span class="bp-label">Catégorie :</span> @produit.Categorie
+                            </p>
+                        }
+                        @if (!availableGenres.Any() && !string.IsNullOrEmpty(produit.Genre))
+                        {
+                            <p class="bp-tissu">
+                                <span class="bp-label">Genre :</span> @produit.Genre
+                            </p>
+                        }
+                        @if (!availableTailles.Any() && !string.IsNullOrEmpty(produit.Taille) && !string.Equals(produit.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <p class="bp-tissu">
+                                <span class="bp-label">Taille / Pointure :</span> <span class="bp-attr-tag">@produit.Taille</span>
+                            </p>
+                        }
+                        @if (!availableCouleurs.Any() && !string.IsNullOrEmpty(produit.Couleur))
+                        {
+                            var hex = !string.IsNullOrWhiteSpace(produit.CodeHexCouleur) ? produit.CodeHexCouleur! : WicStock.Web.Models.AttributsProduit.GetHex(produit.Couleur);
+                            <p class="bp-tissu" style="display: flex; align-items: center; gap: 8px;">
+                                <span class="bp-label">Couleur :</span>
+                                <span class="bp-color-dot" style="background-color: @hex;" title="@produit.Couleur"></span>
+                                <span>@produit.Couleur</span>
+                            </p>
+                        }
+                    </div>
 
                     <!-- Prix -->
                     <div class="bp-prix-block">
-                        @if (produit.EstEnPromotion && produit.PrixPromo > 0)
+                        @if (SelectedVariante != null && SelectedVariante.PrixOverride.HasValue)
+                        {
+                            <span class="bp-prix">@SelectedVariante.PrixOverride.Value.ToString("0.00") DT</span>
+                        }
+                        else if (produit.EstEnPromotion && produit.PrixPromo > 0)
                         {
                             <span class="bp-prix-promo">@produit.PrixPromo.ToString("0.00") DT</span>
                             <span class="bp-prix-barre">@produit.PrixUnitaire.ToString("0.00") DT</span>
@@ -194,10 +288,6 @@
                                 <button class="bp-qty-btn" @onclick="IncrementerQty"
                                         disabled="@(!produit.DisponibleSurCommande && quantite >= produit.QuantiteDisponible)">+</button>
                             </div>
-                            @if (!produit.DisponibleSurCommande && produit.QuantiteDisponible > 0)
-                            {
-                                <span class="bp-qty-max">Max : @produit.QuantiteDisponible</span>
-                            }
                         </div>
 
                         <button class="bp-add-btn @(ajoutEnCours ? "bp-add-btn--loading" : "")"
@@ -220,8 +310,12 @@
                             }
                         </button>
 
-                        <a href="/panier" class="bp-voir-panier">
-                            Voir mon panier @(cartCount > 0 ? $"({cartCount} article{(cartCount > 1 ? "s" : "")})" : "")
+                        <a href="/panier" class="bp-voir-panier-btn">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
+                                <path d="M6 2 L3 6 V20 C3 21.1 3.9 22 5 22 H19 C20.1 22 21 21.1 21 20 V6 L18 2 Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M3 6 H21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                            </svg>
+                            <span>Voir mon panier @(cartCount > 0 ? $"({cartCount} article{(cartCount > 1 ? "s" : "")})" : "")</span>
                         </a>
                     }
                     else
@@ -328,7 +422,7 @@
         --font-head: 'Sora', 'Inter', sans-serif; --font-body: 'Inter', sans-serif; --font-mono: 'JetBrains Mono', monospace;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    .boutique-page { font-family: var(--font-body); background: var(--b-sand); min-height: 100vh; color: var(--b-ink); }
+    .boutique-page { font-family: var(--font-body); background: var(--b-sand); min-height: 100vh; color: var(--b-ink); display: flex; flex-direction: column; }
 
     /* NAVBAR */
     .b-navbar { background: var(--b-paper); border-bottom: 1px solid var(--b-border); position: sticky; top: 0; z-index: 100; }
@@ -353,10 +447,23 @@
     .b-btn--outline:hover { border-color: var(--b-denim); color: var(--b-denim); background: var(--b-denim-soft); }
 
     /* BREADCRUMB */
-    .bp-breadcrumb { background: var(--b-paper); border-bottom: 1px solid var(--b-border); padding: 12px 24px; }
-    .bp-breadcrumb-inner { max-width: 1160px; margin: 0 auto; }
-    .bp-breadcrumb a { color: var(--b-ink-muted); text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: color 0.15s; }
-    .bp-breadcrumb a:hover { color: var(--b-denim); }
+    .bp-breadcrumb { background: var(--b-sand); padding: 12px 24px; }
+    .bp-breadcrumb-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; }
+    .b-btn-back-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        color: var(--b-denim);
+        text-decoration: none;
+        transition: all 0.2s ease;
+    }
+    .b-btn-back-icon:hover {
+        background: var(--b-denim-soft);
+        transform: translateX(-3px);
+    }
 
     /* LOADING / NOT FOUND */
     .bp-loading, .bp-not-found { text-align: center; padding: 80px 20px; color: var(--b-ink-muted); }
@@ -366,7 +473,7 @@
     .bp-not-found p { margin-bottom: 24px; }
 
     /* MAIN */
-    .bp-main { max-width: 1160px; margin: 0 auto; padding: 44px 24px 80px; }
+    .bp-main { max-width: 1160px; margin: 0 auto; padding: 44px 24px 80px; flex: 1; width: 100%; }
     .bp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 52px; align-items: start; }
     @@media (max-width: 768px) { .bp-grid { grid-template-columns: 1fr; gap: 28px; } }
 
@@ -414,8 +521,75 @@
     .bp-add-btn:hover:not(:disabled) { background: var(--b-denim-dark); transform: translateY(-1px); }
     .bp-add-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; box-shadow: none; }
 
-    .bp-voir-panier { display: block; text-align: center; color: var(--b-denim); text-decoration: none; font-size: 0.875rem; font-weight: 600; }
-    .bp-voir-panier:hover { text-decoration: underline; }
+    .bp-voir-panier-btn {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px 20px;
+        background: var(--b-paper);
+        color: var(--b-denim);
+        border: 1.5px solid var(--b-border);
+        border-radius: var(--b-radius-sm);
+        font-family: var(--font-body);
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s ease;
+    }
+    .bp-voir-panier-btn svg { color: var(--b-denim); }
+    .bp-voir-panier-btn:hover {
+        background: var(--b-denim-soft);
+        border-color: #B2C4DC;
+        color: var(--b-denim-dark);
+        box-shadow: 0 4px 12px -4px rgba(43,76,126,0.15);
+    }
+
+    .bp-attr-tag { display: inline-block; padding: 2px 10px; background: var(--b-denim-tint); color: var(--b-denim); font-weight: 700; border-radius: 6px; font-size: 0.85rem; }
+    .bp-color-dot { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.2); display: inline-block; flex-shrink: 0; }
+
+    /* ===== Sélecteurs de variantes : taille / couleur / genre ===== */
+    .bp-variant-group { margin-bottom: 20px; }
+    .bp-variant-label { display: block; font-size: 0.78rem; font-weight: 700; color: var(--b-ink-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+    .bp-variant-options { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .bp-opt-btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 8px 18px;
+        border: 2px solid var(--b-border);
+        border-radius: 10px;
+        background: var(--b-paper);
+        color: var(--b-ink);
+        font-family: var(--font-body); font-size: 0.875rem; font-weight: 600;
+        cursor: pointer;
+        transition: border-color 0.18s, background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.15s;
+        user-select: none;
+    }
+    .bp-opt-btn:hover:not(.bp-opt-btn--active):not(.bp-opt-btn--epuise) {
+        border-color: var(--b-denim);
+        color: var(--b-denim);
+        background: var(--b-denim-soft);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px -4px rgba(43,76,126,0.2);
+    }
+    .bp-opt-btn--active {
+        border-color: var(--b-denim);
+        background: var(--b-denim);
+        color: #fff;
+        box-shadow: 0 4px 14px -4px rgba(43,76,126,0.45);
+        transform: translateY(-1px);
+    }
+    .bp-opt-btn--epuise {
+        opacity: 0.38;
+        cursor: not-allowed;
+        text-decoration: line-through;
+        border-style: dashed;
+    }
+    .bp-opt-epuise-badge { font-size: 0.65rem; font-weight: 800; color: var(--b-rust); }
+    .bp-opt-cmd-badge { font-size: 0.65rem; font-weight: 700; background: var(--b-denim-tint); color: var(--b-denim); padding: 1px 5px; border-radius: 4px; }
+    .bp-opt-btn--couleur { padding: 7px 14px; }
+    .bp-swatch { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid rgba(0,0,0,0.15); flex-shrink: 0; display: inline-block; }
 
     .bp-rupture-msg { background: var(--b-rust-soft); border: 1.5px solid #F0C7BB; border-radius: var(--b-radius-sm); padding: 20px; text-align: center; }
     .bp-rupture-msg p { color: var(--b-rust); font-size: 0.9rem; margin-bottom: 16px; }
@@ -442,7 +616,9 @@
     .bp-avis-auth-prompt { background: var(--b-paper); border: 1.5px dashed var(--b-border); border-radius: var(--b-radius); padding: 24px; text-align: center; margin-bottom: 32px; }
     .bp-avis-auth-prompt p { font-size: 0.95rem; color: var(--b-ink-muted); margin-bottom: 14px; }
 
-    .bp-avis-empty { color: var(--b-ink-muted); font-size: 0.9rem; font-style: italic; }
+    .bp-avis-empty { color: var(--b-ink-muted); font-size: 0.9rem; text-align: center; margin: 24px 0; }
+
+    .b-footer { text-align: center; padding: 24px; background: var(--b-sand); color: var(--b-ink-muted); font-size: 0.8125rem; margin-top: 40px; }
     .bp-avis-list { display: flex; flex-direction: column; gap: 16px; }
     .bp-avis-item { background: var(--b-paper); border: 1px solid var(--b-border); border-radius: var(--b-radius-sm); padding: 18px; }
     .bp-avis-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
@@ -463,6 +639,61 @@
     private int quantite = 1;
     private int cartCount = 0;
     private bool ajoutEnCours = false;
+
+    private string? selectedGenre;
+    private string? selectedTaille;
+    private string? selectedCouleur;
+
+    private List<string> availableGenres
+    {
+        get
+        {
+            var list = produit?.Variantes?.Where(v => !string.IsNullOrWhiteSpace(v.Genre)).Select(v => v.Genre!.Trim()).ToList() ?? new();
+            if (!string.IsNullOrWhiteSpace(produit?.Genre) && !list.Contains(produit.Genre.Trim(), StringComparer.OrdinalIgnoreCase))
+            {
+                list.Add(produit.Genre.Trim());
+            }
+            return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+    }
+
+    private List<string> availableTailles
+    {
+        get
+        {
+            var list = produit?.Variantes?.Where(v => !string.IsNullOrWhiteSpace(v.Taille) && !string.Equals(v.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase)).Select(v => v.Taille!.Trim()).ToList() ?? new();
+            if (!string.IsNullOrWhiteSpace(produit?.Taille) && !string.Equals(produit.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase) && !list.Contains(produit.Taille.Trim(), StringComparer.OrdinalIgnoreCase))
+            {
+                list.Add(produit.Taille.Trim());
+            }
+            return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+    }
+
+    private List<string> availableCouleurs
+    {
+        get
+        {
+            var list = produit?.Variantes?.Where(v => !string.IsNullOrWhiteSpace(v.Couleur)).Select(v => v.Couleur!.Trim()).ToList() ?? new();
+            if (!string.IsNullOrWhiteSpace(produit?.Couleur) && !list.Contains(produit.Couleur.Trim(), StringComparer.OrdinalIgnoreCase))
+            {
+                list.Add(produit.Couleur.Trim());
+            }
+            return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+    }
+
+    private VarianteDto? SelectedVariante
+    {
+        get
+        {
+            if (produit?.Variantes == null || !produit.Variantes.Any()) return null;
+            return produit.Variantes.FirstOrDefault(v =>
+                (selectedGenre == null || v.Genre == selectedGenre) &&
+                (selectedTaille == null || v.Taille == selectedTaille) &&
+                (selectedCouleur == null || v.Couleur == selectedCouleur));
+        }
+    }
 
     private List<AvisDto>? avisList;
     private int nouvelleNote = 5;
@@ -486,6 +717,20 @@
         if (produit != null)
         {
             avisList = await FeedbackService.ObtenirAvisPublicsProduit(produit.Id);
+
+            if (produit.Variantes != null && produit.Variantes.Any())
+            {
+                var first = produit.Variantes.FirstOrDefault(v => v.QuantiteActuelle > 0) ?? produit.Variantes.First();
+                selectedGenre = !string.IsNullOrWhiteSpace(first.Genre) ? first.Genre : produit.Genre;
+                selectedTaille = !string.IsNullOrWhiteSpace(first.Taille) ? first.Taille : produit.Taille;
+                selectedCouleur = !string.IsNullOrWhiteSpace(first.Couleur) ? first.Couleur : produit.Couleur;
+            }
+            else
+            {
+                selectedGenre = produit.Genre;
+                selectedTaille = produit.Taille;
+                selectedCouleur = produit.Couleur;
+            }
         }
 
         chargement = false;
@@ -500,7 +745,8 @@
     private void IncrementerQty()
     {
         if (produit == null) return;
-        if (produit.DisponibleSurCommande || quantite < produit.QuantiteDisponible)
+        int maxQty = SelectedVariante != null ? SelectedVariante.QuantiteActuelle : produit.QuantiteDisponible;
+        if (produit.DisponibleSurCommande || quantite < maxQty)
             quantite++;
     }
 
@@ -514,7 +760,8 @@
         if (produit == null || !produit.PeutCommander) return;
         ajoutEnCours = true;
 
-        await CartService.AddToCartAsync(produit, quantite);
+        var vMatch = SelectedVariante;
+        await CartService.AddToCartAsync(produit, quantite, selectedGenre ?? produit.Genre, selectedTaille ?? produit.Taille, selectedCouleur ?? produit.Couleur, vMatch);
 
         Snackbar.Add($"« {produit.Nom} » × {quantite} ajouté(s) au panier ✓", Severity.Success,
             config => { config.VisibleStateDuration = 2500; });
@@ -565,8 +812,29 @@
     {
         if (p.EstEnRupture) return "Rupture de stock — non disponible";
         if (p.EstSurCommande) return "Disponible sur commande";
-        if (p.EstStockFaibleEffectif) return $"⚠️ Il ne reste que {p.QuantiteDisponible} pièce(s)";
+        if (p.EstStockFaibleEffectif) return $"Il ne reste que {p.QuantiteDisponible} pièce(s)";
         return "En stock";
+    }
+
+    /// <summary>
+    /// Retourne la quantité disponible pour une taille donnée.
+    /// Cherche parmi les variantes du produit en tenant compte des filtres genre/couleur sélectionnés.
+    /// Retourne -1 si pas de variante spécifique (pas de gestion par taille).
+    /// </summary>
+    private int GetTailleStock(string taille)
+    {
+        if (produit?.Variantes == null || !produit.Variantes.Any()) return -1;
+
+        var variante = produit.Variantes.FirstOrDefault(v =>
+            string.Equals(v.Taille, taille, StringComparison.OrdinalIgnoreCase) &&
+            (string.IsNullOrWhiteSpace(selectedCouleur) || string.Equals(v.Couleur, selectedCouleur, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrWhiteSpace(selectedGenre) || string.Equals(v.Genre, selectedGenre, StringComparison.OrdinalIgnoreCase)));
+
+        // Fallback : variante sans filtre couleur/genre
+        variante ??= produit.Variantes.FirstOrDefault(v =>
+            string.Equals(v.Taille, taille, StringComparison.OrdinalIgnoreCase));
+
+        return variante?.QuantiteActuelle ?? -1;
     }
 
     public void Dispose()

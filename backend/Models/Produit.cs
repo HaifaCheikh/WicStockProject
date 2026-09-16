@@ -21,6 +21,18 @@ namespace WicStock_.Models
         [MaxLength(100)]
         public string Categorie { get; set; } = string.Empty;
 
+        [MaxLength(50)]
+        public string? Genre { get; set; }
+
+        [MaxLength(50)]
+        public string? Taille { get; set; }
+
+        [MaxLength(50)]
+        public string? Couleur { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public string CodeHexCouleur => AttributsProduit.GetHex(Couleur);
+
         [MaxLength(100)]
         public string CycleDeVie { get; set; } = string.Empty;
 
@@ -46,6 +58,12 @@ namespace WicStock_.Models
 
         // Propriétés calculées (non mappées)
         [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public double NoteMoyenne { get; set; } = 0;
+
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public int NombreAvis { get; set; } = 0;
+
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
         public bool EstEnPromotion =>
             RemisePourcentage.HasValue && RemisePourcentage.Value > 0 &&
             DateFinPromotion.HasValue && DateFinPromotion.Value.Date >= DateTime.Today;
@@ -62,10 +80,21 @@ namespace WicStock_.Models
 
         // Navigation
         public Stock? Stock { get; set; }
+        public List<VarianteProduit> Variantes { get; set; } = new();
         public List<HistoriqueVente> HistoriqueVentes { get; set; } = new();
         public List<HistoriqueProduction> HistoriqueProductions { get; set; } = new();
         public List<Alerte> Alertes { get; set; } = new();
         public List<PrevisionEtatProduit> Previsions { get; set; } = new();
+
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public int QuantiteTotalStock => Variantes.Any()
+            ? Variantes.Sum(v => v.QuantiteActuelle)
+            : (Stock?.QuantiteActuelle ?? 0);
+
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public decimal PrixMinimum => Variantes.Any(v => v.PrixEffectif > 0)
+            ? Variantes.Min(v => v.PrixEffectif)
+            : PrixUnitaire;
 
         public int CalculerAncienneteJours()
         {

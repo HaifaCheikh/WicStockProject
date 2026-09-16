@@ -24,6 +24,7 @@ namespace WicStock_.Controllers
         }
 
         // GET: api/historiquevente (Vue globale pour Responsable Stock & Production)
+        // GET: api/historiquevente (Vue globale pour Responsable Stock & Production)
         [HttpGet]
         [Authorize(Roles = "RESPONSABLE_STOCK_PRODUCTION,ADMIN")]
         public async Task<ActionResult<IEnumerable<object>>> GetHistoriqueVentes()
@@ -33,6 +34,10 @@ namespace WicStock_.Controllers
                 .Include(h => h.Utilisateur)
                 .Include(h => h.Responsable)
                 .Include(h => h.Livreur)
+                .Include(h => h.LigneCommandes)
+                    .ThenInclude(l => l.Produit)
+                .Include(h => h.LigneCommandes)
+                    .ThenInclude(l => l.VarianteProduit)
                 .OrderByDescending(h => h.DateVente)
                 .ToListAsync();
 
@@ -45,6 +50,10 @@ namespace WicStock_.Controllers
                 h.StatutCommande,
                 Statut = h.Statut?.ToString(),
                 h.EstSurCommande,
+                h.EstMultiLignes,
+                Genre = !string.IsNullOrWhiteSpace(h.Genre) ? h.Genre : h.Produit?.Genre,
+                Taille = !string.IsNullOrWhiteSpace(h.Taille) ? h.Taille : h.Produit?.Taille,
+                Couleur = !string.IsNullOrWhiteSpace(h.Couleur) ? h.Couleur : h.Produit?.Couleur,
                 h.ProduitId,
                 ProduitNom = h.Produit?.Nom,
                 ProduitReference = h.Produit?.Reference,
@@ -57,7 +66,24 @@ namespace WicStock_.Controllers
                 h.LivreurId,
                 LivreurNom = h.Livreur != null ? $"{h.Livreur.Prenom} {h.Livreur.Nom}" : null,
                 ClientNom = h.Utilisateur != null ? $"{h.Utilisateur.Prenom} {h.Utilisateur.Nom}" : "Client anonyme",
-                ClientEmail = h.Utilisateur?.Email
+                ClientEmail = h.Utilisateur?.Email,
+                Lignes = (IEnumerable<object>)(h.LigneCommandes != null && h.LigneCommandes.Any()
+                    ? h.LigneCommandes.Select(l => (object)new
+                    {
+                        l.ProduitId,
+                        l.VarianteProduitId,
+                        ProduitNom = l.Produit?.Nom ?? string.Empty,
+                        ProduitReference = l.VarianteProduit?.Reference ?? l.Produit?.Reference ?? string.Empty,
+                        ProduitImageUrl = l.Produit?.ImageUrl,
+                        Genre = !string.IsNullOrWhiteSpace(l.Genre) ? l.Genre : l.Produit?.Genre,
+                        Taille = !string.IsNullOrWhiteSpace(l.Taille) ? l.Taille : l.Produit?.Taille,
+                        Couleur = !string.IsNullOrWhiteSpace(l.Couleur) ? l.Couleur : l.Produit?.Couleur,
+                        l.Quantite,
+                        l.PrixUnitaire,
+                        SousTotal = l.Quantite * l.PrixUnitaire,
+                        l.EstSurCommande
+                    }).ToList()
+                    : new List<object>())
             });
 
             return Ok(result);
@@ -74,6 +100,10 @@ namespace WicStock_.Controllers
 
             var commandes = await _context.HistoriqueVentes
                 .Include(h => h.Produit)
+                .Include(h => h.LigneCommandes)
+                    .ThenInclude(l => l.Produit)
+                .Include(h => h.LigneCommandes)
+                    .ThenInclude(l => l.VarianteProduit)
                 .Where(h => h.UtilisateurId == userId)
                 .OrderByDescending(h => h.DateVente)
                 .ToListAsync();
@@ -87,6 +117,10 @@ namespace WicStock_.Controllers
                 h.StatutCommande,
                 Statut = h.Statut?.ToString(),
                 h.EstSurCommande,
+                h.EstMultiLignes,
+                Genre = !string.IsNullOrWhiteSpace(h.Genre) ? h.Genre : h.Produit?.Genre,
+                Taille = !string.IsNullOrWhiteSpace(h.Taille) ? h.Taille : h.Produit?.Taille,
+                Couleur = !string.IsNullOrWhiteSpace(h.Couleur) ? h.Couleur : h.Produit?.Couleur,
                 h.ProduitId,
                 ProduitNom = h.Produit?.Nom,
                 ProduitReference = h.Produit?.Reference,
@@ -94,7 +128,29 @@ namespace WicStock_.Controllers
                 ProduitImageUrl = h.Produit?.ImageUrl,
                 h.DateSouhaitee,
                 h.DateEstimeePreparation,
-                TotalCommande = h.QuantiteVendue * h.PrixUnitaire
+                // Pour les commandes multi-lignes, utiliser MontantTotal ; sinon calculer
+                TotalCommande = h.EstMultiLignes && h.MontantTotal > 0
+                    ? h.MontantTotal
+                    : h.QuantiteVendue * h.PrixUnitaire,
+                MontantTotal = h.MontantTotal,
+                // Lignes de commande (vides pour les commandes mono-article legacy)
+                Lignes = (IEnumerable<object>)(h.LigneCommandes != null && h.LigneCommandes.Any()
+                    ? h.LigneCommandes.Select(l => (object)new
+                    {
+                        l.ProduitId,
+                        l.VarianteProduitId,
+                        ProduitNom = l.Produit?.Nom ?? string.Empty,
+                        ProduitReference = l.VarianteProduit?.Reference ?? l.Produit?.Reference ?? string.Empty,
+                        ProduitImageUrl = l.Produit?.ImageUrl,
+                        Genre = !string.IsNullOrWhiteSpace(l.Genre) ? l.Genre : l.Produit?.Genre,
+                        Taille = !string.IsNullOrWhiteSpace(l.Taille) ? l.Taille : l.Produit?.Taille,
+                        Couleur = !string.IsNullOrWhiteSpace(l.Couleur) ? l.Couleur : l.Produit?.Couleur,
+                        l.Quantite,
+                        l.PrixUnitaire,
+                        SousTotal = l.Quantite * l.PrixUnitaire,
+                        l.EstSurCommande
+                    }).ToList()
+                    : new List<object>())
             });
 
             return Ok(result);
@@ -163,8 +219,23 @@ namespace WicStock_.Controllers
                 EstSurCommande = estSurCommande,
                 DateVente = DateTime.Now,
                 UtilisateurId = utilisateurId,
-                DateSouhaitee = dto.DateSouhaitee?.Date
+                DateSouhaitee = dto.DateSouhaitee?.Date,
+                Genre = dto.Genre,
+                Taille = dto.Taille,
+                Couleur = dto.Couleur
             };
+
+            vente.LigneCommandes.Add(new LigneCommande
+            {
+                ProduitId = dto.ProduitId,
+                VarianteProduitId = dto.VarianteProduitId,
+                Quantite = dto.QuantiteVendue,
+                PrixUnitaire = dto.PrixUnitaire,
+                EstSurCommande = estSurCommande,
+                Genre = dto.Genre,
+                Taille = dto.Taille,
+                Couleur = dto.Couleur
+            });
 
             _context.HistoriqueVentes.Add(vente);
             await _context.SaveChangesAsync();
@@ -219,6 +290,7 @@ namespace WicStock_.Controllers
             var produitIds = dto.Lignes.Select(l => l.ProduitId).Distinct().ToList();
             var produits = await _context.Produits
                 .Include(p => p.Stock)
+                .Include(p => p.Variantes)
                 .Where(p => produitIds.Contains(p.Id) && !p.EstArchive)
                 .ToDictionaryAsync(p => p.Id);
 
@@ -237,7 +309,27 @@ namespace WicStock_.Controllers
                 }
 
                 var produit = produits[ligne.ProduitId];
-                var stockQty = produit.Stock?.QuantiteActuelle ?? 0;
+
+                // Chercher la variante si spécifiée ou assortie aux attributs
+                VarianteProduit? variante = null;
+                if (ligne.VarianteProduitId.HasValue && ligne.VarianteProduitId.Value > 0)
+                {
+                    variante = produit.Variantes?.FirstOrDefault(v => v.Id == ligne.VarianteProduitId.Value);
+                }
+                else if (!string.IsNullOrWhiteSpace(ligne.Genre) || !string.IsNullOrWhiteSpace(ligne.Taille) || !string.IsNullOrWhiteSpace(ligne.Couleur))
+                {
+                    variante = produit.Variantes?.FirstOrDefault(v =>
+                        (string.IsNullOrWhiteSpace(ligne.Genre) || v.Genre == ligne.Genre) &&
+                        (string.IsNullOrWhiteSpace(ligne.Taille) || v.Taille == ligne.Taille) &&
+                        (string.IsNullOrWhiteSpace(ligne.Couleur) || v.Couleur == ligne.Couleur));
+                }
+
+                if (variante == null && produit.Variantes != null && produit.Variantes.Any())
+                {
+                    variante = produit.Variantes.First();
+                }
+
+                var stockQty = variante != null ? variante.QuantiteActuelle : (produit.Stock?.QuantiteActuelle ?? 0);
 
                 // Stock insuffisant ET non commandable sur commande → erreur
                 if (!produit.DisponibleSurCommande && stockQty < ligne.Quantite)
@@ -246,7 +338,7 @@ namespace WicStock_.Controllers
                     {
                         ProduitId = produit.Id,
                         ProduitNom = produit.Nom,
-                        ProduitReference = produit.Reference,
+                        ProduitReference = variante?.Reference ?? produit.Reference,
                         QuantiteDemandee = ligne.Quantite,
                         QuantiteDisponible = stockQty,
                         EstSurCommande = false
@@ -268,17 +360,42 @@ namespace WicStock_.Controllers
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                bool touteSurCommande = false;
                 bool auMoinsUneSurCommande = false;
                 decimal montantTotal = 0;
                 var lignesResult = new List<LigneCommandeResultDto>();
 
-                // Créer la commande parente
+                // — Pré-calculer le statut final AVANT de créer la commande —
+                // Règle hybride : si TOUS les articles ont un stock suffisant → ACCEPTEE automatiquement
+                //                 si AU MOINS UN article est sur commande → EN_ATTENTE (validation manuelle)
+                bool tousEnStock = dto.Lignes.All(l =>
+                {
+                    var p = produits[l.ProduitId];
+                    VarianteProduit? varMatch = null;
+                    if (l.VarianteProduitId.HasValue && l.VarianteProduitId.Value > 0)
+                        varMatch = p.Variantes?.FirstOrDefault(v => v.Id == l.VarianteProduitId.Value);
+                    else if (!string.IsNullOrWhiteSpace(l.Genre) || !string.IsNullOrWhiteSpace(l.Taille) || !string.IsNullOrWhiteSpace(l.Couleur))
+                        varMatch = p.Variantes?.FirstOrDefault(v =>
+                            (string.IsNullOrWhiteSpace(l.Genre) || v.Genre == l.Genre) &&
+                            (string.IsNullOrWhiteSpace(l.Taille) || v.Taille == l.Taille) &&
+                            (string.IsNullOrWhiteSpace(l.Couleur) || v.Couleur == l.Couleur));
+
+                    if (varMatch == null && p.Variantes != null && p.Variantes.Any()) varMatch = p.Variantes.First();
+
+                    var qte = varMatch != null ? varMatch.QuantiteActuelle : (p.Stock?.QuantiteActuelle ?? 0);
+                    return !p.DisponibleSurCommande && qte >= l.Quantite;
+                });
+
+                string statutFinal = tousEnStock ? "ACCEPTEE" : "EN_ATTENTE";
+                StatutCommandeDetaille statutDetailleFinal = tousEnStock
+                    ? StatutCommandeDetaille.ACCEPTEE
+                    : StatutCommandeDetaille.EN_ATTENTE_CONFIRMATION;
+
+                // Créer la commande parente avec le statut calculé
                 var commande = new HistoriqueVente
                 {
                     DateVente = DateTime.Now,
-                    StatutCommande = "EN_ATTENTE",
-                    Statut = StatutCommandeDetaille.EN_ATTENTE_CONFIRMATION,
+                    StatutCommande = statutFinal,
+                    Statut = statutDetailleFinal,
                     EstMultiLignes = true,
                     UtilisateurId = utilisateurId,
                     DateSouhaitee = dto.DateSouhaitee?.Date,
@@ -299,34 +416,68 @@ namespace WicStock_.Controllers
                 foreach (var ligneDto in dto.Lignes)
                 {
                     var produit = produits[ligneDto.ProduitId];
-                    var stockQty = produit.Stock?.QuantiteActuelle ?? 0;
+                    VarianteProduit? variante = null;
+                    if (ligneDto.VarianteProduitId.HasValue && ligneDto.VarianteProduitId.Value > 0)
+                    {
+                        variante = produit.Variantes?.FirstOrDefault(v => v.Id == ligneDto.VarianteProduitId.Value);
+                    }
+                    else if (!string.IsNullOrWhiteSpace(ligneDto.Genre) || !string.IsNullOrWhiteSpace(ligneDto.Taille) || !string.IsNullOrWhiteSpace(ligneDto.Couleur))
+                    {
+                        variante = produit.Variantes?.FirstOrDefault(v =>
+                            (string.IsNullOrWhiteSpace(ligneDto.Genre) || v.Genre == ligneDto.Genre) &&
+                            (string.IsNullOrWhiteSpace(ligneDto.Taille) || v.Taille == ligneDto.Taille) &&
+                            (string.IsNullOrWhiteSpace(ligneDto.Couleur) || v.Couleur == ligneDto.Couleur));
+                    }
+                    if (variante == null && produit.Variantes != null && produit.Variantes.Any())
+                    {
+                        variante = produit.Variantes.First();
+                    }
+
+                    var stockQty = variante != null ? variante.QuantiteActuelle : (produit.Stock?.QuantiteActuelle ?? 0);
 
                     // Prix recalculé serveur — utiliser le prix promo si applicable
+                    decimal prixBase = (variante != null && variante.PrixOverride.HasValue) ? variante.PrixOverride.Value : produit.PrixUnitaire;
                     var today = DateTime.Today;
                     int remise = produit.RemisePourcentage ?? 0;
                     DateTime? dateFin = produit.DateFinPromotion;
                     bool estEnPromo = remise > 0 && dateFin.HasValue && dateFin.Value.Date >= today;
                     decimal prixEffectif = estEnPromo
-                        ? Math.Round(produit.PrixUnitaire * (1 - (decimal)remise / 100m), 2)
-                        : produit.PrixUnitaire;
+                        ? Math.Round(prixBase * (1 - (decimal)remise / 100m), 2)
+                        : prixBase;
 
                     bool estSurCommande = produit.DisponibleSurCommande && stockQty < ligneDto.Quantite;
                     if (estSurCommande) auMoinsUneSurCommande = true;
 
-                    // Décrémenter le stock seulement si disponible
-                    if (!estSurCommande && produit.Stock != null)
+                    // Décrémenter le stock : seulement si la commande est acceptée automatiquement
+                    if (tousEnStock)
                     {
-                        produit.Stock.QuantiteActuelle -= ligneDto.Quantite;
-                        produit.Stock.DateMiseAJour = DateTime.Now;
+                        if (variante != null)
+                        {
+                            variante.QuantiteActuelle -= ligneDto.Quantite;
+                            if (produit.Stock != null && produit.Variantes != null)
+                            {
+                                produit.Stock.QuantiteActuelle = produit.Variantes.Sum(v => v.QuantiteActuelle);
+                                produit.Stock.DateMiseAJour = DateTime.Now;
+                            }
+                        }
+                        else if (produit.Stock != null)
+                        {
+                            produit.Stock.QuantiteActuelle -= ligneDto.Quantite;
+                            produit.Stock.DateMiseAJour = DateTime.Now;
+                        }
                     }
 
                     var ligne = new LigneCommande
                     {
                         HistoriqueVenteId = commande.Id,
                         ProduitId = produit.Id,
+                        VarianteProduitId = variante?.Id,
                         Quantite = ligneDto.Quantite,
                         PrixUnitaire = prixEffectif,
-                        EstSurCommande = estSurCommande
+                        EstSurCommande = estSurCommande,
+                        Genre = variante?.Genre ?? ligneDto.Genre,
+                        Taille = variante?.Taille ?? ligneDto.Taille,
+                        Couleur = variante?.Couleur ?? ligneDto.Couleur
                     };
                     _context.LigneCommandes.Add(ligne);
 
@@ -334,8 +485,13 @@ namespace WicStock_.Controllers
                     lignesResult.Add(new LigneCommandeResultDto
                     {
                         ProduitId = produit.Id,
+                        VarianteProduitId = variante?.Id,
                         ProduitNom = produit.Nom,
-                        ProduitReference = produit.Reference,
+                        ProduitReference = variante?.Reference ?? produit.Reference,
+                        ProduitImageUrl = produit.ImageUrl,
+                        Genre = variante?.Genre ?? ligneDto.Genre,
+                        Taille = variante?.Taille ?? ligneDto.Taille,
+                        Couleur = variante?.Couleur ?? ligneDto.Couleur,
                         Quantite = ligneDto.Quantite,
                         PrixUnitaire = prixEffectif,
                         EstSurCommande = estSurCommande
@@ -346,20 +502,22 @@ namespace WicStock_.Controllers
                 commande.MontantTotal = Math.Round(montantTotal, 2);
                 commande.PrixUnitaire = lignesResult.Count == 1 ? lignesResult[0].PrixUnitaire : Math.Round(montantTotal / dto.Lignes.Sum(l => l.Quantite), 2);
                 commande.EstSurCommande = auMoinsUneSurCommande;
-                commande.StatutCommande = "EN_ATTENTE";
-                commande.Statut = StatutCommandeDetaille.EN_ATTENTE_CONFIRMATION;
+                // Le statut est déjà positionné correctement lors de la création
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                // — Notification au responsable —
+                // — Notification au responsable (seulement si en attente) —
                 var nomsProduits = string.Join(", ", lignesResult.Select(l => $"« {l.ProduitNom} »"));
-                await _notificationService.NotifierNouvelEvenementAsync(
-                    TypeNotification.COMMANDE_EN_ATTENTE,
-                    $"Nouvelle commande multi-articles : {dto.Lignes.Count} article(s) ({nomsProduits}) — Total : {commande.MontantTotal:C}",
-                    "/commandes",
-                    RoleUtilisateur.RESPONSABLE_STOCK_PRODUCTION
-                );
+                if (!tousEnStock)
+                {
+                    await _notificationService.NotifierNouvelEvenementAsync(
+                        TypeNotification.COMMANDE_EN_ATTENTE,
+                        $"Nouvelle commande multi-articles en attente : {dto.Lignes.Count} article(s) ({nomsProduits}) — Total : {commande.MontantTotal:C}",
+                        "/commandes",
+                        RoleUtilisateur.RESPONSABLE_STOCK_PRODUCTION
+                    );
+                }
 
                 return CreatedAtAction(nameof(GetMesCommandes), new { }, new CommandeMultiResultDto
                 {
@@ -367,9 +525,11 @@ namespace WicStock_.Controllers
                     MontantTotal = commande.MontantTotal,
                     NombreLignes = lignesResult.Count,
                     EstSurCommande = auMoinsUneSurCommande,
-                    Message = auMoinsUneSurCommande
-                        ? "Commande enregistrée. Certains articles seront produits sur commande."
-                        : "Commande enregistrée avec succès, en attente de confirmation.",
+                    Message = tousEnStock
+                        ? "Commande acceptée automatiquement ! Votre stock a été réservé."
+                        : auMoinsUneSurCommande
+                            ? "Commande enregistrée. Certains articles seront produits sur commande et nécessitent une validation."
+                            : "Commande enregistrée en attente de confirmation.",
                     Lignes = lignesResult
                 });
             }
@@ -469,7 +629,7 @@ namespace WicStock_.Controllers
         // PUT: api/historiquevente/modifier/{id} (Modifier une commande client)
         [HttpPut("modifier/{id}")]
         [Authorize(Roles = "CLIENT,ADMIN")]
-        public async Task<IActionResult> ModifierCommande(int id, CommandeDto dto)
+        public async Task<IActionResult> ModifierCommande(int id, [FromBody] CommandeUpdateDto dto)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!int.TryParse(userIdClaim, out int userId))
@@ -477,7 +637,10 @@ namespace WicStock_.Controllers
 
             var vente = await _context.HistoriqueVentes
                 .Include(h => h.Produit)
-                .ThenInclude(p => p!.Stock)
+                    .ThenInclude(p => p!.Stock)
+                .Include(h => h.LigneCommandes)
+                    .ThenInclude(l => l.Produit)
+                        .ThenInclude(p => p!.Stock)
                 .FirstOrDefaultAsync(h => h.Id == id);
 
             if (vente == null)
@@ -486,28 +649,119 @@ namespace WicStock_.Controllers
             if (vente.UtilisateurId != userId && !User.IsInRole("ADMIN"))
                 return Forbid();
 
-            if (vente.StatutCommande == "ACCEPTEE")
+            if (vente.StatutCommande == "ACCEPTEE" || vente.Statut == StatutCommandeDetaille.ACCEPTEE)
                 return BadRequest(new { message = "Impossible de modifier une commande déjà acceptée." });
 
-            var produit = vente.Produit;
-            if (produit == null)
-                return BadRequest(new { message = "Produit introuvable." });
+            bool auMoinsUneSurCommande = false;
 
-            var stockQty = produit.Stock?.QuantiteActuelle ?? 0;
+            if (vente.EstMultiLignes && vente.LigneCommandes != null && vente.LigneCommandes.Any())
+            {
+                if (dto.Lignes != null && dto.Lignes.Any())
+                {
+                    decimal nouveauMontantTotal = 0;
+                    int nouvelleQuantiteTotale = 0;
 
-            if (stockQty <= 0 && !produit.DisponibleSurCommande)
-                return BadRequest(new { message = "Produit en rupture de stock." });
+                    foreach (var ligneDto in dto.Lignes)
+                    {
+                        var ligne = vente.LigneCommandes.FirstOrDefault(l => l.ProduitId == ligneDto.ProduitId);
+                        if (ligne != null)
+                        {
+                            var prod = ligne.Produit;
+                            int diffQte = ligneDto.Quantite - ligne.Quantite;
+                            var stockQty = prod?.Stock?.QuantiteActuelle ?? 0;
 
-            if (stockQty < dto.QuantiteVendue && !produit.DisponibleSurCommande)
-                return BadRequest(new { message = $"Stock insuffisant ({stockQty} disponible(s))." });
+                            bool estSurCommande = diffQte > 0 && stockQty < diffQte;
+                            if (estSurCommande || ligne.EstSurCommande)
+                            {
+                                ligne.EstSurCommande = true;
+                                auMoinsUneSurCommande = true;
+                            }
+                            else if (diffQte != 0 && prod?.Stock != null && !ligne.EstSurCommande)
+                            {
+                                prod.Stock.QuantiteActuelle -= diffQte;
+                                prod.Stock.DateMiseAJour = DateTime.Now;
+                            }
 
-            vente.QuantiteVendue = dto.QuantiteVendue;
-            vente.PrixUnitaire = dto.PrixUnitaire;
-            vente.DateSouhaitee = dto.DateSouhaitee?.Date;
+                            ligne.Quantite = ligneDto.Quantite;
+                            nouveauMontantTotal += ligne.Quantite * ligne.PrixUnitaire;
+                            nouvelleQuantiteTotale += ligne.Quantite;
+                        }
+                    }
+
+                    vente.QuantiteVendue = nouvelleQuantiteTotale;
+                    vente.MontantTotal = Math.Round(nouveauMontantTotal, 2);
+                    vente.PrixUnitaire = nouvelleQuantiteTotale > 0 ? Math.Round(nouveauMontantTotal / nouvelleQuantiteTotale, 2) : 0;
+                }
+                else if (dto.QuantiteVendue > 0)
+                {
+                    var ligne = vente.LigneCommandes.First();
+                    int diffQte = dto.QuantiteVendue - ligne.Quantite;
+                    var prod = ligne.Produit;
+                    var stockQty = prod?.Stock?.QuantiteActuelle ?? 0;
+
+                    bool estSurCommande = diffQte > 0 && stockQty < diffQte;
+                    if (estSurCommande || ligne.EstSurCommande)
+                    {
+                        ligne.EstSurCommande = true;
+                        auMoinsUneSurCommande = true;
+                    }
+                    else if (diffQte != 0 && prod?.Stock != null && !ligne.EstSurCommande)
+                    {
+                        prod.Stock.QuantiteActuelle -= diffQte;
+                        prod.Stock.DateMiseAJour = DateTime.Now;
+                    }
+
+                    ligne.Quantite = dto.QuantiteVendue;
+                    vente.QuantiteVendue = dto.QuantiteVendue;
+                    vente.MontantTotal = Math.Round(dto.QuantiteVendue * ligne.PrixUnitaire, 2);
+                }
+            }
+            else
+            {
+                var produit = vente.Produit;
+                if (produit == null)
+                    return BadRequest(new { message = "Produit introuvable." });
+
+                int diffQte = dto.QuantiteVendue - vente.QuantiteVendue;
+                var stockQty = produit.Stock?.QuantiteActuelle ?? 0;
+
+                bool estSurCommande = diffQte > 0 && stockQty < diffQte;
+                if (estSurCommande || vente.EstSurCommande)
+                {
+                    vente.EstSurCommande = true;
+                    auMoinsUneSurCommande = true;
+                }
+                else if (diffQte != 0 && produit.Stock != null && !vente.EstSurCommande)
+                {
+                    produit.Stock.QuantiteActuelle -= diffQte;
+                    produit.Stock.DateMiseAJour = DateTime.Now;
+                }
+
+                vente.QuantiteVendue = dto.QuantiteVendue;
+                if (dto.PrixUnitaire > 0) vente.PrixUnitaire = dto.PrixUnitaire;
+            }
+
+            // Toujours passer la commande en EN_ATTENTE après modification pour validation par le responsable
+            vente.EstSurCommande = auMoinsUneSurCommande || vente.EstSurCommande;
+            vente.StatutCommande = "EN_ATTENTE";
+            vente.Statut = StatutCommandeDetaille.EN_ATTENTE_CONFIRMATION;
+
+            if (dto.DateSouhaitee.HasValue)
+                vente.DateSouhaitee = dto.DateSouhaitee.Value.Date;
+
             vente.DateEstimeePreparation = null;
 
             await _context.SaveChangesAsync();
-            return Ok(new { message = "Commande modifiée avec succès." });
+
+            // Notifier le responsable de stock
+            await _notificationService.NotifierNouvelEvenementAsync(
+                TypeNotification.COMMANDE_EN_ATTENTE,
+                $"Commande #{vente.Id} modifiée par le client — En attente de validation.",
+                "/commandes",
+                RoleUtilisateur.RESPONSABLE_STOCK_PRODUCTION
+            );
+
+            return Ok(new { message = "Commande modifiée avec succès. Elle est en attente de validation par le responsable." });
         }
 
         // PUT: api/historiquevente/5/refuser (Manager refuse la commande)
@@ -530,23 +784,17 @@ namespace WicStock_.Controllers
                     return Forbid("Seul un administrateur peut refuser une commande sur commande.");
             }
 
-            if (vente.StatutCommande == "REFUSEE")
+            if (vente.StatutCommande == "REFUSEE" || vente.Statut == StatutCommandeDetaille.REFUSEE)
                 return BadRequest("La commande est déjà refusée.");
 
-            if (vente.StatutCommande == "ACCEPTEE")
-            {
-                var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.ProduitId == vente.ProduitId);
-                if (stock != null)
-                {
-                    stock.QuantiteActuelle += vente.QuantiteVendue;
-                    stock.DateMiseAJour = DateTime.Now;
-                }
-            }
+            // Restituer le stock au catalogue
+            await RestituerStockCommandeAsync(vente);
 
-            _context.HistoriqueVentes.Remove(vente);
+            vente.StatutCommande = "REFUSEE";
+            vente.Statut = StatutCommandeDetaille.REFUSEE;
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Commande refusée et supprimée.", statut = "REFUSEE" });
+            return Ok(new { message = "Commande refusée et stock restitué.", statut = "REFUSEE" });
         }
 
         // GET: api/historiquevente/{id}/suivi
@@ -557,6 +805,8 @@ namespace WicStock_.Controllers
             var vente = await _context.HistoriqueVentes
                 .Include(h => h.Produit)
                 .Include(h => h.Responsable)
+                .Include(h => h.LigneCommandes)
+                    .ThenInclude(l => l.Produit)
                 .FirstOrDefaultAsync(h => h.Id == id);
 
             if (vente == null)
@@ -572,14 +822,39 @@ namespace WicStock_.Controllers
                     return Forbid();
             }
 
+            var lignesDto = vente.LigneCommandes?.Select(l => new LigneCommandeResultDto
+            {
+                ProduitId = l.ProduitId,
+                VarianteProduitId = l.VarianteProduitId,
+                ProduitNom = l.Produit?.Nom ?? string.Empty,
+                ProduitReference = l.Produit?.Reference ?? string.Empty,
+                ProduitImageUrl = l.Produit?.ImageUrl,
+                Genre = !string.IsNullOrWhiteSpace(l.Genre) ? l.Genre : l.Produit?.Genre,
+                Taille = !string.IsNullOrWhiteSpace(l.Taille) ? l.Taille : l.Produit?.Taille,
+                Couleur = !string.IsNullOrWhiteSpace(l.Couleur) ? l.Couleur : l.Produit?.Couleur,
+                Quantite = l.Quantite,
+                PrixUnitaire = l.PrixUnitaire,
+                EstSurCommande = l.EstSurCommande
+            }).ToList() ?? new List<LigneCommandeResultDto>();
+
             return Ok(new SuiviCommandeDto
             {
                 Id = vente.Id,
+                EstMultiLignes = vente.EstMultiLignes,
+                MontantTotal = vente.MontantTotal,
+                Lignes = lignesDto,
                 ProduitId = vente.ProduitId,
-                ProduitNom = vente.Produit?.Nom,
-                ProduitReference = vente.Produit?.Reference,
-                ProduitImageUrl = vente.Produit?.ImageUrl,
-                QuantiteVendue = vente.QuantiteVendue,
+                ProduitNom = vente.EstMultiLignes && lignesDto.Count > 0
+                    ? $"{lignesDto.Count} article{(lignesDto.Count > 1 ? "s" : "")}"
+                    : vente.Produit?.Nom,
+                ProduitReference = vente.EstMultiLignes ? null : vente.Produit?.Reference,
+                ProduitImageUrl = vente.EstMultiLignes ? null : vente.Produit?.ImageUrl,
+                Genre = !string.IsNullOrWhiteSpace(vente.Genre) ? vente.Genre : vente.Produit?.Genre,
+                Taille = !string.IsNullOrWhiteSpace(vente.Taille) ? vente.Taille : vente.Produit?.Taille,
+                Couleur = !string.IsNullOrWhiteSpace(vente.Couleur) ? vente.Couleur : vente.Produit?.Couleur,
+                QuantiteVendue = vente.EstMultiLignes && lignesDto.Count > 0
+                    ? lignesDto.Sum(l => l.Quantite)
+                    : vente.QuantiteVendue,
                 PrixUnitaire = vente.PrixUnitaire,
                 Statut = vente.Statut?.ToString() ?? vente.StatutCommande,
                 StatutCommande = vente.StatutCommande,
@@ -796,20 +1071,13 @@ namespace WicStock_.Controllers
             if (vente.UtilisateurId != userId && !User.IsInRole("ADMIN"))
                 return Forbid();
 
-            if (vente.StatutCommande == "ACCEPTEE")
-            {
-                var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.ProduitId == vente.ProduitId);
-                if (stock != null)
-                {
-                    stock.QuantiteActuelle += vente.QuantiteVendue;
-                    stock.DateMiseAJour = DateTime.Now;
-                }
-            }
+            // Restituer le stock au catalogue
+            await RestituerStockCommandeAsync(vente);
 
             _context.HistoriqueVentes.Remove(vente);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Commande annulée avec succès." });
+            return Ok(new { message = "Commande annulée avec succès et stock restitué." });
         }
 
         // GET: api/historiquevente/responsables
@@ -888,9 +1156,67 @@ namespace WicStock_.Controllers
             if (vente == null)
                 return NotFound();
 
+            await RestituerStockCommandeAsync(vente);
+
             _context.HistoriqueVentes.Remove(vente);
             await _context.SaveChangesAsync();
             return NoContent();
+        }
+
+        private async Task RestituerStockCommandeAsync(HistoriqueVente vente)
+        {
+            if (vente == null) return;
+
+            // Si la commande a déjà été refusée, ne pas récréditer une seconde fois
+            if (vente.StatutCommande == "REFUSEE" || vente.Statut == StatutCommandeDetaille.REFUSEE)
+                return;
+
+            if (vente.EstMultiLignes)
+            {
+                var lignes = await _context.LigneCommandes
+                    .Where(l => l.HistoriqueVenteId == vente.Id && !l.EstSurCommande)
+                    .ToListAsync();
+
+                foreach (var ligne in lignes)
+                {
+                    var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.ProduitId == ligne.ProduitId);
+                    if (stock != null)
+                    {
+                        stock.QuantiteActuelle += ligne.Quantite;
+                        stock.DateMiseAJour = DateTime.Now;
+
+                        _context.MouvementsStock.Add(new MouvementStock
+                        {
+                            StockId = stock.Id,
+                            Type = TypeMouvement.ENTREE,
+                            Quantite = ligne.Quantite,
+                            Date = DateTime.Now,
+                            Motif = $"Restitution suite annulation/refus commande #{vente.Id}"
+                        });
+                    }
+                }
+            }
+            else
+            {
+                if (!vente.EstSurCommande)
+                {
+                    var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.ProduitId == vente.ProduitId);
+                    if (stock != null)
+                    {
+                        stock.QuantiteActuelle += vente.QuantiteVendue;
+                        stock.DateMiseAJour = DateTime.Now;
+
+                        _context.MouvementsStock.Add(new MouvementStock
+                        {
+                            StockId = stock.Id,
+                            Type = TypeMouvement.ENTREE,
+                            Quantite = vente.QuantiteVendue,
+                            Date = DateTime.Now,
+                            Motif = $"Restitution suite annulation/refus commande #{vente.Id}"
+                        });
+                    }
+                }
+            }
         }
     }
 
@@ -900,6 +1226,10 @@ namespace WicStock_.Controllers
         public int QuantiteVendue { get; set; }
         public decimal PrixUnitaire { get; set; }
         public DateTime? DateSouhaitee { get; set; }
+        public string? Genre { get; set; }
+        public string? Taille { get; set; }
+        public string? Couleur { get; set; }
+        public int? VarianteProduitId { get; set; }
     }
 
     public class AccepterCommandeDto

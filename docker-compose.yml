@@ -1,29 +1,34 @@
 services:
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+  postgres:
+    image: postgres:16-alpine
+    container_name: wicstock_postgres
+    restart: unless-stopped
     environment:
-      ACCEPT_EULA: "Y"
-      SA_PASSWORD: "VotreMotDePasseFort123!"
+      POSTGRES_DB: WicStockDb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "VotreMotDePasseFort123!"
     ports:
-      - "1433:1433"
+      - "5432:5432"
     volumes:
-      - sqlserver_data:/var/opt/mssql
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P $$SA_PASSWORD -C -Q 'SELECT 1' || exit 1"]
-      interval: 10s
-      retries: 10
+      test: ["CMD-SHELL", "pg_isready -U postgres -d WicStockDb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   api:
     build:
       context: ./backend
     depends_on:
-      sqlserver:
+      postgres:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=WicStockDb;User Id=sa;Password=VotreMotDePasseFort123!;TrustServerCertificate=True;"
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=WicStockDb;Username=postgres;Password=VotreMotDePasseFort123!"
       AppSettings__BaseUrl: "http://localhost:8080"
       AppSettings__FrontendUrl: "http://localhost:8081"
+      WicStockIAUrl: "http://ai:8000/"
     ports:
       - "8080:8080"
     volumes:
@@ -93,8 +98,41 @@ services:
       - whatsapp_auth:/app/auth_info
     profiles: ["extended"]
 
+  # --- Observabilité & Monitoring (Local) ---
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: wicstock_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: wicstock_grafana
+    restart: unless-stopped
+    environment:
+      # Credentials chargés depuis .env (non versionné) — voir .env.example
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
 volumes:
-  sqlserver_data:
+  postgres_data:
   whatsapp_auth:
   ollama_data:
   api_uploads:
+  prometheus_data:
+  grafana_data:

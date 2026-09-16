@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: wicstock-ai
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/HaifaCheikh/WicStockProject.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/HaifaCheikh/WicStockProject.git
+      targetRevision: main
+      path: helm/wicstock
+      helm:
+        valueFiles:
+          - $values/gitops/environments/dev/values.yaml
+          - $values/gitops/environments/dev/values-ai.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: wicstock-ai
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

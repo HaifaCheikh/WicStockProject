@@ -148,23 +148,30 @@
                 </span>
             </div>
 
-            <div class="payment-actions">
+            <div class="payment-actions d-flex flex-column gap-2 mt-4">
                 <button class="btn btn--primary payment-btn" disabled="@isProcessing" @onclick="ProceedToCheckout">
                     @if (isProcessing)
                     {
                         <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Inherit" Class="mr-2" />
-                        <span>Préparation du paiement...</span>
+                        <span>Redirection vers LemonSqueezy...</span>
                     }
                     else
                     {
                         <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" />
-                        <span>Payer @paymentResponse.Montant.ToString("N2") @paymentResponse.Currency</span>
+                        <span>Payer via LemonSqueezy (@paymentResponse.Montant.ToString("N2") @paymentResponse.Currency)</span>
                     }
                 </button>
 
-                <button class="btn btn--outline" @onclick="RetourCommande" disabled="@isProcessing">
+                <button class="btn btn--outline mt-1" @onclick="RetourCommande" disabled="@isProcessing">
                     <span>Annuler</span>
                 </button>
+
+                @if (paymentResponse?.CheckoutId?.StartsWith("LEMON-TEST-") == true)
+                {
+                    <p class="text-center mt-2" style="font-size: 0.78rem; color: #64748B;">
+                        ℹ Mode démonstration LemonSqueezy (clés API `LemonSqueezy:ApiKey` non configurées sur le serveur)
+                    </p>
+                }
             </div>
         </div>
     }
