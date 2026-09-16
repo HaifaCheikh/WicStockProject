@@ -22,10 +22,40 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Restore Backend
-        run: dotnet restore backend/WicStock.Api.csproj
+        run: dotnet restore WicStock.sln
 
       - name: Build Backend
-        run: dotnet build backend/WicStock.Api.csproj --configuration Release --no-restore
+        run: dotnet build WicStock.sln --configuration Release --no-restore
+
+      - name: Run Backend Unit Tests & Collect Coverage
+        run: |
+          dotnet test backend/WicStock.Api.Tests/WicStock.Api.Tests.csproj \
+            --configuration Release \
+            --no-build \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./coverage-results
+
+      - name: Upload Code Coverage to Codecov
+        uses: codecov/codecov-action@v4
+        continue-on-error: true
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: ./coverage-results
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Upload Test Coverage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-code-coverage
+          path: ./coverage-results/**/coverage.cobertura.xml
+
+      - name: SonarCloud Scan (Non-blocking Quality Gate)
+        uses: SonarSource/sonarcloud-github-action@v3
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   frontend:
     name: Build Frontend (Blazor)

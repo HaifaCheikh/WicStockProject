@@ -11,6 +11,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="WicStock.Api.Tests\**" />
+    <Content Remove="WicStock.Api.Tests\**" />
+    <EmbeddedResource Remove="WicStock.Api.Tests\**" />
+    <None Remove="WicStock.Api.Tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
     <PackageReference Include="MailKit" Version="4.17.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.10" />
