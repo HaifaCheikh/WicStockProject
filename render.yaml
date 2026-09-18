@@ -17,6 +17,8 @@ services:
         value: https://wicstock-project.vercel.app
       - key: WhatsAppService__Url
         value: https://wicstock-whatsapp.onrender.com/send
+      - key: Jwt__Key
+        value: WicStockDefaultFallbackSecretKey2026Min32Chars!
 
   - type: web
     name: wicstock-ai
