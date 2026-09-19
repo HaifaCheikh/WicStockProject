@@ -97,7 +97,7 @@ namespace WicStock.Web.Models.Dtos
             {
                 int qte = Stock?.QuantiteActuelle ?? 0;
                 int seuilAlerte = (Stock?.SeuilAlerte > 0) ? Stock.SeuilAlerte : 10;
-                const int SEUIL_SURSTOCK_UNITES = 500;
+                int seuilSurstock = (Stock?.SeuilSurstock.HasValue == true && Stock.SeuilSurstock.Value >= 50) ? Stock.SeuilSurstock.Value : 100;
                 const int DELAI_INACTIVITE_JOURS = 21;
                 string? prevRisque = DernierePrevision?.TypeRisquePredit?.ToUpperInvariant();
 
@@ -112,7 +112,7 @@ namespace WicStock.Web.Models.Dtos
                     return "STOCK_FAIBLE";
                 }
                 // 3. Surstock (prioritaire sur Obsolescence quand les 2 conditions sont vraies)
-                else if (qte >= SEUIL_SURSTOCK_UNITES && JoursInactivite >= DELAI_INACTIVITE_JOURS)
+                else if (qte >= seuilSurstock && JoursInactivite >= DELAI_INACTIVITE_JOURS)
                 {
                     return "SURSTOCK";
                 }
