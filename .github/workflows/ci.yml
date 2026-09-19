@@ -6,8 +6,13 @@ on:
     paths-ignore:
       - 'gitops/**'
       - 'README.md'
+      - 'docs/**'
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - 'gitops/**'
+      - 'README.md'
+      - 'docs/**'
 
 jobs:
   backend:
