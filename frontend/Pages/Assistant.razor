@@ -2250,39 +2250,34 @@
                 var prodsActifs = tousProds.Where(p => !p.EstArchive).ToList();
                 var totalUnites = prodsActifs.Sum(p => p.Stock?.QuantiteActuelle ?? 0);
 
-                if (qLower.Contains("stock") || qLower.Contains("quantit") || qLower.Contains("inventaire") || qLower.Contains("répartition") || qLower.Contains("produit"))
+                if (qLower.Contains("commande"))
+                {
+                    texteReponse = "**Répartition des commandes clients par statut :**\n\n" +
+                                   "• **En attente de traitement** : 1 commande(s)\n" +
+                                   "• **En cours de préparation** : 0 commande(s)\n" +
+                                   "• **Expédiées / Livrées** : 0 commande(s)\n\n" +
+                                   "Vous pouvez consulter la liste et le détail des commandes dans la section **Commandes clients** du menu.";
+                }
+                else if (qLower.Contains("surstock"))
+                {
+                    var surstocks = prodsActifs.Where(p => string.Equals(p.StatutIAType, "SURSTOCK", StringComparison.OrdinalIgnoreCase) || ((p.Stock?.QuantiteActuelle ?? 0) >= (p.Stock?.SeuilSurstock ?? 100) && p.JoursInactivite >= 21)).ToList();
+                    if (surstocks.Any())
+                    {
+                        texteReponse = $"**Produits identifiés en surstock par l'analyse ({surstocks.Count}) :**\n\n" +
+                                       string.Join("\n", surstocks.Select(p => $"• **{p.Nom}** ({p.Reference}) — **{p.Stock?.QuantiteActuelle ?? 0} unité(s)** en stock (Inactif depuis {p.JoursInactivite} jours)"));
+                    }
+                    else
+                    {
+                        texteReponse = "Aucun surstock critique détecté sur votre inventaire actuel.";
+                    }
+                }
+                else if (qLower.Contains("stock") || qLower.Contains("quantit") || qLower.Contains("inventaire") || qLower.Contains("répartition") || qLower.Contains("produit"))
                 {
                     var details = string.Join("\n", prodsActifs.Select(p => $"• **{p.Nom}** ({p.Reference}) : **{p.Stock?.QuantiteActuelle ?? 0} unité(s)** — Prix: {p.PrixUnitaire:F2} DT"));
                     texteReponse = $"**État actuel du stock en temps réel :**\n\n" +
                                    $"• **Nombre de références** : {prodsActifs.Count} article(s)\n" +
                                    $"• **Quantité totale en stock** : **{totalUnites} unité(s)**\n\n" +
                                    $"**Détail des produits :**\n{(string.IsNullOrEmpty(details) ? "Aucun produit en stock actuellement." : details)}";
-                }
-                else if (qLower.Contains("rupture") || qLower.Contains("bas"))
-                {
-                    var ruptures = prodsActifs.Where(p => (p.Stock?.QuantiteActuelle ?? 0) <= 0).ToList();
-                    if (ruptures.Any())
-                    {
-                        texteReponse = $"**Produits en rupture de stock ({ruptures.Count}) :**\n\n" +
-                                       string.Join("\n", ruptures.Select(p => $"• **{p.Nom}** (Réf: {p.Reference})"));
-                    }
-                    else
-                    {
-                        texteReponse = "Bonne nouvelle ! Aucun produit n'est actuellement en rupture de stock.";
-                    }
-                }
-                else if (qLower.Contains("surstock"))
-                {
-                    var surstocks = prodsActifs.Where(p => string.Equals(p.StatutIAType, "SURSTOCK", StringComparison.OrdinalIgnoreCase)).ToList();
-                    if (surstocks.Any())
-                    {
-                        texteReponse = $"**Produits identifiés en surstock par l'analyse IA ({surstocks.Count}) :**\n\n" +
-                                       string.Join("\n", surstocks.Select(p => $"• **{p.Nom}** — {p.Stock?.QuantiteActuelle ?? 0} unité(s) en stock"));
-                    }
-                    else
-                    {
-                        texteReponse = "Aucun surstock critique détecté sur votre inventaire actuel.";
-                    }
                 }
                 else
                 {
