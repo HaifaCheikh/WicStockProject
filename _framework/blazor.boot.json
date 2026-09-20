@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "WicStock.Web",
   "resources": {
-    "hash": "sha256-b5fyVE7fXgJMX8AuYtdyKHh0OK5Ny8DNNyOpsMy2Xtw=",
+    "hash": "sha256-swoNF4MHyHeH55xRw8B7Vf3Vy3Q65kuQ5/3zMw+yZq8=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-dexsp+9ih2C28zVhNnPXUbkz2QCq7lHpkyDcmaLl7NQ="
     },
@@ -100,7 +100,7 @@
       "System.Xml.ReaderWriter.wasm": "sha256-QhuHFx3yfIZDctT/IzBBh18LRXBU4OIcvXmtx1o2DFI=",
       "System.wasm": "sha256-0h/E837RjMJjMLndiTv3gCaXstmfreX9Ui/wJVYpzwg=",
       "System.Private.CoreLib.wasm": "sha256-F6e6LiEj617+0I7EMRv9iBPJTi9G34G/CumE0xXALYk=",
-      "WicStock.Web.wasm": "sha256-VhdHxjWVUd2W/hoPASEZ0BD/sMqyxWruwizle6w9yBk="
+      "WicStock.Web.wasm": "sha256-AbnaHb4V1gBZ/ehIbT0WS5NdOTa4dvNtbwvcsaFNJj4="
     }
   },
   "cacheBootResources": true,
