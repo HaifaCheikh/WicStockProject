@@ -42,7 +42,7 @@ jobs:
             --results-directory ./coverage-results
 
       - name: Upload Code Coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         continue-on-error: true
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
