@@ -29,8 +29,9 @@ namespace WicStock.Web.Models.Dtos
         // Rupture réelle (stock à 0 et non commandable)
         public bool EstEnRupture => GetQuantiteEffective() <= 0 && !DisponibleSurCommande;
 
-        // Stock faible (entre 1 et seuil d'alerte inclus)
-        public bool EstStockFaibleEffectif => EstStockFaible || (GetQuantiteEffective() > 0 && GetQuantiteEffective() <= SeuilAlerte);
+        // Stock faible : message "Il ne reste que X pièce(s)" affiché dès que stock <= 10
+        private const int SeuilStockFaibleAffichage = 10;
+        public bool EstStockFaibleEffectif => EstStockFaible || (GetQuantiteEffective() > 0 && GetQuantiteEffective() <= SeuilStockFaibleAffichage);
 
         // Produit commandable hors stock
         public bool EstSurCommande => GetQuantiteEffective() <= 0 && DisponibleSurCommande;
