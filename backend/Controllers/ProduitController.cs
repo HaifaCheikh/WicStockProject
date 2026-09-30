@@ -123,7 +123,7 @@ namespace WicStock_.Controllers
                 decimal prixBase = p.PrixMinimum;
                 decimal prixPromo = estEnPromo ? Math.Round(prixBase * (1 - (decimal)remise / 100m), 2) : prixBase;
                 int quantiteDisponible = p.QuantiteTotalStock;
-                int seuilAlerte = p.Stock?.SeuilAlerte ?? 10;
+                const int seuilAlerte = 10; // Seuil fixe : message "Il ne reste que X pièce(s)" affiché dès que stock <= 10
                 bool estStockFaible = quantiteDisponible > 0 && quantiteDisponible <= seuilAlerte;
                 string statutStock = quantiteDisponible <= 0
                     ? (p.DisponibleSurCommande ? "SUR_COMMANDE" : "RUPTURE")
@@ -222,7 +222,7 @@ namespace WicStock_.Controllers
             decimal prixBase = p.PrixMinimum;
             decimal prixPromo = estEnPromo ? Math.Round(prixBase * (1 - (decimal)remise / 100m), 2) : prixBase;
             int quantiteDisponible = p.QuantiteTotalStock;
-            int seuilAlerte = p.Stock?.SeuilAlerte ?? 10;
+            const int seuilAlerte = 10; // Seuil fixe : message "Il ne reste que X pièce(s)" affiché dès que stock <= 10
             bool estStockFaible = quantiteDisponible > 0 && quantiteDisponible <= seuilAlerte;
             string statutStock = quantiteDisponible <= 0
                 ? (p.DisponibleSurCommande ? "SUR_COMMANDE" : "RUPTURE")
