@@ -63,7 +63,8 @@ namespace WicStock_.Models
             PAYEE,
             EN_LIVRAISON,
             LIVREE,
-            REFUSEE
+            REFUSEE,
+            ANNULEE
         }
 
         public enum StatutAvis

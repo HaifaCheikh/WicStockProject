@@ -16,11 +16,13 @@ namespace WicStock_.Controllers
     {
         private readonly AppDbContext _context;
         private readonly NotificationService _notificationService;
+        private readonly CommandeExpirationService _commandeExpirationService;
 
-        public HistoriqueVenteController(AppDbContext context, NotificationService notificationService)
+        public HistoriqueVenteController(AppDbContext context, NotificationService notificationService, CommandeExpirationService commandeExpirationService)
         {
             _context = context;
             _notificationService = notificationService;
+            _commandeExpirationService = commandeExpirationService;
         }
 
         // GET: api/historiquevente (Vue globale pour Responsable Stock & Production)
@@ -1163,60 +1165,22 @@ namespace WicStock_.Controllers
             return NoContent();
         }
 
+        // POST: api/historiquevente/nettoyer-commandes-expirees
+        [HttpPost("nettoyer-commandes-expirees")]
+        [Authorize(Roles = "ADMIN,RESPONSABLE_STOCK_PRODUCTION")]
+        public async Task<IActionResult> NettoyerCommandesExpirees([FromQuery] int jours = 7)
+        {
+            int count = await _commandeExpirationService.AnnulerCommandesExpireesAsync(jours);
+            return Ok(new
+            {
+                count,
+                message = $"{count} commande(s) non payée(s) datant de plus de {jours} jours ont été annulée(s) et les stocks ont été restitués."
+            });
+        }
+
         private async Task RestituerStockCommandeAsync(HistoriqueVente vente)
         {
-            if (vente == null) return;
-
-            // Si la commande a déjà été refusée, ne pas récréditer une seconde fois
-            if (vente.StatutCommande == "REFUSEE" || vente.Statut == StatutCommandeDetaille.REFUSEE)
-                return;
-
-            if (vente.EstMultiLignes)
-            {
-                var lignes = await _context.LigneCommandes
-                    .Where(l => l.HistoriqueVenteId == vente.Id && !l.EstSurCommande)
-                    .ToListAsync();
-
-                foreach (var ligne in lignes)
-                {
-                    var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.ProduitId == ligne.ProduitId);
-                    if (stock != null)
-                    {
-                        stock.QuantiteActuelle += ligne.Quantite;
-                        stock.DateMiseAJour = DateTime.Now;
-
-                        _context.MouvementsStock.Add(new MouvementStock
-                        {
-                            StockId = stock.Id,
-                            Type = TypeMouvement.ENTREE,
-                            Quantite = ligne.Quantite,
-                            Date = DateTime.Now,
-                            Motif = $"Restitution suite annulation/refus commande #{vente.Id}"
-                        });
-                    }
-                }
-            }
-            else
-            {
-                if (!vente.EstSurCommande)
-                {
-                    var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.ProduitId == vente.ProduitId);
-                    if (stock != null)
-                    {
-                        stock.QuantiteActuelle += vente.QuantiteVendue;
-                        stock.DateMiseAJour = DateTime.Now;
-
-                        _context.MouvementsStock.Add(new MouvementStock
-                        {
-                            StockId = stock.Id,
-                            Type = TypeMouvement.ENTREE,
-                            Quantite = vente.QuantiteVendue,
-                            Date = DateTime.Now,
-                            Motif = $"Restitution suite annulation/refus commande #{vente.Id}"
-                        });
-                    }
-                }
-            }
+            await CommandeExpirationService.RestituerStockCommandeAsync(_context, vente);
         }
     }
 
