@@ -179,12 +179,28 @@ namespace WicStock_.Controllers
 
             var produit = await _context.Produits
                 .Include(p => p.Stock)
+                .Include(p => p.Variantes)
                 .FirstOrDefaultAsync(p => p.Id == dto.ProduitId);
 
             if (produit == null)
                 return NotFound("Produit introuvable.");
 
-            var stockQty = produit.Stock?.QuantiteActuelle ?? 0;
+            VarianteProduit? varianteMatch = null;
+            if (dto.VarianteProduitId.HasValue && dto.VarianteProduitId.Value > 0)
+            {
+                varianteMatch = produit.Variantes?.FirstOrDefault(v => v.Id == dto.VarianteProduitId.Value);
+            }
+            else if (!string.IsNullOrWhiteSpace(dto.Genre) || !string.IsNullOrWhiteSpace(dto.Taille) || !string.IsNullOrWhiteSpace(dto.Couleur))
+            {
+                varianteMatch = produit.Variantes?.FirstOrDefault(v =>
+                    (string.IsNullOrWhiteSpace(dto.Genre) || v.Genre == dto.Genre) &&
+                    (string.IsNullOrWhiteSpace(dto.Taille) || v.Taille == dto.Taille) &&
+                    (string.IsNullOrWhiteSpace(dto.Couleur) || v.Couleur == dto.Couleur));
+            }
+
+            var stockQty = varianteMatch != null
+                ? varianteMatch.QuantiteActuelle
+                : produit.QuantiteTotalStock;
 
             if (stockQty <= 0 && !produit.DisponibleSurCommande)
                 return BadRequest(new { message = "Ce produit est en rupture de stock." });
@@ -197,12 +213,24 @@ namespace WicStock_.Controllers
             bool estSurCommande = false;
             var stock = produit.Stock;
 
-            if (stock != null && stock.QuantiteActuelle >= dto.QuantiteVendue)
+            if (stockQty >= dto.QuantiteVendue)
             {
                 statut = "ACCEPTEE";
                 statutDetaille = StatutCommandeDetaille.ACCEPTEE;
-                stock.QuantiteActuelle -= dto.QuantiteVendue;
-                stock.DateMiseAJour = DateTime.Now;
+                if (varianteMatch != null)
+                {
+                    varianteMatch.QuantiteActuelle -= dto.QuantiteVendue;
+                    if (stock != null && produit.Variantes != null)
+                    {
+                        stock.QuantiteActuelle = produit.Variantes.Sum(v => v.QuantiteActuelle);
+                        stock.DateMiseAJour = DateTime.Now;
+                    }
+                }
+                else if (stock != null)
+                {
+                    stock.QuantiteActuelle -= dto.QuantiteVendue;
+                    stock.DateMiseAJour = DateTime.Now;
+                }
             }
             else if (produit.DisponibleSurCommande)
             {

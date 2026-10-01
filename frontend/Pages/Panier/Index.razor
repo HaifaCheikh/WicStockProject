@@ -863,7 +863,7 @@
 
     private async Task ChangerQuantite(CartItemDto item, int nouvelleQty)
     {
-        await CartService.UpdateQuantityAsync(item.ProduitId, nouvelleQty);
+        await CartService.UpdateQuantityAsync(item.ProduitId, nouvelleQty, item.VarianteProduitId, item.Genre, item.Taille, item.Couleur);
         items = await CartService.GetItemsAsync();
         StateHasChanged();
     }

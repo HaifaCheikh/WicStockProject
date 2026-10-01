@@ -84,6 +84,43 @@ namespace WicStock.Web.Models
             return FallbackHex;
         }
 
+        private static readonly Dictionary<string, int> TailleOrdre = new(StringComparer.OrdinalIgnoreCase)
+        {
+            { "XXS", 10 },
+            { "XS",  20 },
+            { "S",   30 },
+            { "M",   40 },
+            { "L",   50 },
+            { "XL",  60 },
+            { "XXL", 70 },
+            { "2XL", 70 },
+            { "3XL", 80 },
+            { "4XL", 90 },
+            { "5XL", 100 },
+            { "STANDARD", 1000 },
+            { "TAILLE STANDARD", 1000 },
+            { "UNIQUE", 1000 }
+        };
+
+        public static List<string> SortTailles(IEnumerable<string> tailles)
+        {
+            if (tailles == null) return new();
+            return tailles
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(t => t.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(t =>
+                {
+                    if (TailleOrdre.TryGetValue(t, out int rank))
+                        return rank;
+                    if (int.TryParse(t, out int num))
+                        return 200 + num;
+                    return 500;
+                })
+                .ThenBy(t => t)
+                .ToList();
+        }
+
         public static string FormatLigneDescription(string? genre, string? taille, string? couleur)
         {
             var parts = new List<string>();

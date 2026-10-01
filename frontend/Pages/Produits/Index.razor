@@ -1922,13 +1922,10 @@
 
     private List<string> GetProdTailles(ProduitDto prod)
     {
-        if (prod.Variantes?.Any() == true)
-            return prod.Variantes
-                .Where(v => !string.IsNullOrWhiteSpace(v.Taille))
-                .Select(v => v.Taille!.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-        return string.IsNullOrWhiteSpace(prod.Taille) ? new() : new() { prod.Taille.Trim() };
+        var raw = prod.Variantes?.Any() == true
+            ? prod.Variantes.Where(v => !string.IsNullOrWhiteSpace(v.Taille)).Select(v => v.Taille!)
+            : (!string.IsNullOrWhiteSpace(prod.Taille) ? new[] { prod.Taille } : Enumerable.Empty<string>());
+        return WicStock.Web.Models.AttributsProduit.SortTailles(raw);
     }
 
     private List<(string nom, string hex)> GetProdCouleurs(ProduitDto prod)
