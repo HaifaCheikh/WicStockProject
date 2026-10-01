@@ -207,10 +207,16 @@
                                             var _cGenres   = GetCatGenres(produit);
                                             var _cTailles  = GetCatTailles(produit);
                                             var _cCouleurs = GetCatCouleurs(produit);
-                                            var _cSubtitle = string.Join(" · ", new[] {
-                                                _cGenres.FirstOrDefault() ?? "",
-                                                produit.TypeTissu ?? ""
-                                            }.Where(s => !string.IsNullOrEmpty(s)));
+                                        }
+
+                                        @if (_cGenres.Any())
+                                        {
+                                            <div class="d-flex align-center gap-1 mt-1 flex-wrap">
+                                                @foreach (var g in _cGenres)
+                                                {
+                                                    <span class="genre-pill">@g</span>
+                                                }
+                                            </div>
                                         }
 
                                         <!-- Coloris + Tailles from variantes -->
@@ -1320,6 +1326,7 @@
     .b-chips { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
     .b-size-chip { font-size: 0.65rem; font-weight: 700; padding: 2px 5px; border-radius: 4px; background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; }
     .b-size-chip--more { background: #E2E8F0; color: #64748B; }
+    .genre-pill { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: #E8EEF8; color: #2B4C7E; border: 1px solid rgba(43,76,126,0.15); display: inline-block; }
 
     .product-footer {
         padding-top: 12px;

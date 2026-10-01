@@ -142,5 +142,20 @@ namespace WicStock_.Controllers
             await _context.SaveChangesAsync();
             return NoContent();
         }
+
+        // DELETE: api/notification/{id}
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> SupprimerNotification(int id)
+        {
+            var notification = await QueryPourUtilisateurConnecte()
+                .FirstOrDefaultAsync(n => n.Id == id);
+
+            if (notification == null)
+                return NotFound();
+
+            _context.Notifications.Remove(notification);
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
     }
 }

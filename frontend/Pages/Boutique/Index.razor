@@ -197,15 +197,19 @@
                                 var _bGenres   = GetCatGenres(p);
                                 var _bTailles  = GetCatTailles(p);
                                 var _bCouleurs = GetCatCouleurs(p);
-                                // Subtitle: Genre · TypeTissu
-                                var _bSubtitle = string.Join(" · ", new[] {
-                                    _bGenres.FirstOrDefault() ?? "",
-                                    p.TypeTissu ?? ""
-                                }.Where(s => !string.IsNullOrEmpty(s)));
                             }
-                            @if (!string.IsNullOrEmpty(_bSubtitle))
+                            @if (_bGenres.Any())
                             {
-                                <p class="b-card-tissu">@_bSubtitle</p>
+                                <div class="d-flex align-center gap-1 my-1 flex-wrap">
+                                    @foreach (var g in _bGenres)
+                                    {
+                                        <span class="b-genre-pill">@g</span>
+                                    }
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(p.TypeTissu))
+                            {
+                                <p class="b-card-tissu">@p.TypeTissu</p>
                             }
 
                             <!-- Coloris + Tailles from variantes -->
@@ -437,6 +441,7 @@
     .b-chips { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
     .b-size-chip { font-size: 0.66rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; letter-spacing: 0.01em; }
     .b-size-chip--more { background: #E2E8F0; color: #64748B; }
+    .b-genre-pill { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: #E8EEF8; color: #2B4C7E; border: 1px solid rgba(43,76,126,0.15); display: inline-block; }
 
     .b-card-prix { margin-bottom: 10px; }
     .b-prix { font-size: 1.1rem; font-weight: 700; color: var(--b-denim); font-family: var(--font-head); }
