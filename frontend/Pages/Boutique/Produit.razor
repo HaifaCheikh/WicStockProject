@@ -230,7 +230,7 @@
                                 <span class="bp-label">Genre :</span> @produit.Genre
                             </p>
                         }
-                        @if (!availableTailles.Any() && !string.IsNullOrEmpty(produit.Taille) && !string.Equals(produit.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase))
+                        @if (!availableTailles.Any() && !string.IsNullOrEmpty(produit.Taille))
                         {
                             <p class="bp-tissu">
                                 <span class="bp-label">Taille / Pointure :</span> <span class="bp-attr-tag">@produit.Taille</span>
@@ -661,12 +661,13 @@
     {
         get
         {
-            var list = produit?.Variantes?.Where(v => !string.IsNullOrWhiteSpace(v.Taille) && !string.Equals(v.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase)).Select(v => v.Taille!.Trim()).ToList() ?? new();
-            if (!string.IsNullOrWhiteSpace(produit?.Taille) && !string.Equals(produit.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase) && !list.Contains(produit.Taille.Trim(), StringComparer.OrdinalIgnoreCase))
+            var raw = produit?.Variantes?.Where(v => !string.IsNullOrWhiteSpace(v.Taille)).Select(v => v.Taille!)
+                ?? Enumerable.Empty<string>();
+            if (!string.IsNullOrWhiteSpace(produit?.Taille))
             {
-                list.Add(produit.Taille.Trim());
+                raw = raw.Concat(new[] { produit.Taille });
             }
-            return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            return WicStock.Web.Models.AttributsProduit.SortTailles(raw);
         }
     }
 
@@ -758,6 +759,13 @@
     private async Task AjouterAuPanier()
     {
         if (produit == null || !produit.PeutCommander) return;
+
+        if (!produit.DisponibleSurCommande)
+        {
+            int maxQty = SelectedVariante != null ? SelectedVariante.QuantiteActuelle : produit.QuantiteDisponible;
+            quantite = Math.Clamp(quantite, 1, Math.Max(1, maxQty));
+        }
+
         ajoutEnCours = true;
 
         var vMatch = SelectedVariante;

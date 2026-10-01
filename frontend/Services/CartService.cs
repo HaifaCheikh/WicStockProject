@@ -163,8 +163,8 @@ namespace WicStock.Web.Services
             {
                 // Respecte la limite de stock sauf si commandable
                 item.Quantite = item.DisponibleSurCommande
-                    ? nouvelleQuantite
-                    : Math.Min(nouvelleQuantite, item.QuantiteDisponible > 0 ? item.QuantiteDisponible : nouvelleQuantite);
+                    ? Math.Max(1, nouvelleQuantite)
+                    : Math.Clamp(nouvelleQuantite, 1, Math.Max(1, item.QuantiteDisponible));
                 await PersisterAsync();
                 OnCartChanged?.Invoke();
             }

@@ -607,22 +607,10 @@
 
     private List<string> GetCatTailles(CatalogueProduitDto p)
     {
-        if (p.Variantes?.Any() == true)
-        {
-            var res = p.Variantes
-                .Where(v => !string.IsNullOrWhiteSpace(v.Taille) && !string.Equals(v.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase))
-                .Select(v => v.Taille!.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            if (res.Any()) return res;
-        }
-
-        if (!string.IsNullOrWhiteSpace(p.Taille) && !string.Equals(p.Taille.Trim(), "Standard", StringComparison.OrdinalIgnoreCase))
-        {
-            return new() { p.Taille.Trim() };
-        }
-
-        return new();
+        var raw = p.Variantes?.Any() == true
+            ? p.Variantes.Where(v => !string.IsNullOrWhiteSpace(v.Taille)).Select(v => v.Taille!)
+            : (!string.IsNullOrWhiteSpace(p.Taille) ? new[] { p.Taille } : Enumerable.Empty<string>());
+        return WicStock.Web.Models.AttributsProduit.SortTailles(raw);
     }
 
     private List<(string nom, string hex)> GetCatCouleurs(CatalogueProduitDto p)
