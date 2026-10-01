@@ -234,6 +234,36 @@ namespace WicStock.Web.Services
             }
         }
 
+        public async Task SupprimerNotificationAsync(int notificationId)
+        {
+            Notifications.RemoveAll(n => n.Id == notificationId);
+            OnUnreadCountChanged?.Invoke();
+
+            try
+            {
+                var json = await _localStorage.GetItemAsync(SHARED_NOTIFS_KEY);
+                if (!string.IsNullOrEmpty(json))
+                {
+                    var parsed = System.Text.Json.JsonSerializer.Deserialize<List<NotificationDto>>(json);
+                    if (parsed != null)
+                    {
+                        parsed.RemoveAll(n => n.Id == notificationId);
+                        await _localStorage.SetItemAsync(SHARED_NOTIFS_KEY, System.Text.Json.JsonSerializer.Serialize(parsed));
+                    }
+                }
+            }
+            catch { }
+
+            try
+            {
+                await _http.DeleteAsync($"api/notification/{notificationId}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[NotificationClientService] Erreur supprimer notification : {ex.Message}");
+            }
+        }
+
         public async ValueTask DisposeAsync()
         {
             _fallbackTimer?.Dispose();
