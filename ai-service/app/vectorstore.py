@@ -53,7 +53,7 @@ def _simple_embedding(text: str, dim: int = 128) -> list:
             idx = i % dim
             vec[idx] += 1.0
 
-    h = hashlib.md5(text.encode("utf-8")).digest()
+    h = hashlib.sha256(text.encode("utf-8")).digest()
     for i, b in enumerate(h):
         vec[i % dim] += (b - 128) / 256.0
 
