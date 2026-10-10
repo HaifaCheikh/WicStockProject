@@ -122,7 +122,7 @@ class NL2SQLAgent:
                     }
 
             # Adaptation dynamique des dates relatives ("15 derniers jours", "60 jours", etc.) - PostgreSQL
-            match_jours = re.search(r"(\d+)\s*(?:dernières?|derniers?)?\s*jours?", question, re.IGNORECASE)
+            match_jours = re.search(r"\b(\d+)\s+(?:dernières?|derniers?)?\s*jours?\b", question, re.IGNORECASE)
             if match_jours:
                 nb_jours = match_jours.group(1)
                 sql_final = re.sub(
@@ -133,7 +133,7 @@ class NL2SQLAgent:
                 )
 
             # Adaptation dynamique du LIMIT N ("les 5 produits", "top 10", "3 premiers") - PostgreSQL
-            match_top = re.search(r"(?:top|les)?\s*(\d+)\s*(?:premiers?|meilleurs?)?\s*(?:produits?|articles?|commandes?|ventes?)", question, re.IGNORECASE)
+            match_top = re.search(r"\b(?:top|les)?\s*(\d+)\s*(?:premiers?|meilleurs?)?\s*(?:produits|articles|commandes|ventes)\b", question, re.IGNORECASE)
             if match_top:
                 nb_top = match_top.group(1)
                 sql_final = re.sub(r"\bLIMIT\s+\d+\b", f"LIMIT {nb_top}", sql_final, flags=re.IGNORECASE)
