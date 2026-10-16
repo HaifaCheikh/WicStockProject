@@ -4,7 +4,7 @@
 
 [![CI Pipeline](https://github.com/HaifaCheikh/WicStockProject/actions/workflows/ci.yml/badge.svg)](https://github.com/HaifaCheikh/WicStockProject/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/gh/HaifaCheikh/WicStockProject/graph/badge.svg)](https://codecov.io/gh/HaifaCheikh/WicStockProject)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=HaifaCheikh_WicStockProject&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=HaifaCheikh_WicStockProject)
+<!-- [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=HaifaCheikh_WicStockProject&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=HaifaCheikh_WicStockProject) -->
 [![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat&logo=dotnet)](https://dotnet.microsoft.com/)
 [![Blazor](https://img.shields.io/badge/Blazor-WebAssembly-512BD4?style=flat&logo=blazor)](https://dotnet.microsoft.com/apps/aspnet/web-apps/blazor)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
