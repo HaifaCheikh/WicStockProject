@@ -44,21 +44,21 @@
     {
         "id": "stock-surstock",
         "question": "Quels produits sont en surstock ?",
-        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"Categorie\", s.\"QuantiteActuelle\", s.\"SeuilSurstock\" FROM \"Produits\" p JOIN \"Stocks\" s ON s.\"ProduitId\" = p.\"Id\" WHERE s.\"QuantiteActuelle\" >= 500 AND p.\"EstArchive\" = false ORDER BY s.\"QuantiteActuelle\" DESC",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"Categorie\", s.\"QuantiteActuelle\", COALESCE(s.\"SeuilSurstock\", 100) AS \"SeuilSurstock\" FROM \"Produits\" p JOIN \"Stocks\" s ON s.\"ProduitId\" = p.\"Id\" WHERE s.\"QuantiteActuelle\" > COALESCE(NULLIF(s.\"SeuilSurstock\", 0), 100) AND p.\"EstArchive\" = false ORDER BY s.\"QuantiteActuelle\" DESC",
         "typeGraphique": null,
         "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
         "id": "stock-repartition-etats",
         "question": "Quelle est la répartition des états de stock ?",
-        "sql": "SELECT CASE WHEN s.\"QuantiteActuelle\" = 0 AND p.\"DisponibleSurCommande\" = true THEN 'Sur commande' WHEN s.\"QuantiteActuelle\" = 0 THEN 'Rupture totale' WHEN s.\"QuantiteActuelle\" < COALESCE(s.\"SeuilAlerte\", 10) THEN 'Stock faible' WHEN s.\"QuantiteActuelle\" >= 500 THEN 'Surstock' ELSE 'Stock normal' END AS \"EtatStock\", COUNT(*) AS \"NombreProduits\" FROM \"Stocks\" s JOIN \"Produits\" p ON p.\"Id\" = s.\"ProduitId\" WHERE p.\"EstArchive\" = false GROUP BY \"EtatStock\" ORDER BY \"NombreProduits\" DESC",
+        "sql": "SELECT CASE WHEN s.\"QuantiteActuelle\" = 0 AND p.\"DisponibleSurCommande\" = true THEN 'Sur commande' WHEN s.\"QuantiteActuelle\" = 0 THEN 'Rupture totale' WHEN s.\"QuantiteActuelle\" < COALESCE(s.\"SeuilAlerte\", 10) THEN 'Stock faible' WHEN s.\"QuantiteActuelle\" > COALESCE(NULLIF(s.\"SeuilSurstock\", 0), 100) THEN 'Surstock' ELSE 'Stock normal' END AS \"EtatStock\", COUNT(*) AS \"NombreProduits\" FROM \"Stocks\" s JOIN \"Produits\" p ON p.\"Id\" = s.\"ProduitId\" WHERE p.\"EstArchive\" = false GROUP BY \"EtatStock\" ORDER BY \"NombreProduits\" DESC",
         "typeGraphique": "pie",
         "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
         "id": "stock-repartition-etats-alt",
         "question": "Répartition des stocks par état",
-        "sql": "SELECT CASE WHEN s.\"QuantiteActuelle\" = 0 AND p.\"DisponibleSurCommande\" = true THEN 'Sur commande' WHEN s.\"QuantiteActuelle\" = 0 THEN 'Rupture totale' WHEN s.\"QuantiteActuelle\" < COALESCE(s.\"SeuilAlerte\", 10) THEN 'Stock faible' WHEN s.\"QuantiteActuelle\" >= 500 THEN 'Surstock' ELSE 'Stock normal' END AS \"EtatStock\", COUNT(*) AS \"NombreProduits\" FROM \"Stocks\" s JOIN \"Produits\" p ON p.\"Id\" = s.\"ProduitId\" WHERE p.\"EstArchive\" = false GROUP BY \"EtatStock\" ORDER BY \"NombreProduits\" DESC",
+        "sql": "SELECT CASE WHEN s.\"QuantiteActuelle\" = 0 AND p.\"DisponibleSurCommande\" = true THEN 'Sur commande' WHEN s.\"QuantiteActuelle\" = 0 THEN 'Rupture totale' WHEN s.\"QuantiteActuelle\" < COALESCE(s.\"SeuilAlerte\", 10) THEN 'Stock faible' WHEN s.\"QuantiteActuelle\" > COALESCE(NULLIF(s.\"SeuilSurstock\", 0), 100) THEN 'Surstock' ELSE 'Stock normal' END AS \"EtatStock\", COUNT(*) AS \"NombreProduits\" FROM \"Stocks\" s JOIN \"Produits\" p ON p.\"Id\" = s.\"ProduitId\" WHERE p.\"EstArchive\" = false GROUP BY \"EtatStock\" ORDER BY \"NombreProduits\" DESC",
         "typeGraphique": "pie",
         "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
@@ -128,14 +128,14 @@
     {
         "id": "alertes-actives",
         "question": "Quelles sont les alertes actives ?",
-        "sql": "SELECT p.\"Nom\", p.\"Reference\", a.\"TypeRisque\", a.\"Statut\", a.\"DateCreation\", a.\"Message\" FROM \"Alertes\" a JOIN \"Produits\" p ON p.\"Id\" = a.\"ProduitId\" WHERE a.\"Statut\" = 'ACTIVE' ORDER BY a.\"DateCreation\" DESC LIMIT 20",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", a.\"TypeRisque\", a.\"NiveauCriticite\", a.\"Statut\", a.\"DateDetection\" FROM \"Alertes\" a JOIN \"Produits\" p ON p.\"Id\" = a.\"ProduitId\" WHERE a.\"Statut\" = 'NON_TRAITEE' ORDER BY a.\"DateDetection\" DESC LIMIT 20",
         "typeGraphique": null,
         "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
     {
         "id": "alertes-actives-alt",
         "question": "Y a-t-il des alertes de stock ?",
-        "sql": "SELECT p.\"Nom\", p.\"Reference\", a.\"TypeRisque\", a.\"Statut\", a.\"DateCreation\", a.\"Message\" FROM \"Alertes\" a JOIN \"Produits\" p ON p.\"Id\" = a.\"ProduitId\" WHERE a.\"Statut\" = 'ACTIVE' ORDER BY a.\"DateCreation\" DESC LIMIT 20",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", a.\"TypeRisque\", a.\"NiveauCriticite\", a.\"Statut\", a.\"DateDetection\" FROM \"Alertes\" a JOIN \"Produits\" p ON p.\"Id\" = a.\"ProduitId\" WHERE a.\"Statut\" = 'NON_TRAITEE' ORDER BY a.\"DateDetection\" DESC LIMIT 20",
         "typeGraphique": null,
         "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },
@@ -205,7 +205,7 @@
     {
         "id": "stock-faible",
         "question": "Quels produits ont un stock faible ?",
-        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"Categorie\", s.\"QuantiteActuelle\", s.\"SeuilAlerte\" FROM \"Produits\" p JOIN \"Stocks\" s ON s.\"ProduitId\" = p.\"Id\" WHERE s.\"QuantiteActuelle\" > 0 AND s.\"QuantiteActuelle\" <= (s.\"SeuilAlerte\" * 2) AND p.\"EstArchive\" = false ORDER BY s.\"QuantiteActuelle\" ASC LIMIT 20",
+        "sql": "SELECT p.\"Nom\", p.\"Reference\", p.\"Categorie\", s.\"QuantiteActuelle\", s.\"SeuilAlerte\" FROM \"Produits\" p JOIN \"Stocks\" s ON s.\"ProduitId\" = p.\"Id\" WHERE s.\"QuantiteActuelle\" > 0 AND s.\"QuantiteActuelle\" < COALESCE(s.\"SeuilAlerte\", 10) AND p.\"EstArchive\" = false ORDER BY s.\"QuantiteActuelle\" ASC LIMIT 20",
         "typeGraphique": null,
         "rolesAutorises": ["RESPONSABLE_STOCK_PRODUCTION", "ADMIN"]
     },

@@ -38,10 +38,12 @@ def extraire_alias_tables(sql: str) -> dict[str, str]:
     )
     for match in pattern.finditer(sql):
         table = _strip_quotes(match.group(1))
+        if table.upper() in ("SELECT", "WHERE", "ON", "GROUP", "ORDER", "LEFT", "RIGHT", "INNER", "OUTER"):
+            continue
         alias_raw = match.group(2) or ""
         alias = _strip_quotes(alias_raw)
         alias_map[table] = table
-        if alias and alias.upper() not in ("WHERE", "ON", "GROUP", "ORDER", "LEFT", "RIGHT", "INNER", "OUTER"):
+        if alias and alias.upper() not in ("WHERE", "ON", "GROUP", "ORDER", "LEFT", "RIGHT", "INNER", "OUTER", "SELECT"):
             alias_map[alias] = table
     return alias_map
 

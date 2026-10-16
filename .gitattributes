@@ -1,0 +1,23 @@
+# ==============================================================================
+# GitHub Linguist Overrides for WicStock
+# Ensures GitHub language bar accurately reflects C# (.NET) & Python (AI)
+# ==============================================================================
+
+# Treat Blazor Razor components as C# (.NET) instead of HTML
+*.razor linguist-language=C#
+
+# Exclude HTML files and web assets from repository language statistics
+*.html linguist-generated=true
+*.htm linguist-generated=true
+wwwroot/** linguist-vendored=true
+frontend/wwwroot/** linguist-vendored=true
+**/wwwroot/** linguist-vendored=true
+
+# Exclude documentation, test coverage reports, and infrastructure manifests from language stats
+docs/** linguist-documentation=true
+coverage-results/** linguist-generated=true
+backend/WicStock.Api.Tests/TestResults/** linguist-generated=true
+gitops/** linguist-generated=true
+helm/** linguist-generated=true
+k8s/** linguist-generated=true
+monitoring/** linguist-generated=true

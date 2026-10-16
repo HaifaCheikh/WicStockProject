@@ -206,16 +206,19 @@ public static class DatabaseSchemaBootstrap
                     var seuil = prod.Stock?.SeuilAlerte ?? 10;
                     var sku = $"{prod.Reference}-STD";
 
-                    context.VariantesProduit.Add(new WicStock_.Models.VarianteProduit
+                    if (!await context.VariantesProduit.AnyAsync(v => v.Reference == sku))
                     {
-                        ProduitId = prod.Id,
-                        Reference = sku,
-                        Genre = prod.Genre,
-                        Taille = prod.Taille,
-                        Couleur = prod.Couleur,
-                        QuantiteActuelle = qty,
-                        SeuilAlerte = seuil
-                    });
+                        context.VariantesProduit.Add(new WicStock_.Models.VarianteProduit
+                        {
+                            ProduitId = prod.Id,
+                            Reference = sku,
+                            Genre = prod.Genre,
+                            Taille = prod.Taille,
+                            Couleur = prod.Couleur,
+                            QuantiteActuelle = qty,
+                            SeuilAlerte = seuil
+                        });
+                    }
                 }
                 await context.SaveChangesAsync();
                 logger.LogInformation("Migration automatique de {Count} produits existants vers 1 variante par défaut effectuée.", produitsSansVariantes.Count);
