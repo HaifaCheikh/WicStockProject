@@ -7,13 +7,13 @@ images:
   pullPolicy: "IfNotPresent"
   backend:
     repository: "wicstock-api"
-    tag: "dfc092c5f4fadf83fd1b210f73cd064673a2f96b"
+    tag: "630f2183ad4875c92c00a23f6d1a176c6b6fe6d9"
   frontend:
     repository: "wicstock-web"
-    tag: "dfc092c5f4fadf83fd1b210f73cd064673a2f96b"
+    tag: "630f2183ad4875c92c00a23f6d1a176c6b6fe6d9"
   aiService:
     repository: "wicstock-ai"
-    tag: "dfc092c5f4fadf83fd1b210f73cd064673a2f96b"
+    tag: "630f2183ad4875c92c00a23f6d1a176c6b6fe6d9"
 resources:
   profile: "dev"
 replicas:
